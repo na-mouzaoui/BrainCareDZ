@@ -6,16 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+export interface Formula {
+  id?: string;
+  numberOfSessions: number;
+  price: number;
+}
 
 export interface ServiceFormData {
   name: string;
-  description?: string;
-  category: string;
-  duration: number;
-  price: number;
+  formulas: Formula[];
   isActive?: boolean;
 }
 
@@ -30,15 +32,12 @@ export default function ServiceForm({
   initialData,
   isLoading = false,
   onSubmit,
-  submitButtonText = 'Save Service',
+  submitButtonText = 'Enregistrer le service',
 }: ServiceFormProps) {
   const [formData, setFormData] = useState<ServiceFormData>(
     initialData || {
       name: '',
-      description: '',
-      category: 'consultation',
-      duration: 60,
-      price: 0,
+      formulas: [{ numberOfSessions: 1, price: 0 }],
       isActive: true,
     }
   );
@@ -51,11 +50,39 @@ export default function ServiceForm({
     }
   }, [initialData]);
 
-  const handleInputChange = (field: keyof ServiceFormData, value: any) => {
+  const handleNameChange = (value: string) => {
     setError('');
     setFormData((prev) => ({
       ...prev,
-      [field]: value,
+      name: value,
+    }));
+  };
+
+  const handleFormulaChange = (index: number, field: 'numberOfSessions' | 'price', value: any) => {
+    setError('');
+    setFormData((prev) => ({
+      ...prev,
+      formulas: prev.formulas.map((formula, i) =>
+        i === index ? { ...formula, [field]: value } : formula
+      ),
+    }));
+  };
+
+  const addFormula = () => {
+    setFormData((prev) => ({
+      ...prev,
+      formulas: [...prev.formulas, { numberOfSessions: 1, price: 0 }],
+    }));
+  };
+
+  const removeFormula = (index: number) => {
+    if (formData.formulas.length === 1) {
+      setError('Vous devez avoir au moins une formule');
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      formulas: prev.formulas.filter((_, i) => i !== index),
     }));
   };
 
@@ -65,19 +92,19 @@ export default function ServiceForm({
 
     // Validation
     if (!formData.name.trim()) {
-      setError('Service name is required');
+      setError('Le nom du service est requis');
       return;
     }
-    if (!formData.category) {
-      setError('Category is required');
+    if (formData.formulas.length === 0) {
+      setError('Vous devez avoir au moins une formule');
       return;
     }
-    if (formData.duration < 1) {
-      setError('Duration must be at least 1 minute');
-      return;
-    }
-    if (formData.price < 0) {
-      setError('Price cannot be negative');
+
+    const invalidFormula = formData.formulas.some(
+      (f) => f.numberOfSessions < 1 || f.price < 0
+    );
+    if (invalidFormula) {
+      setError('Chaque formule doit avoir au moins 1 séance et un prix valide');
       return;
     }
 
@@ -93,8 +120,15 @@ export default function ServiceForm({
 
   const isFormLoading = isLoading || submitting;
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -102,119 +136,131 @@ export default function ServiceForm({
         </Alert>
       )}
 
-      {/* Basic Information */}
+      {/* Informations sur le service */}
       <Card>
         <CardHeader>
-          <CardTitle>Service Information</CardTitle>
+          <CardTitle>Nom du service</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Service Name *</FieldLabel>
+            <FieldLabel>Nom du service *</FieldLabel>
             <Input
               type="text"
               value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               disabled={isFormLoading}
               required
-              placeholder="e.g., Individual Neurofeedback Session"
+              placeholder="p.ex., Séance individuelle de neurofeedback, Consultation psy, etc."
             />
           </Field>
-
-          <Field>
-            <FieldLabel>Description</FieldLabel>
-            <Textarea
-              value={formData.description || ''}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              disabled={isFormLoading}
-              rows={4}
-              placeholder="Describe what this service includes..."
-            />
-          </Field>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field>
-              <FieldLabel>Category *</FieldLabel>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => handleInputChange('category', value)}
-                disabled={isFormLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="neurofeedback">Neurofeedback</SelectItem>
-                  <SelectItem value="therapy">Therapy</SelectItem>
-                  <SelectItem value="assessment">Assessment</SelectItem>
-                  <SelectItem value="consultation">Consultation</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel>Duration (minutes) *</FieldLabel>
-              <Input
-                type="number"
-                min="1"
-                step="5"
-                value={formData.duration}
-                onChange={(e) => handleInputChange('duration', parseInt(e.target.value))}
-                disabled={isFormLoading}
-                required
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Price ($) *</FieldLabel>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => handleInputChange('price', parseFloat(e.target.value))}
-                disabled={isFormLoading}
-                required
-              />
-            </Field>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Pricing Details */}
+      {/* Formules de tarification */}
       <Card>
         <CardHeader>
-          <CardTitle>Pricing Summary</CardTitle>
+          <CardTitle>Formules de tarification</CardTitle>
+          <p className="text-sm text-gray-600 mt-2">
+            Définissez les différentes formules disponibles pour ce service. Chaque formule est identifiée par le nombre de séances et le prix.
+          </p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b">
-            <span className="text-gray-600">Service Name:</span>
-            <span className="font-semibold">{formData.name || '(Not set)'}</span>
-          </div>
-          <div className="flex justify-between items-center py-2 border-b">
-            <span className="text-gray-600">Duration:</span>
-            <span className="font-semibold">{formData.duration} minutes</span>
-          </div>
-          <div className="flex justify-between items-center py-2 border-b">
-            <span className="text-gray-600">Price per Session:</span>
-            <span className="font-bold text-lg text-blue-600">${formData.price.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between items-center py-2">
-            <span className="text-gray-600">Hourly Rate (approx):</span>
-            <span className="font-semibold">
-              ${formData.duration > 0 ? ((formData.price * 60) / formData.duration).toFixed(2) : '0.00'}
-            </span>
+        <CardContent className="space-y-4">
+          {formData.formulas.map((formula, index) => (
+            <div key={index} className="flex gap-4 items-end p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <Field className="flex-1">
+                <FieldLabel>Nombre de séances *</FieldLabel>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formula.numberOfSessions}
+                  onChange={(e) =>
+                    handleFormulaChange(index, 'numberOfSessions', parseInt(e.target.value) || 1)
+                  }
+                  disabled={isFormLoading}
+                  required
+                />
+              </Field>
+
+              <Field className="flex-1">
+                <FieldLabel>Prix total (DZD) *</FieldLabel>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formula.price}
+                  onChange={(e) => handleFormulaChange(index, 'price', parseFloat(e.target.value) || 0)}
+                  disabled={isFormLoading}
+                  required
+                />
+              </Field>
+
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-700 mb-2">Prix par séance</div>
+                <div className="text-sm text-gray-500">
+                  {formula.numberOfSessions > 0 ? formatPrice(formula.price / formula.numberOfSessions) : '0'} DZD
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => removeFormula(index)}
+                disabled={isFormLoading || formData.formulas.length === 1}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addFormula}
+            disabled={isFormLoading}
+            className="w-full gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter une formule
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Résumé des formules */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Résumé des formules</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {formData.formulas.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucune formule définie</p>
+            ) : (
+              formData.formulas.map((formula, index) => (
+                <div key={index} className="flex justify-between items-center py-2 border-b last:border-0">
+                  <span className="text-gray-600">
+                    {formula.numberOfSessions} séance{formula.numberOfSessions > 1 ? 's' : ''} :
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <span className="font-semibold">{formatPrice(formula.price)} DZD</span>
+                    <span className="text-sm text-gray-500">
+                      ({formula.numberOfSessions > 0 ? formatPrice(formula.price / formula.numberOfSessions) : '0'} DZD/séance)
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Submit Button */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-end">
         <Button type="submit" disabled={isFormLoading} className="gap-2">
           {isFormLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
+              Enregistrement en cours...
             </>
           ) : (
             submitButtonText

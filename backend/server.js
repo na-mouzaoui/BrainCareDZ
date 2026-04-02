@@ -8,6 +8,9 @@ import serviceRoutes from './routes/services.js';
 import appointmentRoutes from './routes/appointments.js';
 import sessionNotesRoutes from './routes/session-notes.js';
 import invoiceRoutes from './routes/invoices.js';
+import paymentRoutes from './routes/payments.js';
+import userRoutes from './routes/users.js';
+import activityLogRoutes from './routes/activity-logs.js';
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +35,9 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/session-notes', sessionNotesRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

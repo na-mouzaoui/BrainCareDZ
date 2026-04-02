@@ -102,15 +102,15 @@ export default function RegisterPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="practitioner">Practitioner</SelectItem>
-                  <SelectItem value="receptionist">Receptionist</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="practitioner">Praticien</SelectItem>
+                  <SelectItem value="receptionist">Réceptionniste</SelectItem>
+                  <SelectItem value="admin">Administrateur</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
 
             <Field>
-              <FieldLabel>Password</FieldLabel>
+              <FieldLabel>Mot de passe</FieldLabel>
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -122,7 +122,7 @@ export default function RegisterPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Confirm Password</FieldLabel>
+              <FieldLabel>Confirmer le mot de passe</FieldLabel>
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -141,20 +141,20 @@ export default function RegisterPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  Création du compte...
                 </>
               ) : (
-                'Create Account'
+                'Créer un compte'
               )}
             </Button>
 
             <div className="text-center text-sm">
-              <span className="text-gray-600">Already have an account? </span>
+              <span className="text-gray-600">Déjà inscrit? </span>
               <Link
                 href="/auth/login"
                 className="text-blue-600 hover:underline font-medium"
               >
-                Sign in
+                Se connecter
               </Link>
             </div>
           </form>

@@ -5,11 +5,8 @@ import { auth } from './api';
 
 const IS_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 const DEMO_USERS = [
-  { id: 'demo-admin', name: 'Demo Admin', email: 'admin@demo.local', role: 'admin' as const },
-  { id: 'demo-prac', name: 'Demo Practitioner', email: 'test@demo.local', role: 'practitioner' as const },
-  { id: 'demo-rec', name: 'Demo Reception', email: 'reception@demo.local', role: 'receptionist' as const },
+  { id: 'demo-user', name: 'Demo User', email: 'test@gmail.com', role: 'admin' as const, password: 'test123' },
 ];
-const DEMO_PASSWORD = 'demo123';
 
 export interface User {
   id: string;
@@ -57,14 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (IS_DEMO_MODE) {
         const foundUser = DEMO_USERS.find((u) => u.email === email.toLowerCase());
-        if (!foundUser || password !== DEMO_PASSWORD) {
+        if (!foundUser || password !== foundUser.password) {
           return false;
         }
 
+        const { password: _password, ...safeUser } = foundUser;
+
         localStorage.setItem('token', 'demo-token');
-        localStorage.setItem('demo_user', JSON.stringify(foundUser));
+        localStorage.setItem('demo_user', JSON.stringify(safeUser));
         setToken('demo-token');
-        setUser(foundUser);
+        setUser(safeUser);
         return true;
       }
 
@@ -85,18 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (name: string, email: string, password: string, role?: string): Promise<boolean> => {
     try {
       if (IS_DEMO_MODE) {
-        const demoUser: User = {
-          id: `demo-${Date.now()}`,
-          name,
-          email: email.toLowerCase(),
-          role: (role as User['role']) || 'practitioner',
-        };
-
-        localStorage.setItem('token', 'demo-token');
-        localStorage.setItem('demo_user', JSON.stringify(demoUser));
-        setToken('demo-token');
-        setUser(demoUser);
-        return true;
+        return false;
       }
 
       const response = await auth.register(name, email, password, role);

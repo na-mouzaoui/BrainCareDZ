@@ -48,7 +48,7 @@ export default function InvoiceForm({
   initialData,
   isLoading = false,
   onSubmit,
-  submitButtonText = 'Create Invoice',
+  submitButtonText = 'Créer une facture',
 }: InvoiceFormProps) {
   const [formData, setFormData] = useState<InvoiceFormData>(
     initialData || {
@@ -99,7 +99,7 @@ export default function InvoiceForm({
         setClientsList(response.data.clients || []);
       }
     } catch (err) {
-      setError('Failed to load clients');
+      setError('Échec du chargement des clients');
     } finally {
       setLoadingData(false);
     }
@@ -138,15 +138,15 @@ export default function InvoiceForm({
 
     // Validation
     if (!formData.clientId) {
-      setError('Please select a client');
+      setError('Veuillez sélectionner un client');
       return;
     }
     if (!formData.appointmentIds || formData.appointmentIds.length === 0) {
-      setError('Please select at least one appointment');
+      setError('Veuillez sélectionner au moins un rendez-vous');
       return;
     }
     if (!formData.dueDate) {
-      setError('Please set a due date');
+      setError('Veuillez définir une date d\'\u00e9chéance');
       return;
     }
 
@@ -180,10 +180,10 @@ export default function InvoiceForm({
         </Alert>
       )}
 
-      {/* Client Selection */}
+      {/* Détails de la facture */}
       <Card>
         <CardHeader>
-          <CardTitle>Invoice Details</CardTitle>
+          <CardTitle>Détails de la facture</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
@@ -194,7 +194,7 @@ export default function InvoiceForm({
               disabled={isFormLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a client" />
+                <SelectValue placeholder="Sélectionner un client" />
               </SelectTrigger>
               <SelectContent>
                 {clientsList.map((client) => (
@@ -207,7 +207,7 @@ export default function InvoiceForm({
           </Field>
 
           <Field>
-            <FieldLabel>Due Date *</FieldLabel>
+            <FieldLabel>Date d'échéance *</FieldLabel>
             <input
               type="date"
               value={formData.dueDate}
@@ -225,7 +225,7 @@ export default function InvoiceForm({
               onChange={(e) => handleInputChange('notes', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Any additional notes for the invoice..."
+              placeholder="Toute note supplémentaire pour la facture..."
             />
           </Field>
         </CardContent>
@@ -235,7 +235,7 @@ export default function InvoiceForm({
       {formData.clientId && filteredAppointments.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Select Appointments to Invoice</CardTitle>
+            <CardTitle>Sélectionner les rendez-vous à facturer</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {filteredAppointments.map((apt) => (
@@ -278,7 +278,7 @@ export default function InvoiceForm({
       {selectedAppointments.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Invoice Summary</CardTitle>
+            <CardTitle>Résumé de la facture</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2 text-sm">
@@ -291,11 +291,11 @@ export default function InvoiceForm({
             </div>
             <div className="border-t pt-2 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Sous-total</span>
                 <span>${total.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Tax (10%)</span>
+                <span>Taxe (10%)</span>
                 <span>${tax.toFixed(2)}</span>
               </div>
             </div>
@@ -308,7 +308,7 @@ export default function InvoiceForm({
       )}
 
       {/* Submit Button */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-end">
         <Button
           type="submit"
           disabled={isFormLoading}
@@ -317,7 +317,7 @@ export default function InvoiceForm({
           {isFormLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Creating...
+              Création en cours...
             </>
           ) : (
             submitButtonText

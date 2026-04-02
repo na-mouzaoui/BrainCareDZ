@@ -119,19 +119,19 @@ export default function AppointmentForm({
 
     // Validation
     if (!formData.clientId) {
-      setError('Please select a client');
+      setError('Veuillez sélectionner un client');
       return;
     }
     if (!formData.serviceId) {
-      setError('Please select a service');
+      setError('Veuillez sélectionner un service');
       return;
     }
     if (!formData.startTime) {
-      setError('Please select a start time');
+      setError('Veuillez sélectionner une heure de début');
       return;
     }
     if (!formData.endTime) {
-      setError('Please select an end time');
+      setError('Veuillez sélectionner une heure de fin');
       return;
     }
 
@@ -139,7 +139,7 @@ export default function AppointmentForm({
     const endTime = new Date(formData.endTime);
 
     if (endTime <= startTime) {
-      setError('End time must be after start time');
+      setError('L\'heure de fin doit être après l\'heure de début');
       return;
     }
 
@@ -172,7 +172,7 @@ export default function AppointmentForm({
       {/* Appointment Details */}
       <Card>
         <CardHeader>
-          <CardTitle>Appointment Details</CardTitle>
+          <CardTitle>Détails du rendez-vous</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
@@ -183,7 +183,7 @@ export default function AppointmentForm({
               disabled={isFormLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a client" />
+                <SelectValue placeholder="Sélectionner un client" />
               </SelectTrigger>
               <SelectContent>
                 {clientsList.map((client) => (
@@ -203,7 +203,7 @@ export default function AppointmentForm({
               disabled={isFormLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a service" />
+                <SelectValue placeholder="Sélectionner un service" />
               </SelectTrigger>
               <SelectContent>
                 {servicesList.map((service) => (
@@ -217,7 +217,7 @@ export default function AppointmentForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field>
-              <FieldLabel>Start Date & Time *</FieldLabel>
+              <FieldLabel>Date et heure de début *</FieldLabel>
               <Input
                 type="datetime-local"
                 value={formData.startTime}
@@ -228,7 +228,7 @@ export default function AppointmentForm({
             </Field>
 
             <Field>
-              <FieldLabel>End Date & Time *</FieldLabel>
+              <FieldLabel>Date et heure de fin *</FieldLabel>
               <Input
                 type="datetime-local"
                 value={formData.endTime}
@@ -246,35 +246,35 @@ export default function AppointmentForm({
               onChange={(e) => handleInputChange('notes', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Any special instructions or notes for this appointment..."
+              placeholder="Toute instruction spéciale ou note pour ce rendez-vous..."
             />
           </Field>
         </CardContent>
       </Card>
 
-      {/* Appointment Summary */}
+      {/* Résumé du rendez-vous */}
       {selectedService && formData.startTime && (
         <Card>
           <CardHeader>
-            <CardTitle>Appointment Summary</CardTitle>
+            <CardTitle>Résumé du rendez-vous</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Service:</span>
+              <span className="text-gray-600">Service :</span>
               <span className="font-semibold">{selectedService.name}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Duration:</span>
+              <span className="text-gray-600">Durée :</span>
               <span className="font-semibold">{selectedService.duration} minutes</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Price:</span>
+              <span className="text-gray-600">Tarif :</span>
               <span className="font-bold text-lg text-blue-600">
                 ${selectedService.price.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Date & Time:</span>
+              <span className="text-gray-600">Date et heure :</span>
               <span className="font-semibold">
                 {new Date(formData.startTime).toLocaleString('fr-FR', {
                   month: 'short',
@@ -291,7 +291,7 @@ export default function AppointmentForm({
       )}
 
       {/* Submit Button */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-end">
         <Button
           type="submit"
           disabled={isFormLoading}

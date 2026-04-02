@@ -133,8 +133,17 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     const onFocus = () => loadSettings();
+    const onStorageChange = (e: StorageEvent) => {
+      if (e.key === 'practice-settings') {
+        loadSettings();
+      }
+    };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    window.addEventListener('storage', onStorageChange);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onStorageChange);
+    };
   }, []);
 
   async function loadAppointments() {
@@ -317,15 +326,13 @@ export default function AppointmentsPage() {
         </CardHeader>
         <CardContent>
           <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
-            <Button variant="outline" onClick={goToPreviousWeek}>
+            <Button variant="outline" onClick={goToPreviousWeek} size="icon">
               <ChevronLeft className="h-4 w-4" />
-              Semaine prec.
             </Button>
             <Badge variant="outline" className="px-3 py-1 text-sm">
               {weekRangeLabel}
             </Badge>
-            <Button variant="outline" onClick={goToNextWeek}>
-              Semaine suiv.
+            <Button variant="outline" onClick={goToNextWeek} size="icon">
               <ChevronRight className="h-4 w-4" />
             </Button>
 
@@ -348,11 +355,11 @@ export default function AppointmentsPage() {
 
           <div className="overflow-x-auto">
             <div className="min-w-[980px] border border-gray-300 rounded-md overflow-hidden">
-              <div className="grid grid-cols-8 border-b pb-2">
-                <div className="text-sm font-semibold text-gray-600 px-2">Heure</div>
+              <div className="grid grid-cols-8 border-b">
+                <div className="text-sm font-semibold text-gray-600 px-2 py-3 flex items-center justify-center">Heure</div>
                 {weekDays.map((day, index) => {
                   return (
-                    <div key={dateKey(day)} className="px-2">
+                    <div key={dateKey(day)} className="px-2 py-3 flex flex-col items-center justify-center text-center">
                       <p className="text-sm font-semibold text-gray-800">
                         {DAY_LABELS[index]} {day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                       </p>
@@ -367,7 +374,7 @@ export default function AppointmentsPage() {
 
                 return (
                   <div key={slotStartMinutes} className="grid grid-cols-8 border-b">
-                    <div className="px-2 py-3 text-xs font-medium text-gray-600 border-r">
+                    <div className="px-2 py-2 text-xs font-medium text-gray-600 border-r flex items-center justify-center">
                       {formatHour(slotStartMinutes)}
                     </div>
 
@@ -383,10 +390,8 @@ export default function AppointmentsPage() {
                         return (
                           <div
                             key={`${dateKey(day)}-${slotStartMinutes}`}
-                            className="h-16 border-r bg-gray-50 px-2 py-2 text-xs text-gray-400"
-                          >
-                            Ferme
-                          </div>
+                            className="h-10 border border-white bg-gray-200"
+                          />
                         );
                       }
 
@@ -394,10 +399,8 @@ export default function AppointmentsPage() {
                         return (
                           <div
                             key={`${dateKey(day)}-${slotStartMinutes}`}
-                            className="h-16 border-r bg-amber-50 px-2 py-2 text-xs text-amber-700"
-                          >
-                            Pause
-                          </div>
+                            className="h-10 border border-white bg-amber-100"
+                          />
                         );
                       }
 
@@ -405,7 +408,7 @@ export default function AppointmentsPage() {
                         return (
                           <div
                             key={`${dateKey(day)}-${slotStartMinutes}`}
-                            className="h-16 border-r bg-emerald-50 px-1 py-1 space-y-1 overflow-hidden"
+                            className="h-10 border-r bg-emerald-50 px-1 py-1 space-y-1 overflow-hidden"
                           >
                             {cellAppointments.slice(0, 2).map((apt) => (
                               <button
@@ -432,7 +435,7 @@ export default function AppointmentsPage() {
                           key={`${dateKey(day)}-${slotStartMinutes}`}
                           type="button"
                           onClick={() => createFromSlot(day, slotStartMinutes)}
-                          className="h-16 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-emerald-50 transition-colors"
+                          className="h-10 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-emerald-50 transition-colors"
                           aria-label="Créer un rendez-vous"
                         />
                       );

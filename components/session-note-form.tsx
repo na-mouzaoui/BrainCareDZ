@@ -39,7 +39,7 @@ export default function SessionNoteForm({
   initialData,
   isLoading = false,
   onSubmit,
-  submitButtonText = 'Save Session Note',
+  submitButtonText = 'Enregistrer la note de séance',
 }: SessionNoteFormProps) {
   const [formData, setFormData] = useState<SessionNoteFormData>(
     initialData || {
@@ -113,31 +113,31 @@ export default function SessionNoteForm({
         </Alert>
       )}
 
-      {/* Session Content */}
+      {/* Contenu de la séance */}
       <Card>
         <CardHeader>
-          <CardTitle>Session Content</CardTitle>
+          <CardTitle>Contenu de la séance</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Presenting Concerns</FieldLabel>
+            <FieldLabel>Préoccupations présentées</FieldLabel>
             <Textarea
               value={formData.presentingConcerns || ''}
               onChange={(e) => handleInputChange('presentingConcerns', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="What concerns did the client present with during this session?"
+              placeholder="Quelles préoccupations le client a-t-il présentées au cours de cette séance ?"
             />
           </Field>
 
           <Field>
-            <FieldLabel>Session Goals</FieldLabel>
+            <FieldLabel>Objectifs de la séance</FieldLabel>
             <Textarea
               value={formData.sessionGoals || ''}
               onChange={(e) => handleInputChange('sessionGoals', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="What were the goals for this session?"
+              placeholder="Quels étaient les objectifs de cette séance ?"
             />
           </Field>
 
@@ -148,127 +148,127 @@ export default function SessionNoteForm({
               onChange={(e) => handleInputChange('observations', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Document your observations during the session..."
+              placeholder="Documentez vos observations au cours de la séance..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Interventions Used</FieldLabel>
+            <FieldLabel>Interventions utilisées</FieldLabel>
             <Textarea
               value={formData.interventions || ''}
               onChange={(e) => handleInputChange('interventions', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="What interventions or techniques were used?"
+              placeholder="Quelles interventions ou techniques ont été utilisées ?"
             />
           </Field>
 
           <Field>
-            <FieldLabel>Client Response</FieldLabel>
+            <FieldLabel>Réponse du client</FieldLabel>
             <Textarea
               value={formData.clientResponse || ''}
               onChange={(e) => handleInputChange('clientResponse', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="How did the client respond to the interventions?"
+              placeholder="Comment le client a-t-il réagi aux interventions ?"
             />
           </Field>
         </CardContent>
       </Card>
 
-      {/* Neurofeedback Metrics */}
+      {/* Métriques de neurofeedback */}
       <Card>
         <CardHeader>
-          <CardTitle>Neurofeedback Metrics</CardTitle>
+          <CardTitle>Métriques de neurofeedback</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Baseline</FieldLabel>
+            <FieldLabel>Ligne de base</FieldLabel>
             <Textarea
               value={formData.neuroFeedbackMetrics?.baseline || ''}
               onChange={(e) => handleInputChange('baseline', e.target.value, 'neuroFeedbackMetrics')}
               disabled={isFormLoading}
               rows={2}
-              placeholder="Initial metrics or measurements..."
+              placeholder="Mesures ou métriques initiales..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Results</FieldLabel>
+            <FieldLabel>Résultats</FieldLabel>
             <Textarea
               value={formData.neuroFeedbackMetrics?.results || ''}
               onChange={(e) => handleInputChange('results', e.target.value, 'neuroFeedbackMetrics')}
               disabled={isFormLoading}
               rows={2}
-              placeholder="Session results or measurements..."
+              placeholder="Résultats de séance ou mesures..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Improvements</FieldLabel>
+            <FieldLabel>Améliorations</FieldLabel>
             <Textarea
               value={formData.neuroFeedbackMetrics?.improvements || ''}
               onChange={(e) => handleInputChange('improvements', e.target.value, 'neuroFeedbackMetrics')}
               disabled={isFormLoading}
               rows={2}
-              placeholder="Notable improvements or changes..."
+              placeholder="Améliorations ou changements notables..."
             />
           </Field>
         </CardContent>
       </Card>
 
-      {/* Treatment & Follow-up */}
+      {/* Plan de traitement et suivi */}
       <Card>
         <CardHeader>
-          <CardTitle>Treatment Plan & Follow-up</CardTitle>
+          <CardTitle>Plan de traitement et suivi</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Treatment Plan</FieldLabel>
+            <FieldLabel>Plan de traitement</FieldLabel>
             <Textarea
               value={formData.treatmentPlan || ''}
               onChange={(e) => handleInputChange('treatmentPlan', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Current treatment plan or recommendations..."
+              placeholder="Plan de traitement actuel ou recommandations..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Homework / Assignments</FieldLabel>
+            <FieldLabel>Devoirs / Assignments</FieldLabel>
             <Textarea
               value={formData.homework || ''}
               onChange={(e) => handleInputChange('homework', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Any homework or assignments for the client..."
+              placeholder="Tout devoir ou assignment pour le client..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Progress Notes</FieldLabel>
+            <FieldLabel>Notes de progrès</FieldLabel>
             <Textarea
               value={formData.progressNotes || ''}
               onChange={(e) => handleInputChange('progressNotes', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Overall progress and updates..."
+              placeholder="Progrès général et mises à jour..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Follow-up Notes</FieldLabel>
+            <FieldLabel>Notes de suivi</FieldLabel>
             <Textarea
               value={formData.followUpNotes || ''}
               onChange={(e) => handleInputChange('followUpNotes', e.target.value)}
               disabled={isFormLoading}
               rows={2}
-              placeholder="Any follow-up needed..."
+              placeholder="Tout suivi nécessaire..."
             />
           </Field>
 
           <Field>
-            <FieldLabel>Next Session Date</FieldLabel>
+            <FieldLabel>Date de la prochaine séance</FieldLabel>
             <input
               type="date"
               value={formData.nextSessionDate || ''}
@@ -280,10 +280,10 @@ export default function SessionNoteForm({
         </CardContent>
       </Card>
 
-      {/* Billing */}
+      {/* Facturation */}
       <Card>
         <CardHeader>
-          <CardTitle>Billing</CardTitle>
+          <CardTitle>Facturation</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">
@@ -294,14 +294,14 @@ export default function SessionNoteForm({
               disabled={isFormLoading}
             />
             <label htmlFor="billable" className="text-sm font-medium cursor-pointer">
-              Mark this session as billable
+              Marquer cette séance comme facturable
             </label>
           </div>
         </CardContent>
       </Card>
 
       {/* Submit Button */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-end">
         <Button
           type="submit"
           disabled={isFormLoading}
@@ -310,7 +310,7 @@ export default function SessionNoteForm({
           {isFormLoading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
+              Enregistrement en cours...
             </>
           ) : (
             submitButtonText

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,14 +94,8 @@ export default function LoginPage() {
               )}
             </Button>
 
-            <div className="text-center text-sm">
-              <span className="text-gray-600">Pas de compte ? </span>
-              <Link
-                href="/auth/register"
-                className="text-blue-600 hover:underline font-medium"
-              >
-                S&apos;inscrire
-              </Link>
+            <div className="text-center text-sm text-gray-600">
+              Compte demo: test@gmail.com / test123
             </div>
           </form>
         </CardContent>
