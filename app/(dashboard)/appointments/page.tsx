@@ -48,6 +48,22 @@ const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const DAY_START_MINUTES = 8 * 60;
 const DAY_END_MINUTES = 18 * 60;
 
+const HOLIDAY_NAMES_BY_MMDD: Record<string, string> = {
+  '01-01': 'Jour de l\'An',
+  '01-12': 'Yennayer (Nouvel an amazigh)',
+  '03-08': 'Journee internationale des femmes',
+  '04-07': 'Journee mondiale de la sante',
+  '05-01': 'Fete du Travail',
+  '05-15': 'Journee internationale des familles',
+  '06-01': 'Journee internationale de l\'enfance',
+  '07-05': 'Fete de l\'Independance',
+  '10-01': 'Journee internationale des personnes agees',
+  '10-05': 'Journee mondiale des enseignants',
+  '11-01': 'Fete de la Revolution',
+  '12-03': 'Journee internationale des personnes handicapees',
+  '12-10': 'Journee des droits de l\'homme',
+};
+
 const DEFAULT_SETTINGS: PracticeSettings = {
   weekendDays: [5, 6],
   consultationDuration: 60,
@@ -76,6 +92,12 @@ function dateKey(date: Date) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function dateMonthDay(date: Date) {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${m}-${d}`;
 }
 
 function parseTimeToMinutes(value?: string) {
@@ -207,6 +229,10 @@ export default function AppointmentsPage() {
 
   function isHoliday(day: Date) {
     return settings.holidays.includes(dateKey(day));
+  }
+
+  function getHolidayLabel(day: Date) {
+    return HOLIDAY_NAMES_BY_MMDD[dateMonthDay(day)] || 'Jour ferie';
   }
 
   function isWeekend(day: Date) {
@@ -358,12 +384,23 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-8 border-b">
                 <div className="text-sm font-semibold text-gray-600 px-2 py-3 flex items-center justify-center">Heure</div>
                 {weekDays.map((day, index) => {
+                  const weekendDay = isWeekend(day);
+                  const holidayDay = isHoliday(day);
+                  const showHolidayTooltip = holidayDay && !weekendDay;
+                  const holidayLabel = getHolidayLabel(day);
+
                   return (
                     <div key={dateKey(day)} className="px-2 py-3 flex flex-col items-center justify-center text-center">
                       <p className="text-sm font-semibold text-gray-800">
                         {DAY_LABELS[index]} {day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                       </p>
-                      {isHoliday(day) && <p className="text-xs text-red-600">Ferie</p>}
+                      {holidayDay && (
+                        showHolidayTooltip ? (
+                          <p className="text-xs text-red-600 cursor-help" title={holidayLabel}>Ferie</p>
+                        ) : (
+                          <p className="text-xs text-red-600">Ferie</p>
+                        )
+                      )}
                     </div>
                   );
                 })}
@@ -379,7 +416,10 @@ export default function AppointmentsPage() {
                     </div>
 
                     {weekDays.map((day) => {
-                      const unavailableDay = isWeekend(day) || isHoliday(day);
+                      const dayIsWeekend = isWeekend(day);
+                      const dayIsHoliday = isHoliday(day);
+                      const unavailableDay = dayIsWeekend || dayIsHoliday;
+                      const showHolidayTooltip = dayIsHoliday && !dayIsWeekend;
                       const breakCell = !unavailableDay && isBreakSlot(slotStartMinutes, slotEndMinutes);
                       const cellAppointments =
                         unavailableDay || breakCell
@@ -387,6 +427,16 @@ export default function AppointmentsPage() {
                           : findAppointmentsForSlot(day, slotStartMinutes, slotEndMinutes);
 
                       if (unavailableDay) {
+                        if (showHolidayTooltip) {
+                          return (
+                            <div
+                              key={`${dateKey(day)}-${slotStartMinutes}`}
+                              className="h-10 border border-white bg-gray-200 cursor-help"
+                              title={getHolidayLabel(day)}
+                            />
+                          );
+                        }
+
                         return (
                           <div
                             key={`${dateKey(day)}-${slotStartMinutes}`}
