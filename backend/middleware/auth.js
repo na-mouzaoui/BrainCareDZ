@@ -28,3 +28,8 @@ export const authorize = (...roles) => {
     next();
   };
 };
+
+export const authenticateToken = protect;
+export const authorizeRole = (...roles) => authorize(...roles);
+
+export default protect;

@@ -1,175 +1,139 @@
 import express from 'express';
-import Payment from '../models/Payment.js';
-import Client from '../models/Client.js';
-import auth from '../middleware/auth.js';
+import { query } from '../config/db.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get all payments
-router.get('/', auth, async (req, res) => {
-  try {
-    const payments = await Payment.find()
-      .populate('client', 'firstName lastName')
-      .populate('invoice', 'invoiceNumber totalAmount')
-      .sort({ createdAt: -1 })
-      .limit(100);
+const paymentSelect = `
+  SELECT p.id, p.invoice_id AS "invoiceId", p.client_id AS "clientId", p.amount,
+         p.payment_method AS "paymentMethod", p.status,
+         p.stripe_payment_intent_id AS "stripePaymentIntentId", p.transaction_id AS "transactionId",
+         p.receipt_url AS "receiptUrl", p.notes,
+         p.processed_date AS "processedDate", p.created_at AS "createdAt", p.updated_at AS "updatedAt",
+         c.first_name AS "clientFirstName", c.last_name AS "clientLastName",
+         i.invoice_number AS "invoiceNumber", i.total AS "invoiceTotal"
+  FROM payments p
+  JOIN clients c ON c.id = p.client_id
+  LEFT JOIN invoices i ON i.id = p.invoice_id
+`;
 
-    res.json({
+router.get('/', protect, async (req, res) => {
+  try {
+    const params = [];
+    let where = '';
+
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      where = `WHERE c.practitioner_id = $${params.length}`;
+    }
+
+    const payments = await query(`${paymentSelect} ${where} ORDER BY p.created_at DESC LIMIT 100`, params);
+    const total = await query(`SELECT COUNT(*)::int AS count FROM payments p JOIN clients c ON c.id = p.client_id ${where}`, params);
+
+    return res.json({
       success: true,
       data: {
-        payments,
-        total: await Payment.countDocuments(),
+        payments: payments.rows,
+        total: total.rows[0].count,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Get payment by ID
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', protect, async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id)
-      .populate('client')
-      .populate('invoice');
+    const result = await query(`${paymentSelect} WHERE p.id = $1`, [req.params.id]);
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        error: 'Payment not found',
-      });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Payment not found' });
     }
 
-    res.json({
-      success: true,
-      data: payment,
-    });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Create payment
-router.post('/', auth, async (req, res) => {
+router.post('/', protect, async (req, res) => {
   try {
     const { clientId, invoiceId, amount, paymentMethod, notes } = req.body;
 
-    // Validate required fields
     if (!clientId || !amount) {
-      return res.status(400).json({
-        success: false,
-        error: 'Client ID and amount are required',
-      });
+      return res.status(400).json({ success: false, error: 'Client ID and amount are required' });
     }
 
-    // Verify client exists
-    const client = await Client.findById(clientId);
-    if (!client) {
-      return res.status(404).json({
-        success: false,
-        error: 'Client not found',
-      });
+    const client = await query('SELECT id, practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
+    if (client.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
     }
 
-    // Verify invoice exists if provided
+    if (req.user.role !== 'admin' && client.rows[0].practitionerId !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
     if (invoiceId) {
-      const Invoice = await import('../models/Invoice.js');
-      const invoice = await Invoice.default.findById(invoiceId);
-      if (!invoice) {
-        return res.status(404).json({
-          success: false,
-          error: 'Invoice not found',
-        });
+      const invoice = await query('SELECT id FROM invoices WHERE id = $1', [invoiceId]);
+      if (invoice.rowCount === 0) {
+        return res.status(404).json({ success: false, error: 'Invoice not found' });
       }
     }
 
-    const payment = new Payment({
-      client: clientId,
-      invoice: invoiceId || null,
-      amount,
-      paymentMethod: paymentMethod || 'cash',
-      status: 'completed',
-      notes,
-      processedDate: new Date(),
-    });
+    const inserted = await query(
+      `INSERT INTO payments (client_id, invoice_id, amount, payment_method, status, notes, processed_date)
+       VALUES ($1, $2, $3, $4, 'completed', $5, NOW())
+       RETURNING id`,
+      [clientId, invoiceId || null, amount, paymentMethod || 'cash', notes || null]
+    );
 
-    await payment.save();
-    await payment.populate('client', 'firstName lastName');
-    await payment.populate('invoice', 'invoiceNumber totalAmount');
+    const created = await query(`${paymentSelect} WHERE p.id = $1`, [inserted.rows[0].id]);
 
-    res.status(201).json({
-      success: true,
-      data: payment,
-    });
+    return res.status(201).json({ success: true, data: created.rows[0] });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Update payment
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
   try {
     const { amount, paymentMethod, status, notes } = req.body;
 
-    const payment = await Payment.findById(req.params.id);
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        error: 'Payment not found',
-      });
+    const existing = await query('SELECT id FROM payments WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Payment not found' });
     }
 
-    if (amount !== undefined) payment.amount = amount;
-    if (paymentMethod !== undefined) payment.paymentMethod = paymentMethod;
-    if (status !== undefined) payment.status = status;
-    if (notes !== undefined) payment.notes = notes;
+    await query(
+      `UPDATE payments
+       SET amount = COALESCE($2, amount),
+           payment_method = COALESCE($3, payment_method),
+           status = COALESCE($4, status),
+           notes = COALESCE($5, notes),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id, amount, paymentMethod, status, notes]
+    );
 
-    await payment.save();
-    await payment.populate('client', 'firstName lastName');
-    await payment.populate('invoice', 'invoiceNumber totalAmount');
+    const updated = await query(`${paymentSelect} WHERE p.id = $1`, [req.params.id]);
 
-    res.json({
-      success: true,
-      data: payment,
-    });
+    return res.json({ success: true, data: updated.rows[0] });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Delete payment
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndDelete(req.params.id);
+    const result = await query('DELETE FROM payments WHERE id = $1 RETURNING id', [req.params.id]);
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        error: 'Payment not found',
-      });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Payment not found' });
     }
 
-    res.json({
-      success: true,
-      message: 'Payment deleted successfully',
-    });
+    return res.json({ success: true, message: 'Payment deleted successfully' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

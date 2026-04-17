@@ -1,64 +1,89 @@
 import express from 'express';
-import { body, validationResult, param } from 'express-validator';
-import Client from '../models/Client.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { body, validationResult } from 'express-validator';
+import { query } from '../config/db.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// @route   GET /api/clients
-// @desc    Get all clients for the logged-in user
-// @access  Private
+const baseSelect = `
+  SELECT c.id, c.first_name AS "firstName", c.last_name AS "lastName", c.email, c.phone,
+         c.date_of_birth AS "dateOfBirth", c.gender,
+         c.address_street AS "addressStreet", c.address_city AS "addressCity", c.address_state AS "addressState",
+         c.address_zip_code AS "addressZipCode", c.address_country AS "addressCountry",
+         c.emergency_contact_name AS "emergencyContactName", c.emergency_contact_relationship AS "emergencyContactRelationship",
+         c.emergency_contact_phone AS "emergencyContactPhone",
+         c.insurance_provider AS "insuranceProvider", c.insurance_policy_number AS "insurancePolicyNumber",
+         c.medical_history AS "medicalHistory", c.allergies, c.current_medications AS "currentMedications",
+         c.referral_source AS "referralSource", c.status, c.notes, c.session_count AS "sessionCount",
+         c.last_session_date AS "lastSessionDate", c.created_at AS "createdAt", c.updated_at AS "updatedAt",
+         c.practitioner_id AS "practitionerId", u.name AS "practitionerName", u.email AS "practitionerEmail"
+  FROM clients c
+  JOIN users u ON c.practitioner_id = u.id
+`;
+
 router.get('/', protect, async (req, res) => {
   try {
-    const query = req.user.role === 'admin' 
-      ? {}
-      : { practitioner: req.user.id };
+    const params = [];
+    let where = '';
 
-    const clients = await Client.find(query)
-      .populate('practitioner', 'name email')
-      .sort({ createdAt: -1 });
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      where = `WHERE c.practitioner_id = $${params.length}`;
+    }
 
-    res.status(200).json({
+    const result = await query(`${baseSelect} ${where} ORDER BY c.created_at DESC`, params);
+
+    return res.status(200).json({
       success: true,
-      count: clients.length,
-      clients,
+      count: result.rowCount,
+      clients: result.rows,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/clients/:id
-// @desc    Get a specific client
-// @access  Private
-router.get('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.get('/search/:query', protect, async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id)
-      .populate('practitioner', 'name email phone specializations');
+    const params = [`%${req.params.query}%`];
+    let where = `(c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR COALESCE(c.email, '') ILIKE $1)`;
 
-    if (!client) {
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      where = `${where} AND c.practitioner_id = $2`;
+    }
+
+    const result = await query(`${baseSelect} WHERE ${where} ORDER BY c.created_at DESC LIMIT 10`, params);
+
+    return res.status(200).json({
+      success: true,
+      count: result.rowCount,
+      clients: result.rows,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const result = await query(`${baseSelect} WHERE c.id = $1`, [req.params.id]);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
-    // Check authorization
-    if (client.practitioner._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    const client = result.rows[0];
+    if (req.user.role !== 'admin' && client.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this client' });
     }
 
-    res.status(200).json({ success: true, client });
+    return res.status(200).json({ success: true, client });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/clients
-// @desc    Create a new client
-// @access  Private
 router.post(
   '/',
   protect,
@@ -66,8 +91,7 @@ router.post(
     body('firstName', 'First name is required').notEmpty().trim(),
     body('lastName', 'Last name is required').notEmpty().trim(),
     body('phone', 'Valid phone number is required').notEmpty().trim(),
-    body('email', 'Valid email is required').isEmail().optional({ checkFalsy: true }),
-    body('dateOfBirth', 'Valid date is required').isISO8601().optional({ checkFalsy: true }),
+    body('email', 'Valid email is required').optional({ checkFalsy: true }).isEmail(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -76,138 +100,205 @@ router.post(
     }
 
     try {
-      const clientData = {
-        ...req.body,
-        practitioner: req.user.id,
-      };
+      const {
+        firstName,
+        lastName,
+        email,
+        phone,
+        dateOfBirth,
+        gender,
+        addressStreet,
+        addressCity,
+        addressState,
+        addressZipCode,
+        addressCountry,
+        emergencyContactName,
+        emergencyContactRelationship,
+        emergencyContactPhone,
+        insuranceProvider,
+        insurancePolicyNumber,
+        medicalHistory,
+        allergies,
+        currentMedications,
+        referralSource,
+        status,
+        notes,
+      } = req.body;
 
-      const client = new Client(clientData);
-      await client.save();
+      const inserted = await query(
+        `INSERT INTO clients (
+          practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
+          address_street, address_city, address_state, address_zip_code, address_country,
+          emergency_contact_name, emergency_contact_relationship, emergency_contact_phone,
+          insurance_provider, insurance_policy_number, medical_history, allergies,
+          current_medications, referral_source, status, notes
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12,
+          $13, $14, $15,
+          $16, $17, $18, $19,
+          $20, $21, COALESCE($22, 'active'), $23
+        ) RETURNING id`,
+        [
+          req.user.id,
+          firstName,
+          lastName,
+          email || null,
+          phone,
+          dateOfBirth || null,
+          gender || null,
+          addressStreet || null,
+          addressCity || null,
+          addressState || null,
+          addressZipCode || null,
+          addressCountry || null,
+          emergencyContactName || null,
+          emergencyContactRelationship || null,
+          emergencyContactPhone || null,
+          insuranceProvider || null,
+          insurancePolicyNumber || null,
+          medicalHistory || null,
+          allergies || null,
+          currentMedications || null,
+          referralSource || null,
+          status || null,
+          notes || null,
+        ]
+      );
 
-      await client.populate('practitioner', 'name email');
+      const created = await query(`${baseSelect} WHERE c.id = $1`, [inserted.rows[0].id]);
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Client created successfully',
-        client,
+        client: created.rows[0],
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   PUT /api/clients/:id
-// @desc    Update a client
-// @access  Private
-router.put(
-  '/:id',
-  protect,
-  param('id').isMongoId(),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    try {
-      let client = await Client.findById(req.params.id);
-
-      if (!client) {
-        return res.status(404).json({ success: false, message: 'Client not found' });
-      }
-
-      // Check authorization
-      if (client.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Not authorized to update this client' });
-      }
-
-      // Update client
-      client = await Client.findByIdAndUpdate(
-        req.params.id,
-        { ...req.body, updatedAt: new Date() },
-        { new: true, runValidators: true }
-      ).populate('practitioner', 'name email');
-
-      res.status(200).json({
-        success: true,
-        message: 'Client updated successfully',
-        client,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-);
-
-// @route   DELETE /api/clients/:id
-// @desc    Delete a client (soft delete by archiving)
-// @access  Private
-router.delete('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id', protect, async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
-
-    if (!client) {
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
-    // Check authorization
-    if (client.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this client' });
+    }
+
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      gender,
+      addressStreet,
+      addressCity,
+      addressState,
+      addressZipCode,
+      addressCountry,
+      emergencyContactName,
+      emergencyContactRelationship,
+      emergencyContactPhone,
+      insuranceProvider,
+      insurancePolicyNumber,
+      medicalHistory,
+      allergies,
+      currentMedications,
+      referralSource,
+      status,
+      notes,
+    } = req.body;
+
+    await query(
+      `UPDATE clients SET
+        first_name = COALESCE($2, first_name),
+        last_name = COALESCE($3, last_name),
+        email = COALESCE($4, email),
+        phone = COALESCE($5, phone),
+        date_of_birth = COALESCE($6, date_of_birth),
+        gender = COALESCE($7, gender),
+        address_street = COALESCE($8, address_street),
+        address_city = COALESCE($9, address_city),
+        address_state = COALESCE($10, address_state),
+        address_zip_code = COALESCE($11, address_zip_code),
+        address_country = COALESCE($12, address_country),
+        emergency_contact_name = COALESCE($13, emergency_contact_name),
+        emergency_contact_relationship = COALESCE($14, emergency_contact_relationship),
+        emergency_contact_phone = COALESCE($15, emergency_contact_phone),
+        insurance_provider = COALESCE($16, insurance_provider),
+        insurance_policy_number = COALESCE($17, insurance_policy_number),
+        medical_history = COALESCE($18, medical_history),
+        allergies = COALESCE($19, allergies),
+        current_medications = COALESCE($20, current_medications),
+        referral_source = COALESCE($21, referral_source),
+        status = COALESCE($22, status),
+        notes = COALESCE($23, notes),
+        updated_at = NOW()
+      WHERE id = $1`,
+      [
+        req.params.id,
+        firstName,
+        lastName,
+        email,
+        phone,
+        dateOfBirth,
+        gender,
+        addressStreet,
+        addressCity,
+        addressState,
+        addressZipCode,
+        addressCountry,
+        emergencyContactName,
+        emergencyContactRelationship,
+        emergencyContactPhone,
+        insuranceProvider,
+        insurancePolicyNumber,
+        medicalHistory,
+        allergies,
+        currentMedications,
+        referralSource,
+        status,
+        notes,
+      ]
+    );
+
+    const updated = await query(`${baseSelect} WHERE c.id = $1`, [req.params.id]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Client updated successfully',
+      client: updated.rows[0],
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id', protect, async (req, res) => {
+  try {
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Client not found' });
+    }
+
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this client' });
     }
 
-    // Soft delete by archiving
-    client.status = 'archived';
-    await client.save();
+    await query('UPDATE clients SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'archived']);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Client archived successfully',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// @route   GET /api/clients/search/:query
-// @desc    Search clients by name or email
-// @access  Private
-router.get('/search/:query', protect, async (req, res) => {
-  try {
-    const searchQuery = req.params.query;
-    const query = req.user.role === 'admin'
-      ? {
-          $or: [
-            { firstName: { $regex: searchQuery, $options: 'i' } },
-            { lastName: { $regex: searchQuery, $options: 'i' } },
-            { email: { $regex: searchQuery, $options: 'i' } },
-          ],
-        }
-      : {
-          practitioner: req.user.id,
-          $or: [
-            { firstName: { $regex: searchQuery, $options: 'i' } },
-            { lastName: { $regex: searchQuery, $options: 'i' } },
-            { email: { $regex: searchQuery, $options: 'i' } },
-          ],
-        };
-
-    const clients = await Client.find(query)
-      .populate('practitioner', 'name')
-      .limit(10);
-
-    res.status(200).json({
-      success: true,
-      count: clients.length,
-      clients,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

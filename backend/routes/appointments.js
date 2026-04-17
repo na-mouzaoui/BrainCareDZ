@@ -1,91 +1,129 @@
 import express from 'express';
-import { body, validationResult, param, query } from 'express-validator';
-import Appointment from '../models/Appointment.js';
-import Client from '../models/Client.js';
-import Service from '../models/Service.js';
+import { body, validationResult } from 'express-validator';
+import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// @route   GET /api/appointments
-// @desc    Get appointments (with filtering)
-// @access  Private
-router.get('/', protect, query('startDate').optional().isISO8601(), query('endDate').optional().isISO8601(), async (req, res) => {
+const appointmentSelect = `
+  SELECT a.id, a.client_id AS "clientId", a.practitioner_id AS "practitionerId", a.service_id AS "serviceId",
+         a.start_time AS "startTime", a.end_time AS "endTime", a.status, a.notes,
+         a.reminder_sent AS "reminderSent", a.session_note_id AS "sessionNoteId",
+         c.first_name AS "clientFirstName", c.last_name AS "clientLastName", c.email AS "clientEmail", c.phone AS "clientPhone",
+         u.name AS "practitionerName", u.email AS "practitionerEmail",
+         s.name AS "serviceName", s.price AS "servicePrice", s.duration AS "serviceDuration"
+  FROM appointments a
+  JOIN clients c ON c.id = a.client_id
+  JOIN users u ON u.id = a.practitioner_id
+  JOIN services s ON s.id = a.service_id
+`;
+
+router.get('/', protect, async (req, res) => {
   try {
-    let query = {};
+    const params = [];
+    const where = [];
 
-    // Filter by practitioner if not admin
     if (req.user.role !== 'admin') {
-      query.practitioner = req.user.id;
+      params.push(req.user.id);
+      where.push(`a.practitioner_id = $${params.length}`);
     }
 
-    // Filter by date range if provided
-    if (req.query.startDate || req.query.endDate) {
-      query.startTime = {};
-      if (req.query.startDate) {
-        query.startTime.$gte = new Date(req.query.startDate);
-      }
-      if (req.query.endDate) {
-        query.startTime.$lte = new Date(req.query.endDate);
-      }
+    if (req.query.startDate) {
+      params.push(req.query.startDate);
+      where.push(`a.start_time >= $${params.length}`);
     }
 
-    const appointments = await Appointment.find(query)
-      .populate('client', 'firstName lastName email phone')
-      .populate('practitioner', 'name email')
-      .populate('service', 'name price duration')
-      .sort({ startTime: 1 });
+    if (req.query.endDate) {
+      params.push(req.query.endDate);
+      where.push(`a.start_time <= $${params.length}`);
+    }
 
-    res.status(200).json({
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await query(`${appointmentSelect} ${clause} ORDER BY a.start_time ASC`, params);
+
+    return res.status(200).json({
       success: true,
-      count: appointments.length,
-      appointments,
+      count: result.rowCount,
+      appointments: result.rows,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/appointments/:id
-// @desc    Get a specific appointment
-// @access  Private
-router.get('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.get('/availability/:date', protect, async (req, res) => {
   try {
-    const appointment = await Appointment.findById(req.params.id)
-      .populate('client', 'firstName lastName email phone')
-      .populate('practitioner', 'name email')
-      .populate('service', 'name price duration')
-      .populate('sessionNote');
+    const date = new Date(req.params.date);
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
 
-    if (!appointment) {
+    const appointments = await query(
+      `SELECT start_time AS "startTime", end_time AS "endTime"
+       FROM appointments
+       WHERE practitioner_id = $1
+       AND status IN ('scheduled', 'completed')
+       AND start_time >= $2
+       AND start_time <= $3
+       ORDER BY start_time ASC`,
+      [req.user.id, dayStart.toISOString(), dayEnd.toISOString()]
+    );
+
+    const slots = [];
+    const dayStartTime = new Date(date);
+    dayStartTime.setHours(9, 0, 0, 0);
+    const dayEndTime = new Date(date);
+    dayEndTime.setHours(17, 0, 0, 0);
+
+    for (let time = new Date(dayStartTime); time < dayEndTime; time.setMinutes(time.getMinutes() + 30)) {
+      const slotEnd = new Date(time);
+      slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+
+      const isBooked = appointments.rows.some((apt) => {
+        const start = new Date(apt.startTime);
+        const end = new Date(apt.endTime);
+        return start < slotEnd && end > time;
+      });
+
+      slots.push({
+        startTime: new Date(time),
+        endTime: slotEnd,
+        available: !isBooked,
+      });
+    }
+
+    return res.status(200).json({ success: true, date, slots });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const result = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
 
-    // Check authorization
-    if (appointment.practitioner._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    const appointment = result.rows[0];
+    if (req.user.role !== 'admin' && appointment.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this appointment' });
     }
 
-    res.status(200).json({ success: true, appointment });
+    return res.status(200).json({ success: true, appointment });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/appointments
-// @desc    Create a new appointment
-// @access  Private
 router.post(
   '/',
   protect,
   [
-    body('clientId', 'Valid client ID is required').notEmpty().isMongoId(),
-    body('serviceId', 'Valid service ID is required').notEmpty().isMongoId(),
+    body('clientId', 'Valid client ID is required').notEmpty(),
+    body('serviceId', 'Valid service ID is required').notEmpty(),
     body('startTime', 'Valid start time is required').isISO8601(),
     body('endTime', 'Valid end time is required').isISO8601(),
   ],
@@ -98,255 +136,163 @@ router.post(
     try {
       const { clientId, serviceId, startTime, endTime, notes } = req.body;
 
-      // Verify client exists and belongs to practitioner
-      const client = await Client.findById(clientId);
-      if (!client) {
+      const client = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
+      if (client.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'Client not found' });
       }
 
-      if (client.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+      if (req.user.role !== 'admin' && client.rows[0].practitionerId !== req.user.id) {
         return res.status(403).json({ success: false, message: 'Not authorized to book for this client' });
       }
 
-      // Verify service exists
-      const service = await Service.findById(serviceId);
-      if (!service) {
+      const service = await query('SELECT id FROM services WHERE id = $1 AND is_active = TRUE', [serviceId]);
+      if (service.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'Service not found' });
       }
 
-      // Check for conflicts
-      const conflict = await Appointment.findOne({
-        practitioner: req.user.id,
-        status: { $in: ['scheduled', 'completed'] },
-        $or: [
-          {
-            startTime: { $lt: new Date(endTime) },
-            endTime: { $gt: new Date(startTime) },
-          },
-        ],
-      });
+      const practitionerId = req.user.role === 'admin' ? client.rows[0].practitionerId : req.user.id;
 
-      if (conflict) {
+      const conflict = await query(
+        `SELECT id FROM appointments
+         WHERE practitioner_id = $1
+         AND status IN ('scheduled', 'completed')
+         AND start_time < $3
+         AND end_time > $2
+         LIMIT 1`,
+        [practitionerId, startTime, endTime]
+      );
+
+      if (conflict.rowCount > 0) {
         return res.status(400).json({ success: false, message: 'Time slot conflict with existing appointment' });
       }
 
-      const appointment = new Appointment({
-        client: clientId,
-        practitioner: req.user.id,
-        service: serviceId,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        notes,
-      });
+      const inserted = await query(
+        `INSERT INTO appointments (client_id, practitioner_id, service_id, start_time, end_time, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [clientId, practitionerId, serviceId, startTime, endTime, notes || null]
+      );
 
-      await appointment.save();
-      await appointment.populate('client', 'firstName lastName email phone');
-      await appointment.populate('practitioner', 'name email');
-      await appointment.populate('service', 'name price duration');
+      const created = await query(`${appointmentSelect} WHERE a.id = $1`, [inserted.rows[0].id]);
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Appointment created successfully',
-        appointment,
+        appointment: created.rows[0],
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   PUT /api/appointments/:id
-// @desc    Update an appointment
-// @access  Private
-router.put(
-  '/:id',
-  protect,
-  param('id').isMongoId(),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    try {
-      let appointment = await Appointment.findById(req.params.id);
-
-      if (!appointment) {
-        return res.status(404).json({ success: false, message: 'Appointment not found' });
-      }
-
-      // Check authorization
-      if (appointment.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Not authorized to update this appointment' });
-      }
-
-      // Check for conflicts if time is being changed
-      if (req.body.startTime || req.body.endTime) {
-        const newStart = req.body.startTime ? new Date(req.body.startTime) : appointment.startTime;
-        const newEnd = req.body.endTime ? new Date(req.body.endTime) : appointment.endTime;
-
-        const conflict = await Appointment.findOne({
-          _id: { $ne: req.params.id },
-          practitioner: req.user.id,
-          status: { $in: ['scheduled', 'completed'] },
-          $or: [
-            {
-              startTime: { $lt: newEnd },
-              endTime: { $gt: newStart },
-            },
-          ],
-        });
-
-        if (conflict) {
-          return res.status(400).json({ success: false, message: 'Time slot conflict with existing appointment' });
-        }
-      }
-
-      appointment = await Appointment.findByIdAndUpdate(
-        req.params.id,
-        { ...req.body, updatedAt: new Date() },
-        { new: true, runValidators: true }
-      )
-        .populate('client', 'firstName lastName email phone')
-        .populate('practitioner', 'name email')
-        .populate('service', 'name price duration');
-
-      res.status(200).json({
-        success: true,
-        message: 'Appointment updated successfully',
-        appointment,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-);
-
-// @route   DELETE /api/appointments/:id
-// @desc    Cancel an appointment
-// @access  Private
-router.delete('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id', protect, async (req, res) => {
   try {
-    const appointment = await Appointment.findById(req.params.id);
-
-    if (!appointment) {
+    const existing = await query('SELECT practitioner_id AS "practitionerId", start_time AS "startTime", end_time AS "endTime" FROM appointments WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
 
-    // Check authorization
-    if (appointment.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
+    const current = existing.rows[0];
+    if (req.user.role !== 'admin' && current.practitionerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this appointment' });
     }
 
-    appointment.status = 'cancelled';
-    await appointment.save();
+    const nextStart = req.body.startTime || current.startTime;
+    const nextEnd = req.body.endTime || current.endTime;
+    const practitionerId = current.practitionerId;
 
-    res.status(200).json({
+    const conflict = await query(
+      `SELECT id FROM appointments
+       WHERE id <> $1
+       AND practitioner_id = $2
+       AND status IN ('scheduled', 'completed')
+       AND start_time < $4
+       AND end_time > $3
+       LIMIT 1`,
+      [req.params.id, practitionerId, nextStart, nextEnd]
+    );
+
+    if (conflict.rowCount > 0) {
+      return res.status(400).json({ success: false, message: 'Time slot conflict with existing appointment' });
+    }
+
+    const { startTime, endTime, status, notes, serviceId } = req.body;
+
+    await query(
+      `UPDATE appointments
+       SET start_time = COALESCE($2, start_time),
+           end_time = COALESCE($3, end_time),
+           status = COALESCE($4, status),
+           notes = COALESCE($5, notes),
+           service_id = COALESCE($6, service_id),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id, startTime, endTime, status, notes, serviceId]
+    );
+
+    const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
+
+    return res.status(200).json({
       success: true,
-      message: 'Appointment cancelled successfully',
+      message: 'Appointment updated successfully',
+      appointment: updated.rows[0],
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/appointments/:id/complete
-// @desc    Mark appointment as completed
-// @access  Private
-router.put('/:id/complete', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.delete('/:id', protect, async (req, res) => {
   try {
-    const appointment = await Appointment.findById(req.params.id);
-
-    if (!appointment) {
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM appointments WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
 
-    // Check authorization
-    if (appointment.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
+    }
+
+    await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'cancelled']);
+
+    return res.status(200).json({ success: true, message: 'Appointment cancelled successfully' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/:id/complete', protect, async (req, res) => {
+  try {
+    const existing = await query('SELECT practitioner_id AS "practitionerId", client_id AS "clientId" FROM appointments WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    const current = existing.rows[0];
+    if (req.user.role !== 'admin' && current.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to complete this appointment' });
     }
 
-    appointment.status = 'completed';
-    await appointment.save();
-
-    // Update client session count
-    await Client.findByIdAndUpdate(
-      appointment.client,
-      {
-        $inc: { sessionCount: 1 },
-        lastSessionDate: new Date(),
-      }
+    await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'completed']);
+    await query(
+      `UPDATE clients
+       SET session_count = session_count + 1,
+           last_session_date = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [current.clientId]
     );
 
-    await appointment.populate('client', 'firstName lastName email phone');
-    await appointment.populate('practitioner', 'name email');
-    await appointment.populate('service', 'name price duration');
+    const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Appointment marked as completed',
-      appointment,
+      appointment: updated.rows[0],
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-    }
-  }
-);
-
-// @route   GET /api/appointments/availability/:date
-// @desc    Get available time slots for a date
-// @access  Private
-router.get('/availability/:date', protect, async (req, res) => {
-  try {
-    const date = new Date(req.params.date);
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const appointments = await Appointment.find({
-      practitioner: req.user.id,
-      status: { $in: ['scheduled', 'completed'] },
-      startTime: { $gte: dayStart, $lte: dayEnd },
-    }).sort({ startTime: 1 });
-
-    // Generate available slots (9 AM to 5 PM, 30-minute intervals)
-    const slots = [];
-    const dayStartTime = new Date(date);
-    dayStartTime.setHours(9, 0, 0, 0);
-    const dayEndTime = new Date(date);
-    dayEndTime.setHours(17, 0, 0, 0);
-
-    for (let time = new Date(dayStartTime); time < dayEndTime; time.setMinutes(time.getMinutes() + 30)) {
-      const slotEnd = new Date(time);
-      slotEnd.setMinutes(slotEnd.getMinutes() + 30);
-
-      const isBooked = appointments.some((apt) => apt.startTime < slotEnd && apt.endTime > time);
-
-      slots.push({
-        startTime: new Date(time),
-        endTime: slotEnd,
-        available: !isBooked,
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      date,
-      slots,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

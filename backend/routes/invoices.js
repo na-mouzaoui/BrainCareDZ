@@ -1,93 +1,101 @@
 import express from 'express';
-import { body, validationResult, param, query } from 'express-validator';
-import Invoice from '../models/Invoice.js';
-import Appointment from '../models/Appointment.js';
-import Client from '../models/Client.js';
+import { body, validationResult } from 'express-validator';
+import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Generate invoice number
 function generateInvoiceNumber() {
   const date = new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, '0');
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   return `INV-${year}${month}-${random}`;
 }
 
-// @route   GET /api/invoices
-// @desc    Get invoices with filtering
-// @access  Private
-router.get('/', protect, query('status').optional(), async (req, res) => {
+const invoiceSelect = `
+  SELECT i.id, i.invoice_number AS "invoiceNumber", i.client_id AS "clientId", i.practitioner_id AS "practitionerId",
+         i.line_items AS "lineItems", i.subtotal, i.tax, i.total, i.status,
+         i.invoice_date AS "invoiceDate", i.due_date AS "dueDate", i.paid_date AS "paidDate",
+         i.payment_method AS "paymentMethod", i.notes,
+         i.created_at AS "createdAt", i.updated_at AS "updatedAt",
+         c.first_name AS "clientFirstName", c.last_name AS "clientLastName", c.email AS "clientEmail",
+         u.name AS "practitionerName", u.email AS "practitionerEmail"
+  FROM invoices i
+  JOIN clients c ON c.id = i.client_id
+  JOIN users u ON u.id = i.practitioner_id
+`;
+
+router.get('/', protect, async (req, res) => {
   try {
-    let query = {};
+    const params = [];
+    const where = [];
 
     if (req.user.role !== 'admin') {
-      query.practitioner = req.user.id;
+      params.push(req.user.id);
+      where.push(`i.practitioner_id = $${params.length}`);
     }
 
     if (req.query.status) {
-      query.status = req.query.status;
+      params.push(req.query.status);
+      where.push(`i.status = $${params.length}`);
     }
 
-    const invoices = await Invoice.find(query)
-      .populate('client', 'firstName lastName email')
-      .populate('practitioner', 'name email')
-      .populate('appointments')
-      .sort({ createdAt: -1 });
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await query(`${invoiceSelect} ${clause} ORDER BY i.created_at DESC`, params);
 
-    res.status(200).json({
-      success: true,
-      count: invoices.length,
-      invoices,
-    });
+    return res.status(200).json({ success: true, count: result.rowCount, invoices: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/invoices/:id
-// @desc    Get a specific invoice
-// @access  Private
-router.get('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.get('/client/:clientId', protect, async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id)
-      .populate('client', 'firstName lastName email phone')
-      .populate('practitioner', 'name email')
-      .populate('appointments');
+    const params = [req.params.clientId];
+    let where = 'WHERE i.client_id = $1';
 
-    if (!invoice) {
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      where += ` AND i.practitioner_id = $${params.length}`;
+    }
+
+    const result = await query(`${invoiceSelect} ${where} ORDER BY i.created_at DESC`, params);
+
+    return res.status(200).json({ success: true, count: result.rowCount, invoices: result.rows });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const result = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    if (invoice.practitioner._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    const invoice = result.rows[0];
+    if (req.user.role !== 'admin' && invoice.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this invoice' });
     }
 
-    res.status(200).json({ success: true, invoice });
+    const links = await query('SELECT appointment_id AS "appointmentId" FROM invoice_appointments WHERE invoice_id = $1', [req.params.id]);
+    invoice.appointments = links.rows.map((row) => row.appointmentId);
+
+    return res.status(200).json({ success: true, invoice });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/invoices
-// @desc    Create a new invoice
-// @access  Private
 router.post(
   '/',
   protect,
   [
-    body('clientId', 'Valid client ID is required').notEmpty().isMongoId(),
-    body('appointmentIds', 'At least one appointment is required')
-      .isArray({ min: 1 }),
+    body('clientId', 'Valid client ID is required').notEmpty(),
+    body('appointmentIds', 'At least one appointment is required').isArray({ min: 1 }),
     body('dueDate', 'Due date is required').isISO8601(),
   ],
   async (req, res) => {
@@ -99,238 +107,204 @@ router.post(
     try {
       const { clientId, appointmentIds, dueDate, notes } = req.body;
 
-      // Verify client exists
-      const client = await Client.findById(clientId);
-      if (!client) {
+      const client = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
+      if (client.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'Client not found' });
       }
 
-      // Verify all appointments exist and calculate total
-      const appointments = await Appointment.find({ _id: { $in: appointmentIds } })
-        .populate('service');
+      const practitionerId = req.user.role === 'admin' ? client.rows[0].practitionerId : req.user.id;
 
-      if (appointments.length === 0) {
+      const appointments = await query(
+        `SELECT a.id, s.name, s.price
+         FROM appointments a
+         JOIN services s ON s.id = a.service_id
+         WHERE a.id = ANY($1::uuid[])`,
+        [appointmentIds]
+      );
+
+      if (appointments.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'No appointments found' });
       }
 
-      // Calculate total amount
-      const items = appointments.map((apt) => ({
-        description: apt.service.name,
-        amount: apt.service.price,
+      const lineItems = appointments.rows.map((apt) => ({
+        description: apt.name,
         quantity: 1,
-        appointmentId: apt._id,
+        unitPrice: Number(apt.price),
+        totalPrice: Number(apt.price),
+        appointmentId: apt.id,
       }));
 
-      const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-      const tax = Math.round(subtotal * 0.1 * 100) / 100; // 10% tax
+      const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0);
+      const tax = Math.round(subtotal * 0.1 * 100) / 100;
       const total = subtotal + tax;
 
-      const invoice = new Invoice({
-        invoiceNumber: generateInvoiceNumber(),
-        client: clientId,
-        practitioner: req.user.id,
-        appointments: appointmentIds,
-        items,
-        subtotal,
-        tax,
-        total,
-        dueDate: new Date(dueDate),
-        notes,
-        status: 'draft',
-      });
+      const inserted = await query(
+        `INSERT INTO invoices (
+          invoice_number, client_id, practitioner_id, line_items, subtotal, tax, total, due_date, notes, status
+        ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, 'draft')
+        RETURNING id`,
+        [
+          generateInvoiceNumber(),
+          clientId,
+          practitionerId,
+          JSON.stringify(lineItems),
+          subtotal,
+          tax,
+          total,
+          dueDate,
+          notes || null,
+        ]
+      );
 
-      await invoice.save();
-      await invoice.populate('client', 'firstName lastName email');
-      await invoice.populate('practitioner', 'name email');
+      for (const appointmentId of appointmentIds) {
+        await query(
+          'INSERT INTO invoice_appointments (invoice_id, appointment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [inserted.rows[0].id, appointmentId]
+        );
+      }
 
-      res.status(201).json({
+      const created = await query(`${invoiceSelect} WHERE i.id = $1`, [inserted.rows[0].id]);
+
+      return res.status(201).json({
         success: true,
         message: 'Invoice created successfully',
-        invoice,
+        invoice: created.rows[0],
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   PUT /api/invoices/:id
-// @desc    Update an invoice
-// @access  Private
-router.put('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id', protect, async (req, res) => {
   try {
-    let invoice = await Invoice.findById(req.params.id);
-
-    if (!invoice) {
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM invoices WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    if (invoice.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this invoice' });
     }
 
-    invoice = await Invoice.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    )
-      .populate('client', 'firstName lastName email')
-      .populate('practitioner', 'name email');
+    const { status, dueDate, paidDate, paymentMethod, notes } = req.body;
+    await query(
+      `UPDATE invoices
+       SET status = COALESCE($2, status),
+           due_date = COALESCE($3, due_date),
+           paid_date = COALESCE($4, paid_date),
+           payment_method = COALESCE($5, payment_method),
+           notes = COALESCE($6, notes),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id, status, dueDate, paidDate, paymentMethod, notes]
+    );
 
-    res.status(200).json({
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
+
+    return res.status(200).json({
       success: true,
       message: 'Invoice updated successfully',
-      invoice,
+      invoice: updated.rows[0],
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/invoices/:id/send
-// @desc    Send invoice to client
-// @access  Private
-router.put('/:id/send', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id/send', protect, async (req, res) => {
   try {
-    let invoice = await Invoice.findById(req.params.id);
+    const existing = await query(
+      `SELECT id, practitioner_id AS "practitionerId"
+       FROM invoices
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-    if (!invoice) {
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    if (invoice.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to send this invoice' });
     }
 
-    // TODO: Implement email sending here
-    // For now, just update the status
-    invoice.status = 'sent';
-    invoice.sentDate = new Date();
-    await invoice.save();
+    await query(
+      `UPDATE invoices
+       SET status = 'sent', updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-    await invoice.populate('client', 'firstName lastName email');
-    await invoice.populate('practitioner', 'name email');
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Invoice sent successfully',
-      invoice,
+      invoice: updated.rows[0],
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   PUT /api/invoices/:id/mark-paid
-// @desc    Mark invoice as paid
-// @access  Private
-router.put('/:id/mark-paid', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id/mark-paid', protect, async (req, res) => {
   try {
-    let invoice = await Invoice.findById(req.params.id);
+    const existing = await query(
+      `SELECT id, practitioner_id AS "practitionerId"
+       FROM invoices
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-    if (!invoice) {
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    if (invoice.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this invoice' });
     }
 
-    invoice.status = 'paid';
-    invoice.paidDate = new Date();
-    await invoice.save();
+    await query(
+      `UPDATE invoices
+       SET status = 'paid', paid_date = NOW(), updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-    await invoice.populate('client', 'firstName lastName email');
-    await invoice.populate('practitioner', 'name email');
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Invoice marked as paid',
-      invoice,
+      invoice: updated.rows[0],
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   DELETE /api/invoices/:id
-// @desc    Delete an invoice
-// @access  Private
-router.delete('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.delete('/:id', protect, async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
-
-    if (!invoice) {
+    const existing = await query('SELECT practitioner_id AS "practitionerId", status FROM invoices WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    if (invoice.practitioner.toString() !== req.user.id && req.user.role !== 'admin') {
+    const current = existing.rows[0];
+    if (req.user.role !== 'admin' && current.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this invoice' });
     }
 
-    // Only allow deletion of draft invoices
-    if (invoice.status !== 'draft') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only draft invoices can be deleted',
-      });
+    if (current.status !== 'draft') {
+      return res.status(400).json({ success: false, message: 'Only draft invoices can be deleted' });
     }
 
-    await Invoice.findByIdAndDelete(req.params.id);
+    await query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
 
-    res.status(200).json({
-      success: true,
-      message: 'Invoice deleted successfully',
-    });
+    return res.status(200).json({ success: true, message: 'Invoice deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// @route   GET /api/invoices/client/:clientId
-// @desc    Get invoices for a specific client
-// @access  Private
-router.get('/client/:clientId', protect, param('clientId').isMongoId(), async (req, res) => {
-  try {
-    const query = {
-      client: req.params.clientId,
-    };
-
-    if (req.user.role !== 'admin') {
-      query.practitioner = req.user.id;
-    }
-
-    const invoices = await Invoice.find(query)
-      .populate('practitioner', 'name')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: invoices.length,
-      invoices,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

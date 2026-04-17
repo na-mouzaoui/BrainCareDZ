@@ -1,52 +1,67 @@
 import express from 'express';
-import { body, validationResult, param } from 'express-validator';
-import Service from '../models/Service.js';
+import { body, validationResult } from 'express-validator';
+import { query } from '../config/db.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// @route   GET /api/services
-// @desc    Get all services
-// @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const services = await Service.find({ isActive: true }).sort({ createdAt: -1 });
+    const result = await query(
+      `SELECT id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM services
+       WHERE is_active = TRUE
+       ORDER BY created_at DESC`
+    );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: services.length,
-      services,
+      count: result.rowCount,
+      services: result.rows,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   GET /api/services/:id
-// @desc    Get a specific service
-// @access  Private
-router.get('/:id', protect, param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.get('/category/:category', protect, async (req, res) => {
   try {
-    const service = await Service.findById(req.params.id);
+    const result = await query(
+      `SELECT id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM services
+       WHERE category = $1 AND is_active = TRUE
+       ORDER BY created_at DESC`,
+      [req.params.category]
+    );
 
-    if (!service) {
+    return res.status(200).json({
+      success: true,
+      count: result.rowCount,
+      services: result.rows,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM services WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
-    res.status(200).json({ success: true, service });
+    return res.status(200).json({ success: true, service: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// @route   POST /api/services
-// @desc    Create a new service
-// @access  Private/Admin
 router.post(
   '/',
   protect,
@@ -64,104 +79,73 @@ router.post(
     }
 
     try {
-      const service = new Service(req.body);
-      await service.save();
-
-      res.status(201).json({
-        success: true,
-        message: 'Service created successfully',
-        service,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-);
-
-// @route   PUT /api/services/:id
-// @desc    Update a service
-// @access  Private/Admin
-router.put(
-  '/:id',
-  protect,
-  authorize('admin', 'practitioner'),
-  param('id').isMongoId(),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    try {
-      let service = await Service.findById(req.params.id);
-
-      if (!service) {
-        return res.status(404).json({ success: false, message: 'Service not found' });
-      }
-
-      service = await Service.findByIdAndUpdate(
-        req.params.id,
-        { ...req.body, updatedAt: new Date() },
-        { new: true, runValidators: true }
+      const { name, description, category, duration, price } = req.body;
+      const result = await query(
+        `INSERT INTO services (name, description, category, duration, price)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [name, description || null, category, duration, price]
       );
 
-      res.status(200).json({
+      return res.status(201).json({
         success: true,
-        message: 'Service updated successfully',
-        service,
+        message: 'Service created successfully',
+        service: result.rows[0],
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   DELETE /api/services/:id
-// @desc    Delete a service (soft delete)
-// @access  Private/Admin
-router.delete('/:id', protect, authorize('admin', 'practitioner'), param('id').isMongoId(), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
+router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
   try {
-    const service = await Service.findById(req.params.id);
+    const { name, description, category, duration, price, isActive } = req.body;
+    const result = await query(
+      `UPDATE services
+       SET name = COALESCE($2, name),
+           description = COALESCE($3, description),
+           category = COALESCE($4, category),
+           duration = COALESCE($5, duration),
+           price = COALESCE($6, price),
+           is_active = COALESCE($7, is_active),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [req.params.id, name, description, category, duration, price, isActive]
+    );
 
-    if (!service) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
-    // Soft delete by marking as inactive
-    service.isActive = false;
-    await service.save();
+    return res.status(200).json({
+      success: true,
+      message: 'Service updated successfully',
+      service: result.rows[0],
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
 
-    res.status(200).json({
+router.delete('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
+  try {
+    const result = await query(
+      `UPDATE services SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Service not found' });
+    }
+
+    return res.status(200).json({
       success: true,
       message: 'Service deleted successfully',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// @route   GET /api/services/category/:category
-// @desc    Get services by category
-// @access  Private
-router.get('/category/:category', protect, async (req, res) => {
-  try {
-    const services = await Service.find({
-      category: req.params.category,
-      isActive: true,
-    }).sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: services.length,
-      services,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

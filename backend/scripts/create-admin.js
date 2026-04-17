@@ -1,56 +1,43 @@
-import mongoose from 'mongoose';
-import bcryptjs from 'bcryptjs';
 import dotenv from 'dotenv';
+import bcryptjs from 'bcryptjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { connectDB, query, closePool } from '../config/db.js';
 
-dotenv.config();
-
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  password: String,
-  role: String,
-  createdAt: { type: Date, default: Date.now }
-});
-
-const User = mongoose.model('User', userSchema);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 async function createAdmin() {
   try {
-    console.log('[Admin Setup] Connecting to MongoDB...');
-    
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/psychology-practice');
-    
-    console.log('[Admin Setup] Connected to MongoDB');
-    
-    // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: 'admin@gmail.com' });
-    if (existingAdmin) {
+    console.log('[Admin Setup] Connecting to PostgreSQL...');
+    await connectDB();
+
+    const email = 'admin@gmail.com';
+    const password = 'Admin@123';
+
+    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rowCount > 0) {
       console.log('[Admin Setup] Admin account already exists');
       console.log('Email: admin@gmail.com');
       console.log('Password: Admin@123');
-      await mongoose.connection.close();
+      await closePool();
       return;
     }
-    
-    // Hash the password
-    const hashedPassword = await bcryptjs.hash('Admin@123', 10);
-    
-    // Create admin user
-    const admin = new User({
-      name: 'Admin User',
-      email: 'admin@gmail.com',
-      password: hashedPassword,
-      role: 'Admin'
-    });
-    
-    await admin.save();
-    
-    console.log('\n✅ Admin account created successfully!\n');
-    console.log('📧 Email: admin@gmail.com');
-    console.log('🔐 Password: Admin@123');
-    console.log('👤 Role: Admin\n');
-    
-    await mongoose.connection.close();
+
+    const passwordHash = await bcryptjs.hash(password, 10);
+    await query(
+      `INSERT INTO users (name, email, password_hash, role, is_active)
+       VALUES ($1, $2, $3, $4, TRUE)`,
+      ['Admin User', email, passwordHash, 'admin']
+    );
+
+    console.log('\nAdmin account created successfully!\n');
+    console.log('Email: admin@gmail.com');
+    console.log('Password: Admin@123');
+    console.log('Role: admin\n');
+
+    await closePool();
   } catch (error) {
     console.error('Error creating admin:', error.message);
     process.exit(1);

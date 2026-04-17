@@ -1,23 +1,20 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import bcryptjs from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
-import User from '../models/User.js';
+import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Generate JWT Token
 const generateToken = (user) => {
   return jwt.sign(
-    { id: user._id, role: user.role, email: user.email },
+    { id: user.id, role: user.role, email: user.email, name: user.name },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 };
 
-// @route   POST /api/auth/register
-// @desc    Register a user
-// @access  Public
 router.post(
   '/register',
   [
@@ -34,41 +31,33 @@ router.post(
     const { name, email, password, role } = req.body;
 
     try {
-      let user = await User.findOne({ email });
-      if (user) {
+      const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+      if (existing.rowCount > 0) {
         return res.status(400).json({ success: false, message: 'User already exists' });
       }
 
-      user = new User({
-        name,
-        email,
-        password,
-        role: role || 'practitioner',
-      });
+      const passwordHash = await bcryptjs.hash(password, 10);
+      const inserted = await query(
+        `INSERT INTO users (name, email, password_hash, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, email, role`,
+        [name, email.toLowerCase(), passwordHash, role || 'practitioner']
+      );
 
-      await user.save();
-
+      const user = inserted.rows[0];
       const token = generateToken(user);
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user,
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
 router.post(
   '/login',
   [
@@ -84,43 +73,57 @@ router.post(
     const { email, password } = req.body;
 
     try {
-      const user = await User.findOne({ email }).select('+password');
-      if (!user) {
+      const result = await query(
+        `SELECT id, name, email, role, password_hash
+         FROM users
+         WHERE email = $1 AND is_active = TRUE`,
+        [email.toLowerCase()]
+      );
+
+      if (result.rowCount === 0) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      const isMatch = await user.matchPassword(password);
+      const user = result.rows[0];
+      const isMatch = await bcryptjs.compare(password, user.password_hash);
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      const token = generateToken(user);
+      const safeUser = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
 
-      res.status(200).json({
+      const token = generateToken(safeUser);
+
+      return res.status(200).json({
         success: true,
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user: safeUser,
       });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-// @route   GET /api/auth/me
-// @desc    Get current user
-// @access  Private
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    res.status(200).json({ success: true, user });
+    const result = await query(
+      'SELECT id, name, email, role, phone, specializations, is_active AS "isActive" FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.status(200).json({ success: true, user: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

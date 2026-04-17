@@ -1,11 +1,11 @@
 # Psychology Practice Management System - Backend
 
-A comprehensive Express.js and MongoDB backend for managing psychology and neurofeedback practices.
+A comprehensive Express.js and PostgreSQL backend for managing psychology and neurofeedback practices.
 
 ## Prerequisites
 
 - Node.js (v16 or higher)
-- MongoDB (local instance or Atlas)
+- PostgreSQL (local instance)
 - npm or yarn
 
 ## Setup Instructions
@@ -28,7 +28,12 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```
-MONGODB_URI=mongodb://localhost:27017/psychology-practice
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/psychology_practice
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=psychology_practice
 JWT_SECRET=your_jwt_secret_key_here_min_32_chars_long
 PORT=5000
 NODE_ENV=development
@@ -37,12 +42,10 @@ STRIPE_SECRET_KEY=sk_test_your_key_here
 STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
 ```
 
-### 3. Start MongoDB
-
-If using a local MongoDB instance:
+### 3. Create Database Schema
 
 ```bash
-mongod
+psql -U postgres -d psychology_practice -f sql/init_postgres.sql
 ```
 
 ### 4. Seed the Database (Optional)
@@ -53,10 +56,9 @@ To populate the database with test data:
 npm run seed
 ```
 
-This will create:
+This will create and seed:
 - **Test Users** with different roles (Admin, Practitioner, Receptionist)
-- **Test Clients** with sample patient data
-- **Test Services** with various neurofeedback and therapy options
+- **Test Clients, Services, Appointments, Session Notes, Invoices, Payments**
 
 **Test Account Credentials:**
 - Email: `test@gmail.com`
@@ -81,7 +83,7 @@ The server will start on `http://localhost:5000`
 ### Health Check
 - `GET /api/health` - Check if server is running
 
-## Database Models
+## Database Tables
 
 ### User (Practitioners, Admin, Receptionists)
 - Personal information
