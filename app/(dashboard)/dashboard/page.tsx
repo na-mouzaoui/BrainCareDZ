@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState } from 'react';
+import { appointments, clients, payments } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, DollarSign, Users, Calendar } from 'lucide-react';
 
@@ -17,17 +18,81 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
-    totalClients: 12,
-    upcomingAppointments: 5,
-    monthlyRevenue: 2500,
-    completedSessions: 48,
+    totalClients: 0,
+    upcomingAppointments: 0,
+    monthlyRevenue: 0,
+    completedSessions: 0,
   });
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/auth/login');
     }
+
+    if (!isLoading && isAuthenticated) {
+      void loadDashboardStats();
+    }
   }, [isAuthenticated, isLoading, router]);
+
+  async function loadDashboardStats() {
+    try {
+      const [clientsResponse, appointmentsResponse, paymentsResponse] = await Promise.all([
+        clients.getAll(),
+        appointments.getAll(),
+        payments.getAll(),
+      ]);
+
+      const clientsData = clientsResponse.data as { clients?: any[]; count?: number } | undefined;
+      const appointmentsData = appointmentsResponse.data as { appointments?: any[]; count?: number } | undefined;
+      const paymentsResponseData = paymentsResponse.data as
+        | { data?: { payments?: Array<{ amount?: number | string; processedDate?: string; createdAt?: string }> } }
+        | { payments?: Array<{ amount?: number | string; processedDate?: string; createdAt?: string }> }
+        | undefined;
+
+      const totalClients = clientsData?.count ?? clientsData?.clients?.length ?? 0;
+      const appointmentItems = appointmentsData?.appointments ?? [];
+
+      const now = new Date();
+      const weekEnd = new Date(now);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      const month = now.getMonth();
+      const year = now.getFullYear();
+
+      const upcomingAppointments = appointmentItems.filter((item) => {
+        const start = new Date(item.startTime);
+        return item.status === 'scheduled' && start >= now && start <= weekEnd;
+      }).length;
+
+      const completedSessions = appointmentItems.filter((item) => item.status === 'completed').length;
+
+      const paymentItems =
+        (paymentsResponseData as { data?: { payments?: Array<{ amount?: number | string; processedDate?: string; createdAt?: string }> } })?.data?.payments ||
+        (paymentsResponseData as { payments?: Array<{ amount?: number | string; processedDate?: string; createdAt?: string }> })?.payments ||
+        [];
+
+      const monthlyRevenue = paymentItems
+        .filter((payment) => {
+          const paymentDate = new Date(payment.processedDate || payment.createdAt || '');
+          return paymentDate.getFullYear() === year && paymentDate.getMonth() === month;
+        })
+        .reduce((total, payment) => total + Number(payment.amount || 0), 0);
+
+      setStats({
+        totalClients,
+        upcomingAppointments,
+        monthlyRevenue,
+        completedSessions,
+      });
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+      setStats({
+        totalClients: 0,
+        upcomingAppointments: 0,
+        monthlyRevenue: 0,
+        completedSessions: 0,
+      });
+    }
+  }
 
   if (isLoading) {
     return (
@@ -75,7 +140,7 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.monthlyRevenue}</div>
+            <div className="text-2xl font-bold">${stats.monthlyRevenue.toFixed(2)}</div>
             <p className="text-xs text-gray-600 mt-1">Revenue total</p>
           </CardContent>
         </Card>

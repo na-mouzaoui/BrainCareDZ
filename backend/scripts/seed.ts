@@ -25,7 +25,7 @@ const seedDatabase = async () => {
     await query('DELETE FROM users');
 
     console.log('Creating test users...');
-    const adminHash = await bcryptjs.hash('admin123', 10);
+    const adminHash = await bcryptjs.hash('Admin123!', 10);
     const testHash = await bcryptjs.hash('1234', 10);
     const practitionerHash = await bcryptjs.hash('password123', 10);
     const receptionistHash = await bcryptjs.hash('password123', 10);
@@ -145,7 +145,7 @@ const seedDatabase = async () => {
     console.log('Database seeded successfully!');
     console.log('Test Accounts:');
     console.log('Email: test@gmail.com | Password: 1234 | Role: practitioner');
-    console.log('Email: admin@example.com | Password: admin123 | Role: admin');
+    console.log('Email: admin@example.com | Password: Admin123! | Role: admin');
     console.log('Email: receptionist@example.com | Password: password123 | Role: receptionist');
 
     await closePool();

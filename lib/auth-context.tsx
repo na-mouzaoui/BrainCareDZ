@@ -3,11 +3,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { auth } from './api';
 
-const IS_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-const DEMO_USERS = [
-  { id: 'demo-user', name: 'Demo User', email: 'test@gmail.com', role: 'admin' as const, password: 'test123' },
-];
-
 export interface User {
   id: string;
   name: string;
@@ -35,38 +30,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load token and user from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
-    const savedDemoUser = localStorage.getItem('demo_user');
 
-    if (savedToken) {
-      setToken(savedToken);
-      if (savedDemoUser) {
-        try {
-          setUser(JSON.parse(savedDemoUser));
-        } catch {
-          setUser(null);
-        }
+    const hydrateUser = async () => {
+      if (!savedToken) {
+        setIsLoading(false);
+        return;
       }
-    }
-    setIsLoading(false);
+
+      setToken(savedToken);
+      const response = await auth.getMe();
+      if (response.success && response.data) {
+        setUser(response.data as User);
+      } else {
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+      }
+
+      setIsLoading(false);
+    };
+
+    void hydrateUser();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      if (IS_DEMO_MODE) {
-        const foundUser = DEMO_USERS.find((u) => u.email === email.toLowerCase());
-        if (!foundUser || password !== foundUser.password) {
-          return false;
-        }
-
-        const { password: _password, ...safeUser } = foundUser;
-
-        localStorage.setItem('token', 'demo-token');
-        localStorage.setItem('demo_user', JSON.stringify(safeUser));
-        setToken('demo-token');
-        setUser(safeUser);
-        return true;
-      }
-
       const response = await auth.login(email, password);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
@@ -83,10 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (name: string, email: string, password: string, role?: string): Promise<boolean> => {
     try {
-      if (IS_DEMO_MODE) {
-        return false;
-      }
-
       const response = await auth.register(name, email, password, role);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
@@ -103,7 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('demo_user');
     setToken(null);
     setUser(null);
   };

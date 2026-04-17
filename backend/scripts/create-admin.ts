@@ -13,19 +13,30 @@ async function createAdmin() {
     console.log('[Admin Setup] Connecting to PostgreSQL...');
     await connectDB();
 
-    const email = 'admin@gmail.com';
-    const password = 'Admin@123';
+    const email = 'admin@example.com';
+    const password = 'Admin123!';
+    const passwordHash = await bcryptjs.hash(password, 10);
 
     const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rowCount > 0) {
-      console.log('[Admin Setup] Admin account already exists');
-      console.log('Email: admin@gmail.com');
-      console.log('Password: Admin@123');
+      await query(
+        `UPDATE users
+         SET name = $2,
+             password_hash = $3,
+             role = 'admin',
+             is_active = TRUE,
+             updated_at = NOW()
+         WHERE email = $1`,
+        [email, 'Admin User', passwordHash]
+      );
+
+      console.log('[Admin Setup] Admin account already existed and was updated');
+      console.log('Email: admin@example.com');
+      console.log('Password: Admin123!');
       await closePool();
       return;
     }
 
-    const passwordHash = await bcryptjs.hash(password, 10);
     await query(
       `INSERT INTO users (name, email, password_hash, role, is_active)
        VALUES ($1, $2, $3, $4, TRUE)`,
@@ -33,8 +44,8 @@ async function createAdmin() {
     );
 
     console.log('\nAdmin account created successfully!\n');
-    console.log('Email: admin@gmail.com');
-    console.log('Password: Admin@123');
+    console.log('Email: admin@example.com');
+    console.log('Password: Admin123!');
     console.log('Role: admin\n');
 
     await closePool();

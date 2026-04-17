@@ -2,91 +2,6 @@ const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 const API_BASE_URL = rawApiUrl.endsWith('/api')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/$/, '')}/api`;
-const IS_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const DEMO_USERS = [
-  { id: 'demo-user', name: 'Demo User', email: 'test@gmail.com', role: 'admin', password: 'test123' },
-];
-
-function getStoredDemoUser() {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem('demo_user');
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function handleDemoRequest<T>(endpoint: string, options: ApiRequestOptions): ApiResponse<T> {
-  const method = (options.method || 'GET').toUpperCase();
-  const body = options.body || {};
-
-  if (endpoint === '/auth/login' && method === 'POST') {
-    const email = String(body.email || '').toLowerCase();
-    const password = String(body.password || '');
-    const user = DEMO_USERS.find((u) => u.email === email);
-
-    if (!user || password !== user.password) {
-      return { success: false, message: 'Invalid email or password' };
-    }
-
-    if (typeof window !== 'undefined') {
-      const { password: _password, ...safeUser } = user;
-      localStorage.setItem('demo_user', JSON.stringify(safeUser));
-    }
-
-    return {
-      success: true,
-      data: (({ password: _password, ...safeUser }) => safeUser)(user) as T,
-      token: 'demo-token',
-      message: 'Logged in (demo mode)',
-    };
-  }
-
-  if (endpoint === '/auth/register' && method === 'POST') {
-    return {
-      success: false,
-      message: 'Registration is disabled in demo mode',
-    };
-  }
-
-  if (endpoint === '/auth/me' && method === 'GET') {
-    const user = getStoredDemoUser() || (({ password: _password, ...safeUser }) => safeUser)(DEMO_USERS[0]);
-    return { success: true, data: user as T };
-  }
-
-  if (endpoint.startsWith('/clients') && method === 'GET') {
-    return { success: true, data: { clients: [] } as T };
-  }
-
-  if (endpoint.startsWith('/appointments') && method === 'GET') {
-    return { success: true, data: { appointments: [] } as T };
-  }
-
-  if (endpoint.startsWith('/session-notes') && method === 'GET') {
-    return { success: true, data: { notes: [] } as T };
-  }
-
-  if (endpoint.startsWith('/invoices') && method === 'GET') {
-    return { success: true, data: { invoices: [] } as T };
-  }
-
-  if (endpoint.startsWith('/services') && method === 'GET') {
-    return { success: true, data: { services: [] } as T };
-  }
-
-  if (endpoint.startsWith('/payments') && method === 'GET') {
-    return { success: true, data: { payments: [] } as T };
-  }
-
-  if (endpoint.startsWith('/users') && method === 'GET') {
-    return { success: true, data: { users: [] } as T };
-  }
-
-  return { success: true, data: {} as T, message: 'Demo mode response' };
-}
 
 interface ApiRequestOptions extends RequestInit {
   body?: any;
@@ -105,10 +20,6 @@ export async function apiRequest<T = any>(
   options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
   const { body, ...fetchOptions } = options;
-
-  if (IS_DEMO_MODE) {
-    return handleDemoRequest<T>(endpoint, options);
-  }
   
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
