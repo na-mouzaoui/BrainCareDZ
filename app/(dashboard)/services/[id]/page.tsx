@@ -9,7 +9,7 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ServiceDetail {
-  _id: string;
+  id: string;
   name: string;
   category: string;
   duration: number;
@@ -92,7 +92,7 @@ export default function ServiceDetailPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Prix</p>
-              <p className="text-lg font-semibold">${service.price.toFixed(2)}</p>
+              <p className="text-lg font-semibold">{Number(service.price).toFixed(2)} DZD</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Durée</p>

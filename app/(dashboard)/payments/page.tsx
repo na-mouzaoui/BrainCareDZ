@@ -22,12 +22,10 @@ import { AlertCircle, Plus, Trash2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Payment {
-  _id: string;
-  client: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-  };
+  id: string;
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
   amount: number;
   paymentMethod: string;
   status: string;
@@ -36,7 +34,7 @@ interface Payment {
 }
 
 interface Client {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
 }
@@ -145,7 +143,7 @@ export default function PaymentsPage() {
     try {
       const response = await paymentsApi.delete(id);
       if (response.success) {
-        setPayments(payments.filter((p) => p._id !== id));
+        setPayments(payments.filter((p) => p.id !== id));
       } else {
         setError('Erreur lors de la suppression du paiement');
       }
@@ -222,7 +220,7 @@ export default function PaymentsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {clients.map((client) => (
-                        <SelectItem key={client._id} value={client._id}>
+                        <SelectItem key={client.id} value={client.id}>
                           {client.firstName} {client.lastName}
                         </SelectItem>
                       ))}
@@ -330,9 +328,9 @@ export default function PaymentsPage() {
                 </TableHeader>
                 <TableBody>
                   {payments.map((payment) => (
-                    <TableRow key={payment._id}>
+                    <TableRow key={payment.id}>
                       <TableCell className="font-medium">
-                        {payment.client.firstName} {payment.client.lastName}
+                        {payment.clientFirstName} {payment.clientLastName}
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatPrice(payment.amount)} DZD
@@ -362,7 +360,7 @@ export default function PaymentsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeletePayment(payment._id)}
+                          onClick={() => handleDeletePayment(payment.id)}
                           className="text-red-600 hover:text-red-800 hover:bg-red-50"
                         >
                           <Trash2 className="h-4 w-4" />

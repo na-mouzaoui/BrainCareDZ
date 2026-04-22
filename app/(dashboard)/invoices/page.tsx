@@ -14,13 +14,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Invoice {
-  _id: string;
+  id: string;
   invoiceNumber: string;
-  client: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  practitionerId: string;
   total: number;
   status: string;
   dueDate: string;
@@ -82,7 +82,7 @@ export default function InvoicesPage() {
     try {
       const response = await invoices.delete(invoiceId);
       if (response.success) {
-        setInvoicesList(invoicesList.filter((i) => i._id !== invoiceId));
+        setInvoicesList(invoicesList.filter((i) => i.id !== invoiceId));
       } else {
         setError(response.message || 'Échec de la suppression de la facture');
       }
@@ -192,12 +192,12 @@ export default function InvoicesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices.map((invoice) => (
-                    <TableRow key={invoice._id}>
+                    <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-sm">{invoice.invoiceNumber}</TableCell>
                       <TableCell>
-                        {invoice.client.firstName} {invoice.client.lastName}
+                        {invoice.clientFirstName} {invoice.clientLastName}
                       </TableCell>
-                      <TableCell className="font-semibold">${invoice.total.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">{Number(invoice.total).toFixed(2)} DZD</TableCell>
                       <TableCell>{new Date(invoice.createdAt).toLocaleDateString('fr-FR')}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(invoice.status)}>
@@ -209,7 +209,7 @@ export default function InvoicesPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/invoices/${invoice._id}`)}
+                          onClick={() => router.push(`/invoices/${invoice.id}`)}
                           className="gap-2"
                         >
                           <Eye className="h-4 w-4" />
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(invoice._id)}
+                          onClick={() => handleDelete(invoice.id)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

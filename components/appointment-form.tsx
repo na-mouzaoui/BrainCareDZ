@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,16 +20,27 @@ export interface AppointmentFormData {
 }
 
 interface Client {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
 }
 
 interface Service {
-  _id: string;
+  id: string;
   name: string;
   duration: number;
   price: number;
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (!item.id || seen.has(item.id)) {
+      return false;
+    }
+    seen.add(item.id);
+    return true;
+  });
 }
 
 interface AppointmentFormProps {
@@ -60,6 +71,9 @@ export default function AppointmentForm({
   const [submitting, setSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
+  const validClients = useMemo(() => uniqueById(clientsList), [clientsList]);
+  const validServices = useMemo(() => uniqueById(servicesList), [servicesList]);
+
   useEffect(() => {
     loadClientsAndServices();
   }, []);
@@ -73,7 +87,7 @@ export default function AppointmentForm({
   // Auto-calculate end time when start time and service change
   useEffect(() => {
     if (formData.startTime && formData.serviceId) {
-      const selectedService = servicesList.find((s) => s._id === formData.serviceId);
+      const selectedService = validServices.find((s) => s.id === formData.serviceId);
       if (selectedService) {
         const startDate = new Date(formData.startTime);
         const endDate = new Date(startDate.getTime() + selectedService.duration * 60000);
@@ -83,7 +97,7 @@ export default function AppointmentForm({
         }));
       }
     }
-  }, [formData.startTime, formData.serviceId, servicesList]);
+  }, [formData.startTime, formData.serviceId, validServices]);
 
   async function loadClientsAndServices() {
     try {
@@ -158,7 +172,7 @@ export default function AppointmentForm({
   };
 
   const isFormLoading = isLoading || submitting || loadingData;
-  const selectedService = servicesList.find((s) => s._id === formData.serviceId);
+  const selectedService = validServices.find((s) => s.id === formData.serviceId);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -186,8 +200,8 @@ export default function AppointmentForm({
                 <SelectValue placeholder="Sélectionner un client" />
               </SelectTrigger>
               <SelectContent>
-                {clientsList.map((client) => (
-                  <SelectItem key={client._id} value={client._id}>
+                {validClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
                     {client.firstName} {client.lastName}
                   </SelectItem>
                 ))}
@@ -206,9 +220,9 @@ export default function AppointmentForm({
                 <SelectValue placeholder="Sélectionner un service" />
               </SelectTrigger>
               <SelectContent>
-                {servicesList.map((service) => (
-                  <SelectItem key={service._id} value={service._id}>
-                    {service.name} ({service.duration} min) - ${service.price.toFixed(2)}
+                {validServices.map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name} ({service.duration} min) - {Number(service.price).toFixed(2)} DZD
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -270,7 +284,7 @@ export default function AppointmentForm({
             <div className="flex justify-between items-center py-2 border-b">
               <span className="text-gray-600">Tarif :</span>
               <span className="font-bold text-lg text-blue-600">
-                ${selectedService.price.toFixed(2)}
+                {Number(selectedService.price).toFixed(2)} DZD
               </span>
             </div>
             <div className="flex justify-between items-center py-2">

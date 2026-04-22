@@ -71,7 +71,7 @@ export default function SessionNotesPage() {
     try {
       const response = await sessionNotes.delete(noteId);
       if (response.success) {
-        setNotesList(notesList.filter((n) => n._id !== noteId));
+        setNotesList(notesList.filter((n) => n.id !== noteId));
       } else {
         setError(response.message || 'Échec de la suppression de la note');
       }
@@ -160,7 +160,7 @@ export default function SessionNotesPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(note._id)}
+                          onClick={() => handleDelete(note.id)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

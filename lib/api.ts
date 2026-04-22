@@ -254,16 +254,27 @@ export const users = {
 
 // Activity Logs endpoints (Admin only)
 export const activityLogs = {
-  getAll: (limit = 100, offset = 0, filters?: any) =>
-    apiRequest('/activity-logs', {
-      method: 'GET',
-      body: { limit, offset, ...filters },
-    }),
-  getMyActivity: (limit = 50, offset = 0) =>
-    apiRequest('/activity-logs/my-activity', {
-      method: 'GET',
-      body: { limit, offset },
-    }),
+  getAll: (limit = 100, offset = 0, filters?: any) => {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    params.append('offset', String(offset));
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/activity-logs${query}`, { method: 'GET' });
+  },
+  getMyActivity: (limit = 50, offset = 0) => {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    params.append('offset', String(offset));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/activity-logs/my-activity${query}`, { method: 'GET' });
+  },
   create: (data: any) =>
     apiRequest('/activity-logs', {
       method: 'POST',

@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Client {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -86,7 +86,7 @@ export default function ClientsPage() {
     try {
       const response = await clients.delete(clientId);
       if (response.success) {
-        setClientsList(clientsList.filter((c) => c._id !== clientId));
+        setClientsList(clientsList.filter((c) => c.id !== clientId));
       } else {
         setError(response.message || 'Échec de la suppression du client');
       }
@@ -189,7 +189,7 @@ export default function ClientsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredClients.map((client) => (
-                    <TableRow key={client._id}>
+                    <TableRow key={client.id}>
                       <TableCell className="font-medium">
                         {client.firstName} {client.lastName}
                       </TableCell>
@@ -205,7 +205,7 @@ export default function ClientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/clients/${client._id}`)}
+                          onClick={() => router.push(`/clients/${client.id}`)}
                           className="gap-2"
                         >
                           <Eye className="h-4 w-4" />
@@ -214,7 +214,7 @@ export default function ClientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/clients/${client._id}/edit`)}
+                          onClick={() => router.push(`/clients/${client.id}/edit`)}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -222,7 +222,7 @@ export default function ClientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(client._id, `${client.firstName} ${client.lastName}`)}
+                          onClick={() => handleDelete(client.id, `${client.firstName} ${client.lastName}`)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

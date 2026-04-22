@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Service {
-  _id: string;
+  id: string;
   name: string;
   category: string;
   duration: number;
@@ -98,7 +98,7 @@ export default function ServicesPage() {
     try {
       const response = await services.delete(serviceId);
       if (response.success) {
-        setServicesList(servicesList.filter((s) => s._id !== serviceId));
+        setServicesList(servicesList.filter((s) => s.id !== serviceId));
       } else {
         setError(response.message || 'Échec de la suppression du service');
       }
@@ -197,18 +197,18 @@ export default function ServicesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredServices.map((service) => (
-                    <TableRow key={service._id}>
+                    <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{service.category}</Badge>
                       </TableCell>
                       <TableCell>{service.duration} min</TableCell>
-                      <TableCell className="font-semibold">${service.price.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">{Number(service.price).toFixed(2)} DZD</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/services/${service._id}/edit`)}
+                          onClick={() => router.push(`/services/${service.id}/edit`)}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -216,7 +216,7 @@ export default function ServicesPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(service._id, service.name)}
+                          onClick={() => handleDelete(service.id, service.name)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />

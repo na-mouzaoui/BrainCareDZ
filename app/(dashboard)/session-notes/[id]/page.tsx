@@ -9,14 +9,12 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface SessionNoteDetail {
-  _id: string;
-  client: {
-    firstName: string;
-    lastName: string;
-  };
-  appointment: {
-    startTime: string;
-  };
+  id: string;
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  appointmentId?: string;
+  appointmentStartTime?: string;
   presentingConcerns?: string;
   progressNotes?: string;
   createdAt: string;

@@ -15,22 +15,25 @@ import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Appointment {
-  _id: string;
-  client: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  };
-  service: {
-    name: string;
-    price: number;
-    duration: number;
-  };
+  id: string;
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  clientPhone: string;
+  serviceId: string;
+  serviceName: string;
+  servicePrice: number;
+  serviceDuration: number;
+  practitionerId: string;
+  practitionerName: string;
+  practitionerEmail: string;
   startTime: string;
   endTime: string;
   status: string;
   notes?: string;
+  reminderSent?: boolean;
+  sessionNoteId?: string;
 }
 
 interface PracticeSettings {
@@ -462,15 +465,15 @@ export default function AppointmentsPage() {
                           >
                             {cellAppointments.slice(0, 2).map((apt) => (
                               <button
-                                key={apt._id}
+                                key={apt.id}
                                 type="button"
-                                onClick={() => router.push(`/appointments/${apt._id}`)}
+                                onClick={() => router.push(`/appointments/${apt.id}`)}
                                 className="w-full rounded bg-white px-2 py-1 text-left text-xs shadow-sm hover:bg-emerald-100 transition-colors"
                               >
                                 <p className="font-semibold truncate">
-                                  {apt.client.firstName} {apt.client.lastName}
+                                  {apt.clientFirstName} {apt.clientLastName}
                                 </p>
-                                <p className="truncate text-gray-600">{apt.service.name}</p>
+                                <p className="truncate text-gray-600">{apt.serviceName}</p>
                               </button>
                             ))}
                             {cellAppointments.length > 2 && (

@@ -25,7 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   role: 'admin' | 'practitioner' | 'receptionist';
@@ -54,7 +54,7 @@ interface Settings {
 }
 
 interface ActivityLogEntry {
-  _id: string;
+  id: string;
   userId: string;
   userName: string;
   userEmail: string;
@@ -565,7 +565,7 @@ export default function AdminPage() {
     try {
       const response = await usersApi.delete(id);
       if (response.success) {
-        setUsers(users.filter((u) => u._id !== id));
+        setUsers(users.filter((u) => u.id !== id));
       } else {
         setError('Erreur lors de la suppression');
       }
@@ -781,7 +781,7 @@ export default function AdminPage() {
                   </TableHeader>
                   <TableBody>
                     {users.map((u) => (
-                      <TableRow key={u._id}>
+                      <TableRow key={u.id}>
                         <TableCell className="font-medium">{u.name}</TableCell>
                         <TableCell className="text-sm">{u.email}</TableCell>
                         <TableCell>
@@ -805,7 +805,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteUser(u._id)}
+                            onClick={() => handleDeleteUser(u.id)}
                             className="text-red-600 hover:text-red-800 hover:bg-red-50"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1106,7 +1106,7 @@ export default function AdminPage() {
                   </TableHeader>
                   <TableBody>
                     {activityLogsList.map((log) => (
-                      <TableRow key={log._id}>
+                      <TableRow key={log.id}>
                         <TableCell className="text-sm">{formatDate(log.createdAt)}</TableCell>
                         <TableCell className="font-medium">{log.userName || 'Unknown'}</TableCell>
                         <TableCell className="text-sm">{log.userEmail || 'N/A'}</TableCell>

@@ -13,7 +13,7 @@ export default function DashboardGroupLayout({
   return (
     <div className="flex min-h-screen">
       <DashboardNav />
-      <main className={`flex-1 bg-gray-50 transition-all duration-200 ${
+      <main className={`flex-1 bg-gray-50 transition-all duration-200 p-4 ${
         isOpen ? 'ml-64' : 'ml-20'
       }`}>
         {children}

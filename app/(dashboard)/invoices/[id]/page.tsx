@@ -9,13 +9,13 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface InvoiceDetail {
-  _id: string;
+  id: string;
   invoiceNumber: string;
-  client: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  practitionerId: string;
   total: number;
   status: string;
   createdAt: string;
@@ -93,12 +93,12 @@ export default function InvoiceDetailPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Client</p>
               <p className="text-lg">
-                {invoice.client.firstName} {invoice.client.lastName}
+                {invoice.clientFirstName} {invoice.clientLastName}
               </p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Montant</p>
-              <p className="text-lg font-semibold">${invoice.total.toFixed(2)}</p>
+              <p className="text-lg font-semibold">{Number(invoice.total).toFixed(2)} DZD</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Statut</p>

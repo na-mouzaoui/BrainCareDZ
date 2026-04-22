@@ -19,22 +19,23 @@ export interface InvoiceFormData {
 }
 
 interface Client {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
 }
 
 interface Appointment {
-  _id: string;
+  id: string;
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  serviceId: string;
+  serviceName: string;
+  servicePrice: number;
+  duration: number;
   startTime: string;
-  client: {
-    firstName: string;
-    lastName: string;
-  };
-  service: {
-    name: string;
-    price: number;
-  };
+  endTime: string;
+  notes?: string;
 }
 
 interface InvoiceFormProps {
@@ -78,7 +79,7 @@ export default function InvoiceForm({
   useEffect(() => {
     if (formData.clientId) {
       const filtered = appointmentsList.filter(
-        (apt) => apt.client._id === formData.clientId
+        (apt) => apt.clientId === formData.clientId
       );
       setFilteredAppointments(filtered);
     } else {
@@ -165,9 +166,9 @@ export default function InvoiceForm({
 
   const isFormLoading = isLoading || submitting || loadingData;
   const selectedAppointments = filteredAppointments.filter((apt) =>
-    formData.appointmentIds?.includes(apt._id)
+    formData.appointmentIds?.includes(apt.id)
   );
-  const total = selectedAppointments.reduce((sum, apt) => sum + apt.service.price, 0);
+  const total = selectedAppointments.reduce((sum, apt) => sum + apt.servicePrice, 0);
   const tax = Math.round(total * 0.1 * 100) / 100;
   const grandTotal = total + tax;
 
@@ -198,7 +199,7 @@ export default function InvoiceForm({
               </SelectTrigger>
               <SelectContent>
                 {clientsList.map((client) => (
-                  <SelectItem key={client._id} value={client._id}>
+                  <SelectItem key={client.id} value={client.id}>
                     {client.firstName} {client.lastName}
                   </SelectItem>
                 ))}
@@ -240,19 +241,19 @@ export default function InvoiceForm({
           <CardContent className="space-y-3">
             {filteredAppointments.map((apt) => (
               <div
-                key={apt._id}
+                key={apt.id}
                 className="flex items-start gap-3 p-3 border rounded-md hover:bg-gray-50"
               >
                 <Checkbox
-                  id={apt._id}
-                  checked={formData.appointmentIds?.includes(apt._id) || false}
-                  onCheckedChange={() => toggleAppointment(apt._id)}
+                  id={apt.id}
+                  checked={formData.appointmentIds?.includes(apt.id) || false}
+                  onCheckedChange={() => toggleAppointment(apt.id)}
                   disabled={isFormLoading}
                   className="mt-1"
                 />
                 <div className="flex-1">
-                  <label htmlFor={apt._id} className="block text-sm font-medium cursor-pointer">
-                    {apt.service.name}
+                  <label htmlFor={apt.id} className="block text-sm font-medium cursor-pointer">
+                    {apt.serviceName}
                   </label>
                   <p className="text-xs text-gray-500">
                     {new Date(apt.startTime).toLocaleString('fr-FR', {
@@ -266,7 +267,7 @@ export default function InvoiceForm({
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold">${apt.service.price.toFixed(2)}</p>
+                  <p className="font-semibold">{Number(apt.servicePrice).toFixed(2)} DZD</p>
                 </div>
               </div>
             ))}
@@ -283,25 +284,25 @@ export default function InvoiceForm({
           <CardContent className="space-y-3">
             <div className="space-y-2 text-sm">
               {selectedAppointments.map((apt) => (
-                <div key={apt._id} className="flex justify-between">
-                  <span>{apt.service.name}</span>
-                  <span>${apt.service.price.toFixed(2)}</span>
+                <div key={apt.id} className="flex justify-between">
+                  <span>{apt.serviceName}</span>
+                  <span>{Number(apt.servicePrice).toFixed(2)} DZD</span>
                 </div>
               ))}
             </div>
             <div className="border-t pt-2 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Sous-total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>{total.toFixed(2)} DZD</span>
               </div>
               <div className="flex justify-between">
                 <span>Taxe (10%)</span>
-                <span>${tax.toFixed(2)}</span>
+                <span>{tax.toFixed(2)} DZD</span>
               </div>
             </div>
             <div className="border-t pt-2 flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-blue-600">${grandTotal.toFixed(2)}</span>
+              <span className="text-blue-600">{grandTotal.toFixed(2)} DZD</span>
             </div>
           </CardContent>
         </Card>

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:all": "concurrently \"npm --prefix backend run dev\" \"npm run dev\"",
     "dev:backend": "npm --prefix backend run dev",
     "build": "next build",
     "start": "next start",
@@ -74,6 +75,7 @@
     "@types/node": "^22",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",

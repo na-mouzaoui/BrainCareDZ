@@ -10,13 +10,18 @@ export interface User {
   role: 'admin' | 'practitioner' | 'receptionist';
 }
 
+interface AuthResult {
+  success: boolean;
+  error?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  register: (name: string, email: string, password: string, role?: string) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -53,35 +58,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void hydrateUser();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<AuthResult> => {
     try {
       const response = await auth.login(email, password);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
         setToken(response.token);
         setUser(response.data as User);
-        return true;
+        return { success: true };
       }
-      return false;
+      const errorMessage = response.error || response.message || 'E-mail ou mot de passe invalide';
+      return { success: false, error: errorMessage };
     } catch (error) {
       console.error('Login failed:', error);
-      return false;
+      return {
+        success: false,
+        error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',
+      };
     }
   };
 
-  const register = async (name: string, email: string, password: string, role?: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, role?: string): Promise<AuthResult> => {
     try {
       const response = await auth.register(name, email, password, role);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
         setToken(response.token);
         setUser(response.data as User);
-        return true;
+        return { success: true };
       }
-      return false;
+      return { success: false, error: response.error || response.message || 'Échec de l\'inscription' };
     } catch (error) {
       console.error('Registration failed:', error);
-      return false;
+      return {
+        success: false,
+        error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',
+      };
     }
   };
 

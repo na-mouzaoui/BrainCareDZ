@@ -9,22 +9,25 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AppointmentDetail {
-  _id: string;
-  client: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  };
-  service: {
-    name: string;
-    price: number;
-    duration: number;
-  };
+  id: string;
+  clientId: string;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  clientPhone: string;
+  serviceId: string;
+  serviceName: string;
+  servicePrice: number;
+  serviceDuration: number;
+  practitionerId: string;
+  practitionerName: string;
+  practitionerEmail: string;
   startTime: string;
   endTime: string;
   status: string;
   notes?: string;
+  reminderSent?: boolean;
+  sessionNoteId?: string;
 }
 
 export default function AppointmentDetailPage() {
@@ -89,7 +92,7 @@ export default function AppointmentDetailPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          {appointment.client.firstName} {appointment.client.lastName}
+          {appointment.clientFirstName} {appointment.clientLastName}
         </h1>
       </div>
       <Card>
@@ -100,7 +103,7 @@ export default function AppointmentDetailPage() {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-medium text-gray-600">Service</p>
-              <p className="text-lg">{appointment.service.name}</p>
+              <p className="text-lg">{appointment.serviceName}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Statut</p>
@@ -112,7 +115,7 @@ export default function AppointmentDetailPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Prix</p>
-              <p className="text-lg font-semibold">${appointment.service.price.toFixed(2)}</p>
+              <p className="text-lg font-semibold">{Number(appointment.servicePrice).toFixed(2)} DZD</p>
             </div>
           </div>
         </CardContent>

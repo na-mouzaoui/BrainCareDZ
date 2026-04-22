@@ -9,7 +9,7 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ClientDetail {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
   email: string;

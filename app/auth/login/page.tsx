@@ -24,14 +24,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
-      if (success) {
+      const result = await login(email, password);
+      if (result.success) {
         router.push('/dashboard');
       } else {
-        setError('E-mail ou mot de passe invalide');
+        setError(result.error || 'E-mail ou mot de passe invalide');
       }
     } catch (err) {
-      setError('Une erreur s&apos;est produite. Veuillez réessayer.');
+      setError('Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.');
     } finally {
       setIsLoading(false);
     }
@@ -93,10 +93,6 @@ export default function LoginPage() {
                 'Me connecter'
               )}
             </Button>
-
-            <div className="text-center text-sm text-gray-600">
-              Compte demo: test@gmail.com / test123
-            </div>
           </form>
         </CardContent>
       </Card>
