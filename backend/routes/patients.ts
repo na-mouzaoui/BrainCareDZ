@@ -17,7 +17,7 @@ const baseSelect = `
          c.referral_source AS "referralSource", c.status, c.notes, c.session_count AS "sessionCount",
          c.last_session_date AS "lastSessionDate", c.created_at AS "createdAt", c.updated_at AS "updatedAt",
          c.practitioner_id AS "practitionerId", u.name AS "practitionerName", u.email AS "practitionerEmail"
-  FROM clients c
+  FROM patients c
   JOIN users u ON c.practitioner_id = u.id
 `;
 
@@ -36,7 +36,7 @@ router.get('/', protect, async (req, res) => {
     return res.status(200).json({
       success: true,
       count: result.rowCount,
-      clients: result.rows,
+      patients: result.rows,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -58,7 +58,7 @@ router.get('/search/:query', protect, async (req, res) => {
     return res.status(200).json({
       success: true,
       count: result.rowCount,
-      clients: result.rows,
+      patients: result.rows,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -70,15 +70,15 @@ router.get('/:id', protect, async (req, res) => {
     const result = await query(`${baseSelect} WHERE c.id = $1`, [req.params.id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Client not found' });
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
-    const client = result.rows[0];
-    if (req.user.role !== 'admin' && client.practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Not authorized to view this client' });
+    const patient = result.rows[0];
+    if (req.user.role !== 'admin' && patient.practitionerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this patient' });
     }
 
-    return res.status(200).json({ success: true, client });
+    return res.status(200).json({ success: true, patient });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -96,10 +96,12 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     try {
+      console.log('Creating patient with data:', req.body);
       const {
         firstName,
         lastName,
@@ -126,7 +128,7 @@ router.post(
       } = req.body;
 
       const inserted = await query(
-        `INSERT INTO clients (
+        `INSERT INTO patients (
           practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
           address_street, address_city, address_state, address_zip_code, address_country,
           emergency_contact_name, emergency_contact_relationship, emergency_contact_phone,
@@ -170,10 +172,11 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Client created successfully',
-        client: created.rows[0],
+        message: 'Patient created successfully',
+        patient: created.rows[0],
       });
     } catch (error) {
+      console.error('Create patient error:', error);
       return res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -181,13 +184,13 @@ router.post(
 
 router.put('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Client not found' });
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
     if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Not authorized to update this client' });
+      return res.status(403).json({ success: false, message: 'Not authorized to update this patient' });
     }
 
     const {
@@ -216,7 +219,7 @@ router.put('/:id', protect, async (req, res) => {
     } = req.body;
 
     await query(
-      `UPDATE clients SET
+      `UPDATE patients SET
         first_name = COALESCE($2, first_name),
         last_name = COALESCE($3, last_name),
         email = COALESCE($4, email),
@@ -272,8 +275,8 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Client updated successfully',
-      client: updated.rows[0],
+      message: 'Patient updated successfully',
+      patient: updated.rows[0],
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -282,20 +285,20 @@ router.put('/:id', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Client not found' });
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
     if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Not authorized to delete this client' });
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this patient' });
     }
 
-    await query('UPDATE clients SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'archived']);
+    await query('UPDATE patients SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'archived']);
 
     return res.status(200).json({
       success: true,
-      message: 'Client archived successfully',
+      message: 'Patient archived successfully',
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

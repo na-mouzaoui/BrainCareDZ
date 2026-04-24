@@ -10,9 +10,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface SessionNoteDetail {
   id: string;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
   appointmentId?: string;
   appointmentStartTime?: string;
   presentingConcerns?: string;
@@ -82,7 +82,7 @@ export default function SessionNoteDetailPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          {note.client.firstName} {note.client.lastName}
+          {note.patient.firstName} {note.patient.lastName}
         </h1>
       </div>
       <Card>

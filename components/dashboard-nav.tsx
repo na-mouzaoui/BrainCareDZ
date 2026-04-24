@@ -25,7 +25,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Clients', href: '/clients', icon: Users },
+  { label: 'Patients', href: '/patients', icon: Users },
   { label: 'Rendez-vous', href: '/appointments', icon: Calendar },
   { label: 'Prestations et packs', href: '/services', icon: Package },
   { label: 'Paiements', href: '/payments', icon: CreditCard },

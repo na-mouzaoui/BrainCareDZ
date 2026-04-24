@@ -16,7 +16,7 @@ const getPoolConfig = () => {
       port: Number(process.env.DB_PORT || 5432),
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'psychology_practice',
+      database: process.env.DB_NAME || 'BrainCare',
     };
   }
 
@@ -29,13 +29,18 @@ const getPoolConfig = () => {
     port: 5432,
     user: 'postgres',
     password: 'postgres',
-    database: 'psychology_practice',
+    database: 'BrainCare',
   };
 };
 
 const getPool = () => {
   if (!pool) {
     pool = new Pool(getPoolConfig());
+    pool.on('connect', (client) => {
+      client.query('SET search_path TO public').catch((error) => {
+        console.error(`Failed to set search_path to public: ${error.message}`);
+      });
+    });
   }
   return pool;
 };

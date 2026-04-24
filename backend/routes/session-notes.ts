@@ -6,18 +6,18 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 const noteSelect = `
-  SELECT sn.id, sn.appointment_id AS "appointmentId", sn.client_id AS "clientId", sn.practitioner_id AS "practitionerId",
+  SELECT sn.id, sn.appointment_id AS "appointmentId", sn.patient_id AS "patientId", sn.practitioner_id AS "practitionerId",
          sn.presenting_concerns AS "presentingConcerns", sn.session_goals AS "sessionGoals", sn.observations,
-         sn.interventions, sn.client_response AS "clientResponse", sn.homework,
+         sn.interventions, sn.patient_response AS "patientResponse", sn.homework,
          sn.treatment_plan AS "treatmentPlan", sn.progress_notes AS "progressNotes",
          sn.neurofeedback_baseline AS "neuroFeedbackBaseline", sn.neurofeedback_results AS "neuroFeedbackResults",
          sn.neurofeedback_improvements AS "neuroFeedbackImprovements",
          sn.follow_up_notes AS "followUpNotes", sn.next_session_date AS "nextSessionDate", sn.billable,
          sn.created_at AS "createdAt", sn.updated_at AS "updatedAt",
-         c.first_name AS "clientFirstName", c.last_name AS "clientLastName",
+         c.first_name AS "patientFirstName", c.last_name AS "patientLastName",
          u.name AS "practitionerName"
   FROM session_notes sn
-  JOIN clients c ON c.id = sn.client_id
+  JOIN patients c ON c.id = sn.patient_id
   JOIN users u ON u.id = sn.practitioner_id
 `;
 
@@ -43,10 +43,10 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-router.get('/client/:clientId', protect, async (req, res) => {
+router.get('/patient/:patientId', protect, async (req, res) => {
   try {
-    const params = [req.params.clientId];
-    let where = 'WHERE sn.client_id = $1';
+    const params = [req.params.patientId];
+    let where = 'WHERE sn.patient_id = $1';
 
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
@@ -87,7 +87,7 @@ router.post(
   '/',
   protect,
   [
-    body('clientId', 'Valid client ID is required').notEmpty(),
+    body('patientId', 'Valid patient ID is required').notEmpty(),
     body('appointmentId', 'Valid appointment ID is required').notEmpty(),
   ],
   async (req, res) => {
@@ -97,7 +97,7 @@ router.post(
     }
 
     try {
-      const { clientId, appointmentId, ...noteData } = req.body;
+      const { patientId, appointmentId, ...noteData } = req.body;
 
       const appointment = await query(
         'SELECT practitioner_id AS "practitionerId" FROM appointments WHERE id = $1',
@@ -116,9 +116,9 @@ router.post(
 
       const inserted = await query(
         `INSERT INTO session_notes (
-          appointment_id, client_id, practitioner_id,
+          appointment_id, patient_id, practitioner_id,
           presenting_concerns, session_goals, observations,
-          interventions, client_response, homework,
+          interventions, patient_response, homework,
           treatment_plan, progress_notes,
           neurofeedback_baseline, neurofeedback_results, neurofeedback_improvements,
           follow_up_notes, next_session_date, billable
@@ -132,13 +132,13 @@ router.post(
         ) RETURNING id`,
         [
           appointmentId,
-          clientId,
+          patientId,
           practitionerId,
           noteData.presentingConcerns || null,
           noteData.sessionGoals || null,
           noteData.observations || null,
           noteData.interventions || null,
-          noteData.clientResponse || null,
+          noteData.patientResponse || null,
           noteData.homework || null,
           noteData.treatmentPlan || null,
           noteData.progressNotes || null,
@@ -201,7 +201,7 @@ router.put('/:id', protect, async (req, res) => {
         note.sessionGoals,
         note.observations,
         note.interventions,
-        note.clientResponse,
+        note.patientResponse,
         note.homework,
         note.treatmentPlan,
         note.progressNotes,

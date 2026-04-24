@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { clients } from '@/lib/api';
-import ClientForm, { type ClientFormData } from '@/components/client-form';
+import { patients } from '@/lib/api';
+import PatientForm, { type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { AlertCircle, Plus, Search, Edit2, Trash2, Eye } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-interface Client {
+interface Patient {
   id: string;
   firstName: string;
   lastName: string;
@@ -25,17 +25,18 @@ interface Client {
   lastSessionDate?: string;
 }
 
-export default function ClientsPage() {
-  const [clientsList, setClientsList] = useState<Client[]>([]);
-  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+export default function PatientsPage() {
+  const [patientsList, setPatientsList] = useState<Patient[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Load clients on mount
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/auth/login');
@@ -43,65 +44,74 @@ export default function ClientsPage() {
     }
 
     if (!authLoading && isAuthenticated) {
-      loadClients();
+      loadPatients();
     }
   }, [isAuthenticated, authLoading, router]);
 
-  // Filter clients based on search
   useEffect(() => {
     if (!searchTerm) {
-      setFilteredClients(clientsList);
+      setFilteredPatients(patientsList);
     } else {
-      const filtered = clientsList.filter(
-        (client) =>
-          `${client.firstName} ${client.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          client.phone.includes(searchTerm)
+      const filtered = patientsList.filter(
+        (patient) =>
+          `${patient.firstName} ${patient.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.phone.includes(searchTerm)
       );
-      setFilteredClients(filtered);
+      setFilteredPatients(filtered);
     }
-  }, [searchTerm, clientsList]);
+  }, [searchTerm, patientsList]);
 
-  async function loadClients() {
+  async function loadPatients(): Promise<Patient[]> {
     try {
       setIsLoading(true);
-      const response = await clients.getAll();
+      const response = await patients.getAll();
       if (response.success && response.data) {
-        setClientsList(response.data.clients || []);
+        const rows = Array.isArray(response.data) ? response.data : response.data.patients || [];
+        setPatientsList(rows);
+        return rows;
       } else {
-        setError(response.message || 'Échec du chargement des clients');
+        setError(response.message || 'Échec du chargement des patients');
+        return [];
       }
     } catch (err) {
-      setError('Une erreur s\'est produite lors du chargement des clients');
+      setError('Une erreur s\'est produite lors du chargement des patients');
+      return [];
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleDelete(clientId: string, clientName: string) {
-    if (!confirm(`Veuillez confirmer l'archivage de ${clientName}`)) {
+  async function handleDelete(patientId: string, patientName: string) {
+    if (!confirm(`Veuillez confirmer l'archivage de ${patientName}`)) {
       return;
     }
 
     try {
-      const response = await clients.delete(clientId);
+      const response = await patients.delete(patientId);
       if (response.success) {
-        setClientsList(clientsList.filter((c) => c.id !== clientId));
+        setPatientsList(patientsList.filter((p) => p.id !== patientId));
       } else {
-        setError(response.message || 'Échec de la suppression du client');
+        setError(response.message || 'Échec de la suppression du patient');
       }
     } catch (err) {
-      setError('Une erreur s\'est produite lors de la suppression du client');
+      setError('Une erreur s\'est produite lors de la suppression du patient');
     }
   }
 
-  async function handleCreateClient(data: ClientFormData) {
-    const response = await clients.create(data);
+  async function handleCreatePatient(data: PatientFormData) {
+    const response = await patients.create(data);
     if (!response.success) {
-      throw new Error(response.message || 'Échec de la création du client');
+      throw new Error(response.message || response.error || 'Échec de la création du patient');
     }
+
+    const createdPatient = response.data as Patient | undefined;
     setCreateOpen(false);
-    await loadClients();
+    const latestPatients = await loadPatients();
+
+    if (createdPatient?.id && !latestPatients.some((patient) => patient.id === createdPatient.id)) {
+      throw new Error('Patient non persisté en base de données. Vérifiez la connexion backend PostgreSQL.');
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -127,19 +137,18 @@ export default function ClientsPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-            <p className="text-gray-600 mt-1">Gérez votre base de données de clients</p>
+            <h1 className="text-3xl font-bold text-gray-900">Patients</h1>
+            <p className="text-gray-600 mt-1">Gérez votre base de données de patients</p>
           </div>
           <Button
             onClick={() => setCreateOpen(true)}
             className="gap-2 bg-emerald-700 hover:bg-emerald-800"
           >
             <Plus className="h-4 w-4" />
-            Nouveau client
+            Nouveau patient
           </Button>
         </div>
       </div>
@@ -151,7 +160,6 @@ export default function ClientsPage() {
         </Alert>
       )}
 
-      {/* Search Bar */}
       <Card className="mb-6">
         <CardContent className="pt-6">
           <div className="flex gap-2">
@@ -166,12 +174,11 @@ export default function ClientsPage() {
         </CardContent>
       </Card>
 
-      {/* Clients Table */}
-      {filteredClients.length > 0 ? (
+      {filteredPatients.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>
-              Clients ({filteredClients.length})
+              Patients ({filteredPatients.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -188,24 +195,27 @@ export default function ClientsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClients.map((client) => (
-                    <TableRow key={client.id}>
+                  {filteredPatients.map((patient) => (
+                    <TableRow key={patient.id}>
                       <TableCell className="font-medium">
-                        {client.firstName} {client.lastName}
+                        {patient.firstName} {patient.lastName}
                       </TableCell>
-                      <TableCell>{client.email || '—'}</TableCell>
-                      <TableCell>{client.phone}</TableCell>
+                      <TableCell>{patient.email || '—'}</TableCell>
+                      <TableCell>{patient.phone}</TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(client.status)}>
-                          {client.status}
+                        <Badge className={getStatusColor(patient.status)}>
+                          {patient.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{client.sessionCount}</TableCell>
+                      <TableCell>{patient.sessionCount}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/clients/${client.id}`)}
+                          onClick={() => {
+                            setSelectedPatient(patient);
+                            setViewOpen(true);
+                          }}
                           className="gap-2"
                         >
                           <Eye className="h-4 w-4" />
@@ -214,7 +224,7 @@ export default function ClientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/clients/${client.id}/edit`)}
+                          onClick={() => router.push(`/patients/${patient.id}/edit`)}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -222,7 +232,7 @@ export default function ClientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(client.id, `${client.firstName} ${client.lastName}`)}
+                          onClick={() => handleDelete(patient.id, `${patient.firstName} ${patient.lastName}`)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -240,14 +250,14 @@ export default function ClientsPage() {
           <CardContent className="pt-12">
             <div className="text-center">
               <p className="text-gray-500 mb-4">
-                {searchTerm ? 'Aucun client ne correspond à votre recherche' : 'Aucun client pour le moment'}
+                {searchTerm ? 'Aucun patient ne correspond à votre recherche' : 'Aucun patient pour le moment'}
               </p>
               <Button
                 onClick={() => setCreateOpen(true)}
                 className="gap-2 bg-emerald-700 hover:bg-emerald-800"
               >
                 <Plus className="h-4 w-4" />
-                Ajouter votre premier client
+                Ajouter votre premier patient
               </Button>
             </div>
           </CardContent>
@@ -257,12 +267,65 @@ export default function ClientsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nouveau client</DialogTitle>
+            <DialogTitle>Nouveau patient</DialogTitle>
             <DialogDescription>
-              Remplissez le formulaire pour créer un nouveau client.
+              Remplissez le formulaire pour créer un nouveau patient.
             </DialogDescription>
           </DialogHeader>
-          <ClientForm onSubmit={handleCreateClient} />
+          <PatientForm onSubmit={handleCreatePatient} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Détails du patient'}
+            </DialogTitle>
+            <DialogDescription>
+              Informations sur le patient
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Prénom</p>
+                  <p className="text-lg">{selectedPatient.firstName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Nom</p>
+                  <p className="text-lg">{selectedPatient.lastName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Email</p>
+                  <p className="text-lg">{selectedPatient.email || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Téléphone</p>
+                  <p className="text-lg">{selectedPatient.phone}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Statut</p>
+                  <Badge className={getStatusColor(selectedPatient.status)}>
+                    {selectedPatient.status === 'active' ? 'Actif' : selectedPatient.status === 'inactive' ? 'Inactif' : 'Archivé'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Nombre de séances</p>
+                  <p className="text-lg">{selectedPatient.sessionCount || 0}</p>
+                </div>
+                {selectedPatient.lastSessionDate && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Dernière séance</p>
+                    <p className="text-lg">
+                      {new Date(selectedPatient.lastSessionDate).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

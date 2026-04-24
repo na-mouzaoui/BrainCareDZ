@@ -8,18 +8,18 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { clients as clientsApi, services as servicesApi, appointments as appointmentsApi } from '@/lib/api';
+import { patients as patientsApi, services as servicesApi, appointments as appointmentsApi } from '@/lib/api';
 import { Textarea } from '@/components/ui/textarea';
 
 export interface AppointmentFormData {
-  clientId: string;
+  patientId: string;
   serviceId: string;
   startTime: string;
   endTime: string;
   notes?: string;
 }
 
-interface Client {
+interface Patient {
   id: string;
   firstName: string;
   lastName: string;
@@ -58,24 +58,24 @@ export default function AppointmentForm({
 }: AppointmentFormProps) {
   const [formData, setFormData] = useState<AppointmentFormData>(
     initialData || {
-      clientId: '',
+      patientId: '',
       serviceId: '',
       startTime: '',
       endTime: '',
       notes: '',
     }
   );
-  const [clientsList, setClientsList] = useState<Client[]>([]);
+  const [patientsList, setPatientsList] = useState<Patient[]>([]);
   const [servicesList, setServicesList] = useState<Service[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
-  const validClients = useMemo(() => uniqueById(clientsList), [clientsList]);
+  const validPatients = useMemo(() => uniqueById(patientsList), [patientsList]);
   const validServices = useMemo(() => uniqueById(servicesList), [servicesList]);
 
   useEffect(() => {
-    loadClientsAndServices();
+    loadPatientsAndServices();
   }, []);
 
   useEffect(() => {
@@ -88,9 +88,11 @@ export default function AppointmentForm({
   useEffect(() => {
     if (formData.startTime && formData.serviceId) {
       const selectedService = validServices.find((s) => s.id === formData.serviceId);
-      if (selectedService) {
+      if (selectedService && selectedService.duration) {
         const startDate = new Date(formData.startTime);
+        if (isNaN(startDate.getTime())) return;
         const endDate = new Date(startDate.getTime() + selectedService.duration * 60000);
+        if (isNaN(endDate.getTime())) return;
         setFormData((prev) => ({
           ...prev,
           endTime: endDate.toISOString().slice(0, 16),
@@ -99,21 +101,21 @@ export default function AppointmentForm({
     }
   }, [formData.startTime, formData.serviceId, validServices]);
 
-  async function loadClientsAndServices() {
+  async function loadPatientsAndServices() {
     try {
-      const [clientsRes, servicesRes] = await Promise.all([
-        clientsApi.getAll(),
+      const [patientsRes, servicesRes] = await Promise.all([
+        patientsApi.getAll(),
         servicesApi.getAll(),
       ]);
 
-      if (clientsRes.success && clientsRes.data) {
-        setClientsList(clientsRes.data.clients || []);
+      if (patientsRes.success && patientsRes.data) {
+        setPatientsList(Array.isArray(patientsRes.data) ? patientsRes.data : patientsRes.data.patients || []);
       }
       if (servicesRes.success && servicesRes.data) {
-        setServicesList(servicesRes.data.services || []);
+        setServicesList(Array.isArray(servicesRes.data) ? servicesRes.data : servicesRes.data.services || []);
       }
     } catch (err) {
-      setError('Failed to load clients and services');
+      setError('Failed to load patients and services');
     } finally {
       setLoadingData(false);
     }
@@ -132,8 +134,8 @@ export default function AppointmentForm({
     setError('');
 
     // Validation
-    if (!formData.clientId) {
-      setError('Veuillez sélectionner un client');
+    if (!formData.patientId) {
+      setError('Veuillez sélectionner un patient');
       return;
     }
     if (!formData.serviceId) {
@@ -151,6 +153,11 @@ export default function AppointmentForm({
 
     const startTime = new Date(formData.startTime);
     const endTime = new Date(formData.endTime);
+
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      setError('Dates invalides');
+      return;
+    }
 
     if (endTime <= startTime) {
       setError('L\'heure de fin doit être après l\'heure de début');
@@ -190,21 +197,27 @@ export default function AppointmentForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Client *</FieldLabel>
+            <FieldLabel>Patient *</FieldLabel>
             <Select
-              value={formData.clientId}
-              onValueChange={(value) => handleInputChange('clientId', value)}
+              value={formData.patientId}
+              onValueChange={(value) => handleInputChange('patientId', value)}
               disabled={isFormLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un client" />
+                <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Sélectionner un patient"} />
               </SelectTrigger>
               <SelectContent>
-                {validClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.firstName} {client.lastName}
-                  </SelectItem>
-                ))}
+                {validPatients.length === 0 ? (
+                  <div className="p-2 text-sm text-gray-500">
+                    Aucun patient disponible. Créez d'abord un patient.
+                  </div>
+                ) : (
+                  validPatients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.firstName} {patient.lastName}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </Field>

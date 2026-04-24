@@ -14,7 +14,7 @@ export interface SessionNoteFormData {
   sessionGoals?: string;
   observations?: string;
   interventions?: string;
-  clientResponse?: string;
+  patientResponse?: string;
   homework?: string;
   treatmentPlan?: string;
   progressNotes?: string;
@@ -47,7 +47,7 @@ export default function SessionNoteForm({
       sessionGoals: '',
       observations: '',
       interventions: '',
-      clientResponse: '',
+      patientResponse: '',
       homework: '',
       treatmentPlan: '',
       progressNotes: '',
@@ -126,7 +126,7 @@ export default function SessionNoteForm({
               onChange={(e) => handleInputChange('presentingConcerns', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Quelles préoccupations le client a-t-il présentées au cours de cette séance ?"
+              placeholder="Quelles préoccupations le patient a-t-il présentées au cours de cette séance ?"
             />
           </Field>
 
@@ -164,10 +164,10 @@ export default function SessionNoteForm({
           </Field>
 
           <Field>
-            <FieldLabel>Réponse du client</FieldLabel>
+            <FieldLabel>Réponse du patient</FieldLabel>
             <Textarea
-              value={formData.clientResponse || ''}
-              onChange={(e) => handleInputChange('clientResponse', e.target.value)}
+              value={formData.patientResponse || ''}
+              onChange={(e) => handleInputChange('patientResponse', e.target.value)}
               disabled={isFormLoading}
               rows={3}
               placeholder="Comment le client a-t-il réagi aux interventions ?"
@@ -241,7 +241,7 @@ export default function SessionNoteForm({
               onChange={(e) => handleInputChange('homework', e.target.value)}
               disabled={isFormLoading}
               rows={3}
-              placeholder="Tout devoir ou assignment pour le client..."
+              placeholder="Tout devoir ou assignment pour le patient..."
             />
           </Field>
 

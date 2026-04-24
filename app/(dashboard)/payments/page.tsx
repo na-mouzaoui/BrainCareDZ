@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { payments as paymentsApi, clients as clientsApi } from '@/lib/api';
+import { payments as paymentsApi, patients as patientsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,9 +23,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Payment {
   id: string;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
   amount: number;
   paymentMethod: string;
   status: string;
@@ -33,7 +33,7 @@ interface Payment {
   createdAt: string;
 }
 
-interface Client {
+interface Patient {
   id: string;
   firstName: string;
   lastName: string;
@@ -43,14 +43,14 @@ export default function PaymentsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
-    clientId: '',
+    patientId: '',
     amount: '',
     paymentMethod: 'cash',
     notes: '',
@@ -69,16 +69,22 @@ export default function PaymentsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [paymentsRes, clientsRes] = await Promise.all([
+      const [paymentsRes, patientsRes] = await Promise.all([
         paymentsApi.getAll(),
-        clientsApi.getAll(),
+        patientsApi.getAll(),
       ]);
 
-      if (paymentsRes.success && paymentsRes.data) {
-        setPayments(paymentsRes.data.payments || []);
+      if (patientsRes.success && patientsRes.data) {
+        const patientsData = patientsRes.data;
+        setPatients(Array.isArray(patientsData) ? patientsData : patientsData.patients || []);
       }
-      if (clientsRes.success && clientsRes.data) {
-        setClients(clientsRes.data.clients || []);
+
+      if (paymentsRes.success && paymentsRes.data) {
+        const paymentsData = paymentsRes.data;
+        console.log('paymentsData raw:', paymentsData);
+        const paymentsList = Array.isArray(paymentsData) ? paymentsData : paymentsData.payments || [];
+        console.log('paymentsList:', paymentsList);
+        setPayments(paymentsList);
       }
     } catch (err) {
       setError('Erreur lors du chargement des données');
@@ -98,8 +104,8 @@ export default function PaymentsPage() {
     e.preventDefault();
     setError('');
 
-    if (!formData.clientId) {
-      setError('Veuillez sélectionner un client');
+    if (!formData.patientId) {
+      setError('Veuillez sélectionner un patient');
       return;
     }
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
@@ -110,7 +116,7 @@ export default function PaymentsPage() {
     setIsSubmitting(true);
     try {
       const response = await paymentsApi.create({
-        clientId: formData.clientId,
+        patientId: formData.patientId,
         amount: parseFloat(formData.amount),
         paymentMethod: formData.paymentMethod,
         notes: formData.notes,
@@ -119,7 +125,7 @@ export default function PaymentsPage() {
       if (response.success) {
         setPayments([response.data as Payment, ...payments]);
         setFormData({
-          clientId: '',
+          patientId: '',
           amount: '',
           paymentMethod: 'cash',
           notes: '',
@@ -153,10 +159,11 @@ export default function PaymentsPage() {
   };
 
   const formatPrice = (price: number) => {
+    const numPrice = Number(price) || 0;
     return new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(price);
+    }).format(numPrice);
   };
 
   const formatDate = (dateString: string) => {
@@ -181,7 +188,7 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Paiements</h1>
-          <p className="text-gray-600 mt-1">Gérez les paiements de vos clients</p>
+          <p className="text-gray-600 mt-1">Gérez les paiements de vos patients</p>
         </div>
         <Button
           onClick={() => setIsDialogOpen(true)}
@@ -209,19 +216,19 @@ export default function PaymentsPage() {
             <form onSubmit={handleCreatePayment} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field>
-                  <FieldLabel>Client *</FieldLabel>
+                  <FieldLabel>Patient *</FieldLabel>
                   <Select
-                    value={formData.clientId}
-                    onValueChange={(value) => handleInputChange('clientId', value)}
+                    value={formData.patientId}
+                    onValueChange={(value) => handleInputChange('patientId', value)}
                     disabled={isSubmitting}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un client" />
+                      <SelectValue placeholder="Sélectionner un patient" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.firstName} {client.lastName}
+                      {patients.map((patient) => (
+                        <SelectItem key={patient.id} value={patient.id}>
+                          {patient.firstName} {patient.lastName}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -318,7 +325,7 @@ export default function PaymentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client</TableHead>
+                    <TableHead>Patient</TableHead>
                     <TableHead>Montant</TableHead>
                     <TableHead>Mode de paiement</TableHead>
                     <TableHead>Statut</TableHead>
@@ -327,10 +334,10 @@ export default function PaymentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id}>
+                  {payments.map((payment, index) => (
+                    <TableRow key={payment.id || `payment-${index}`}>
                       <TableCell className="font-medium">
-                        {payment.clientFirstName} {payment.clientLastName}
+                        {payment.patientFirstName} {payment.patientLastName}
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatPrice(payment.amount)} DZD

@@ -14,15 +14,15 @@ function generateInvoiceNumber() {
 }
 
 const invoiceSelect = `
-  SELECT i.id, i.invoice_number AS "invoiceNumber", i.client_id AS "clientId", i.practitioner_id AS "practitionerId",
+  SELECT i.id, i.invoice_number AS "invoiceNumber", i.patient_id AS "patientId", i.practitioner_id AS "practitionerId",
          i.line_items AS "lineItems", i.subtotal, i.tax, i.total, i.status,
          i.invoice_date AS "invoiceDate", i.due_date AS "dueDate", i.paid_date AS "paidDate",
          i.payment_method AS "paymentMethod", i.notes,
          i.created_at AS "createdAt", i.updated_at AS "updatedAt",
-         c.first_name AS "clientFirstName", c.last_name AS "clientLastName", c.email AS "clientEmail",
+         c.first_name AS "patientFirstName", c.last_name AS "patientLastName", c.email AS "patientEmail",
          u.name AS "practitionerName", u.email AS "practitionerEmail"
   FROM invoices i
-  JOIN clients c ON c.id = i.client_id
+  JOIN patients c ON c.id = i.patient_id
   JOIN users u ON u.id = i.practitioner_id
 `;
 
@@ -50,10 +50,10 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-router.get('/client/:clientId', protect, async (req, res) => {
+router.get('/patient/:patientId', protect, async (req, res) => {
   try {
-    const params = [req.params.clientId];
-    let where = 'WHERE i.client_id = $1';
+    const params = [req.params.patientId];
+    let where = 'WHERE i.patient_id = $1';
 
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
@@ -94,7 +94,7 @@ router.post(
   '/',
   protect,
   [
-    body('clientId', 'Valid client ID is required').notEmpty(),
+    body('patientId', 'Valid patient ID is required').notEmpty(),
     body('appointmentIds', 'At least one appointment is required').isArray({ min: 1 }),
     body('dueDate', 'Due date is required').isISO8601(),
   ],
@@ -105,14 +105,14 @@ router.post(
     }
 
     try {
-      const { clientId, appointmentIds, dueDate, notes } = req.body;
+      const { patientId, appointmentIds, dueDate, notes } = req.body;
 
-      const client = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
-      if (client.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Client not found' });
+      const patient = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [patientId]);
+      if (patient.rowCount === 0) {
+        return res.status(404).json({ success: false, message: 'Patient not found' });
       }
 
-      const practitionerId = req.user.role === 'admin' ? client.rows[0].practitionerId : req.user.id;
+      const practitionerId = req.user.role === 'admin' ? patient.rows[0].practitionerId : req.user.id;
 
       const appointments = await query(
         `SELECT a.id, s.name, s.price
@@ -140,12 +140,12 @@ router.post(
 
       const inserted = await query(
         `INSERT INTO invoices (
-          invoice_number, client_id, practitioner_id, line_items, subtotal, tax, total, due_date, notes, status
+          invoice_number, patient_id, practitioner_id, line_items, subtotal, tax, total, due_date, notes, status
         ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, 'draft')
         RETURNING id`,
         [
           generateInvoiceNumber(),
-          clientId,
+          patientId,
           practitionerId,
           JSON.stringify(lineItems),
           subtotal,

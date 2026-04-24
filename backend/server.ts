@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
-import clientRoutes from './routes/clients.js';
+import patientRoutes from './routes/patients.js';
 import serviceRoutes from './routes/services.js';
 import appointmentRoutes from './routes/appointments.js';
 import sessionNotesRoutes from './routes/session-notes.js';
@@ -34,7 +34,7 @@ app.use(cors({
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/clients', clientRoutes);
+app.use('/api/patients', patientRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/session-notes', sessionNotesRoutes);

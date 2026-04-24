@@ -7,18 +7,18 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { clients as clientsApi, appointments as appointmentsApi } from '@/lib/api';
+import { patients as patientsApi, appointments as appointmentsApi } from '@/lib/api';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export interface InvoiceFormData {
-  clientId: string;
+  patientId: string;
   appointmentIds: string[];
   dueDate: string;
   notes?: string;
 }
 
-interface Client {
+interface Patient {
   id: string;
   firstName: string;
   lastName: string;
@@ -26,9 +26,9 @@ interface Client {
 
 interface Appointment {
   id: string;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
   serviceId: string;
   serviceName: string;
   servicePrice: number;
@@ -53,13 +53,13 @@ export default function InvoiceForm({
 }: InvoiceFormProps) {
   const [formData, setFormData] = useState<InvoiceFormData>(
     initialData || {
-      clientId: '',
+      patientId: '',
       appointmentIds: [],
       dueDate: '',
       notes: '',
     }
   );
-  const [clientsList, setClientsList] = useState<Client[]>([]);
+  const [patientsList, setPatientsList] = useState<Patient[]>([]);
   const [appointmentsList, setAppointmentsList] = useState<Appointment[]>([]);
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
   const [error, setError] = useState('');
@@ -67,25 +67,25 @@ export default function InvoiceForm({
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    loadClients();
+    loadPatients();
   }, []);
 
   useEffect(() => {
-    if (formData.clientId) {
+    if (formData.patientId) {
       loadAppointments();
     }
-  }, [formData.clientId]);
+  }, [formData.patientId]);
 
   useEffect(() => {
-    if (formData.clientId) {
+    if (formData.patientId) {
       const filtered = appointmentsList.filter(
-        (apt) => apt.clientId === formData.clientId
+        (apt) => apt.patientId === formData.patientId
       );
       setFilteredAppointments(filtered);
     } else {
       setFilteredAppointments([]);
     }
-  }, [formData.clientId, appointmentsList]);
+  }, [formData.patientId, appointmentsList]);
 
   useEffect(() => {
     if (initialData) {
@@ -93,14 +93,17 @@ export default function InvoiceForm({
     }
   }, [initialData]);
 
-  async function loadClients() {
+  async function loadPatients() {
     try {
-      const response = await clientsApi.getAll();
+      const response = await patientsApi.getAll();
+      console.log('loadPatients response:', response);
       if (response.success && response.data) {
-        setClientsList(response.data.clients || []);
+        const patientsData = response.data;
+        setPatientsList(Array.isArray(patientsData) ? patientsData : patientsData.patients || []);
       }
     } catch (err) {
-      setError('Échec du chargement des clients');
+      console.error('loadPatients error:', err);
+      setError('Échec du chargement des patients');
     } finally {
       setLoadingData(false);
     }
@@ -138,8 +141,8 @@ export default function InvoiceForm({
     setError('');
 
     // Validation
-    if (!formData.clientId) {
-      setError('Veuillez sélectionner un client');
+    if (!formData.patientId) {
+      setError('Veuillez sélectionner un patient');
       return;
     }
     if (!formData.appointmentIds || formData.appointmentIds.length === 0) {
@@ -188,19 +191,19 @@ export default function InvoiceForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
-            <FieldLabel>Client *</FieldLabel>
+            <FieldLabel>Patient *</FieldLabel>
             <Select
-              value={formData.clientId}
-              onValueChange={(value) => handleInputChange('clientId', value)}
+              value={formData.patientId}
+              onValueChange={(value) => handleInputChange('patientId', value)}
               disabled={isFormLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un client" />
+                <SelectValue placeholder="Sélectionner un patient" />
               </SelectTrigger>
               <SelectContent>
-                {clientsList.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.firstName} {client.lastName}
+                {patientsList.map((patient) => (
+                  <SelectItem key={patient.id} value={patient.id}>
+                    {patient.firstName} {patient.lastName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -233,7 +236,7 @@ export default function InvoiceForm({
       </Card>
 
       {/* Appointments Selection */}
-      {formData.clientId && filteredAppointments.length > 0 && (
+      {formData.patientId && filteredAppointments.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Sélectionner les rendez-vous à facturer</CardTitle>

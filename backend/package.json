@@ -8,7 +8,7 @@
     "dev": "tsx watch server.ts",
     "start": "tsx server.ts",
     "typecheck": "tsc --noEmit",
-    "db:init": "psql -U postgres -d psychology_practice -f sql/init_postgres.sql",
+    "db:init": "psql -U postgres -d BrainCare -f sql/init_postgres.sql",
     "seed": "tsx scripts/seed.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "test": "echo \"Error: no test specified\" && exit 1"

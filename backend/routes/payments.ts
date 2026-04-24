@@ -5,15 +5,15 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 const paymentSelect = `
-  SELECT p.id, p.invoice_id AS "invoiceId", p.client_id AS "clientId", p.amount,
+  SELECT p.id, p.invoice_id AS "invoiceId", p.patient_id AS "patientId", p.amount,
          p.payment_method AS "paymentMethod", p.status,
          p.stripe_payment_intent_id AS "stripePaymentIntentId", p.transaction_id AS "transactionId",
          p.receipt_url AS "receiptUrl", p.notes,
          p.processed_date AS "processedDate", p.created_at AS "createdAt", p.updated_at AS "updatedAt",
-         c.first_name AS "clientFirstName", c.last_name AS "clientLastName",
+         c.first_name AS "patientFirstName", c.last_name AS "patientLastName",
          i.invoice_number AS "invoiceNumber", i.total AS "invoiceTotal"
   FROM payments p
-  JOIN clients c ON c.id = p.client_id
+  JOIN patients c ON c.id = p.patient_id
   LEFT JOIN invoices i ON i.id = p.invoice_id
 `;
 
@@ -28,7 +28,7 @@ router.get('/', protect, async (req, res) => {
     }
 
     const payments = await query(`${paymentSelect} ${where} ORDER BY p.created_at DESC LIMIT 100`, params);
-    const total = await query(`SELECT COUNT(*)::int AS count FROM payments p JOIN clients c ON c.id = p.client_id ${where}`, params);
+    const total = await query(`SELECT COUNT(*)::int AS count FROM payments p JOIN patients c ON c.id = p.patient_id ${where}`, params);
 
     return res.json({
       success: true,
@@ -58,18 +58,18 @@ router.get('/:id', protect, async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const { clientId, invoiceId, amount, paymentMethod, notes } = req.body;
+    const { patientId, invoiceId, amount, paymentMethod, notes } = req.body;
 
-    if (!clientId || !amount) {
-      return res.status(400).json({ success: false, error: 'Client ID and amount are required' });
+    if (!patientId || !amount) {
+      return res.status(400).json({ success: false, error: 'Patient ID and amount are required' });
     }
 
-    const client = await query('SELECT id, practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
-    if (client.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Client not found' });
+    const patient = await query('SELECT id, practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [patientId]);
+    if (patient.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
     }
 
-    if (req.user.role !== 'admin' && client.rows[0].practitionerId !== req.user.id) {
+    if (req.user.role !== 'admin' && patient.rows[0].practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }
 
@@ -81,10 +81,10 @@ router.post('/', protect, async (req, res) => {
     }
 
     const inserted = await query(
-      `INSERT INTO payments (client_id, invoice_id, amount, payment_method, status, notes, processed_date)
+      `INSERT INTO payments (patient_id, invoice_id, amount, payment_method, status, notes, processed_date)
        VALUES ($1, $2, $3, $4, 'completed', $5, NOW())
        RETURNING id`,
-      [clientId, invoiceId || null, amount, paymentMethod || 'cash', notes || null]
+      [patientId, invoiceId || null, amount, paymentMethod || 'cash', notes || null]
     );
 
     const created = await query(`${paymentSelect} WHERE p.id = $1`, [inserted.rows[0].id]);

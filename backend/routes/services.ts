@@ -8,9 +8,8 @@ const router = express.Router();
 router.get('/', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services
-       WHERE is_active = TRUE
        ORDER BY created_at DESC`
     );
 
@@ -47,7 +46,7 @@ router.get('/category/:category', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services WHERE id = $1`,
       [req.params.id]
     );
@@ -67,10 +66,7 @@ router.post(
   protect,
   authorize('admin', 'practitioner'),
   [
-    body('name', 'Service name is required').notEmpty().trim(),
-    body('category', 'Valid category is required').isIn(['neurofeedback', 'therapy', 'assessment', 'consultation', 'other']),
-    body('price', 'Valid price is required').isFloat({ min: 0 }),
-    body('duration', 'Duration in minutes is required').isInt({ min: 1 }),
+    body('name', 'Le nom du service est requis').notEmpty().trim(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -79,20 +75,22 @@ router.post(
     }
 
     try {
-      const { name, description, category, duration, price } = req.body;
+      const { name, price, sessions } = req.body;
+      console.log('Creating service with:', { name, price, sessions });
       const result = await query(
-        `INSERT INTO services (name, description, category, duration, price)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [name, description || null, category, duration, price]
+        `INSERT INTO services (name, price, sessions)
+         VALUES ($1, $2, $3)
+         RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [name, price || 0, sessions || 1]
       );
 
       return res.status(201).json({
         success: true,
-        message: 'Service created successfully',
+        message: 'Service créé avec succès',
         service: result.rows[0],
       });
     } catch (error) {
+      console.error('Create service error:', error);
       return res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -100,19 +98,16 @@ router.post(
 
 router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
   try {
-    const { name, description, category, duration, price, isActive } = req.body;
+    const { name, price, sessions } = req.body;
     const result = await query(
       `UPDATE services
        SET name = COALESCE($2, name),
-           description = COALESCE($3, description),
-           category = COALESCE($4, category),
-           duration = COALESCE($5, duration),
-           price = COALESCE($6, price),
-           is_active = COALESCE($7, is_active),
+           price = COALESCE($3, price),
+           sessions = COALESCE($4, sessions),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, description, category, duration, price, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, description, category, duration, price, isActive]
+       RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [req.params.id, name, price, sessions]
     );
 
     if (result.rowCount === 0) {

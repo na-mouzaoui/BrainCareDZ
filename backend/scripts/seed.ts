@@ -21,7 +21,7 @@ const seedDatabase = async () => {
     await query('DELETE FROM session_notes');
     await query('DELETE FROM appointments');
     await query('DELETE FROM services');
-    await query('DELETE FROM clients');
+    await query('DELETE FROM patients');
     await query('DELETE FROM users');
 
     console.log('Creating test users...');
@@ -45,9 +45,9 @@ const seedDatabase = async () => {
 
     console.log(`Created ${users.rowCount} users`);
 
-    console.log('Creating test clients...');
-    const clients = await query(
-      `INSERT INTO clients (
+    console.log('Creating test patients...');
+    const patients = await query(
+      `INSERT INTO patients (
          practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
          address_street, address_city, address_zip_code, address_country,
          emergency_contact_name, emergency_contact_relationship, emergency_contact_phone,
@@ -69,7 +69,7 @@ const seedDatabase = async () => {
       [practitioner.id]
     );
 
-    console.log(`Created ${clients.rowCount} clients`);
+    console.log(`Created ${patients.rowCount} patients`);
 
     console.log('Creating test services...');
     const services = await query(
@@ -89,35 +89,35 @@ const seedDatabase = async () => {
     console.log(`Created ${services.rowCount} services`);
 
     const apt1 = await query(
-      `INSERT INTO appointments (client_id, practitioner_id, service_id, start_time, end_time, status, notes)
+      `INSERT INTO appointments (patient_id, practitioner_id, service_id, start_time, end_time, status, notes)
        VALUES ($1, $2, $3, NOW() + INTERVAL '1 day', NOW() + INTERVAL '1 day 1 hour', 'scheduled', 'Initial session')
        RETURNING id`,
-      [clients.rows[0].id, practitioner.id, services.rows[0].id]
+      [patients.rows[0].id, practitioner.id, services.rows[0].id]
     );
 
     const apt2 = await query(
-      `INSERT INTO appointments (client_id, practitioner_id, service_id, start_time, end_time, status, notes)
+      `INSERT INTO appointments (patient_id, practitioner_id, service_id, start_time, end_time, status, notes)
        VALUES ($1, $2, $3, NOW() - INTERVAL '2 day', NOW() - INTERVAL '2 day' + INTERVAL '50 min', 'completed', 'Follow-up completed')
        RETURNING id`,
-      [clients.rows[1].id, practitioner.id, services.rows[2].id]
+      [patients.rows[1].id, practitioner.id, services.rows[2].id]
     );
 
     const note = await query(
-      `INSERT INTO session_notes (appointment_id, client_id, practitioner_id, observations, interventions, progress_notes)
-       VALUES ($1, $2, $3, 'Client was attentive and calm', 'Breathing + grounding', 'Progress observed')
+      `INSERT INTO session_notes (appointment_id, patient_id, practitioner_id, observations, interventions, progress_notes)
+       VALUES ($1, $2, $3, 'Patient was attentive and calm', 'Breathing + grounding', 'Progress observed')
        RETURNING id`,
-      [apt2.rows[0].id, clients.rows[1].id, practitioner.id]
+      [apt2.rows[0].id, patients.rows[1].id, practitioner.id]
     );
 
     await query('UPDATE appointments SET session_note_id = $2 WHERE id = $1', [apt2.rows[0].id, note.rows[0].id]);
 
     const invoice = await query(
-      `INSERT INTO invoices (invoice_number, client_id, practitioner_id, line_items, subtotal, tax, total, due_date, status)
+      `INSERT INTO invoices (invoice_number, patient_id, practitioner_id, line_items, subtotal, tax, total, due_date, status)
        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, NOW() + INTERVAL '15 day', 'sent')
        RETURNING id`,
       [
         `INV-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-0001`,
-        clients.rows[1].id,
+        patients.rows[1].id,
         practitioner.id,
         JSON.stringify([
           {
@@ -137,9 +137,9 @@ const seedDatabase = async () => {
     await query('INSERT INTO invoice_appointments (invoice_id, appointment_id) VALUES ($1, $2)', [invoice.rows[0].id, apt2.rows[0].id]);
 
     await query(
-      `INSERT INTO payments (invoice_id, client_id, amount, payment_method, status, notes)
+      `INSERT INTO payments (invoice_id, patient_id, amount, payment_method, status, notes)
        VALUES ($1, $2, $3, 'cash', 'completed', 'Seed payment')`,
-      [invoice.rows[0].id, clients.rows[1].id, Number(services.rows[2].price) * 1.1]
+      [invoice.rows[0].id, patients.rows[1].id, Number(services.rows[2].price) * 1.1]
     );
 
     console.log('Database seeded successfully!');

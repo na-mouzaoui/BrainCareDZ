@@ -4,25 +4,17 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState } from 'react';
 import { services } from '@/lib/api';
+import ServiceForm, { type ServiceFormData } from '@/components/service-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-interface ServiceDetail {
-  id: string;
-  name: string;
-  category: string;
-  duration: number;
-  price: number;
-  description?: string;
-}
-
-export default function ServiceDetailPage() {
+export default function ServiceEditPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const serviceId = params?.id;
-  const [service, setService] = useState<ServiceDetail | null>(null);
+  const serviceId = params?.id as string;
+  const [service, setService] = useState<ServiceFormData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -40,9 +32,14 @@ export default function ServiceDetailPage() {
   async function loadService() {
     try {
       setIsLoading(true);
-      const response = await services.getById(serviceId as string);
+      const response = await services.getById(serviceId);
       if (response.success && response.data) {
-        setService(response.data.service);
+        const serviceData = response.data.service || response.data;
+        setService({
+          name: serviceData.name || '',
+          price: serviceData.price || 0,
+          sessions: serviceData.sessions || 1,
+        });
       } else {
         setError(response.message || 'Échec du chargement du service');
       }
@@ -53,6 +50,14 @@ export default function ServiceDetailPage() {
     }
   }
 
+  async function handleUpdate(data: ServiceFormData) {
+    const response = await services.update(serviceId, data);
+    if (!response.success) {
+      throw new Error(response.message || 'Échec de la modification du service');
+    }
+    router.push('/services');
+  }
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -61,52 +66,31 @@ export default function ServiceDetailPage() {
     );
   }
 
-  if (error || !service) {
+  if (error) {
     return (
       <div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Détails du service</h1>
-        </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || 'Service non trouvé'}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">{service.name}</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Modifier le service</h1>
+        <p className="text-gray-600 mt-1">Modifiez les informations du service</p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Détails du service</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Catégorie</p>
-              <p className="text-lg">{service.category}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Prix</p>
-              <p className="text-lg font-semibold">{Number(service.price).toFixed(2)} DZD</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Durée</p>
-              <p className="text-lg">{service.duration} minutes</p>
-            </div>
-          </div>
-          {service.description && (
-            <div>
-              <p className="text-sm font-medium text-gray-600">Description</p>
-              <p className="text-lg">{service.description}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+      {service && (
+        <ServiceForm
+          initialData={service}
+          onSubmit={handleUpdate}
+          submitButtonText="Enregistrer les modifications"
+        />
+      )}
     </div>
   );
 }

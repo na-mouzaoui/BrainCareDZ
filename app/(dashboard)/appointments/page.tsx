@@ -16,11 +16,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 interface Appointment {
   id: string;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string;
-  clientEmail: string;
-  clientPhone: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
+  patientEmail: string;
+  patientPhone: string;
   serviceId: string;
   serviceName: string;
   servicePrice: number;
@@ -291,13 +291,13 @@ export default function AppointmentsPage() {
     setCurrentWeekStart(startOfWeekSunday(date));
   }
 
-  function createFromSlot(day: Date, slotStartMinutes: number) {
+function createFromSlot(day: Date, slotStartMinutes: number) {
     const start = new Date(day);
     start.setHours(Math.floor(slotStartMinutes / 60), slotStartMinutes % 60, 0, 0);
     const end = new Date(start.getTime() + slotDuration * 60000);
 
     setInitialCreateData({
-      clientId: '',
+      patientId: '',
       serviceId: '',
       startTime: formatDateTimeLocal(start),
       endTime: formatDateTimeLocal(end),
@@ -471,7 +471,7 @@ export default function AppointmentsPage() {
                                 className="w-full rounded bg-white px-2 py-1 text-left text-xs shadow-sm hover:bg-emerald-100 transition-colors"
                               >
                                 <p className="font-semibold truncate">
-                                  {apt.clientFirstName} {apt.clientLastName}
+                                  {apt.patientFirstName} {apt.patientLastName}
                                 </p>
                                 <p className="truncate text-gray-600">{apt.serviceName}</p>
                               </button>

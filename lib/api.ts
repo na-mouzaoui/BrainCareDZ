@@ -54,7 +54,7 @@ export async function apiRequest<T = any>(
 
     return {
       success: true,
-      data: data.user || data.users || data.client || data.clients || data,
+      data: data.user || data.users || data.patient || data.patients || data.payments || data.service || data.services || data.data || data,
       token: data.token,
       message: data.message,
     };
@@ -82,26 +82,26 @@ export const auth = {
   getMe: () => apiRequest('/auth/me', { method: 'GET' }),
 };
 
-// Client endpoints
-export const clients = {
+// Patient endpoints
+export const patients = {
   getAll: () =>
-    apiRequest('/clients', { method: 'GET' }),
+    apiRequest('/patients', { method: 'GET' }),
   getById: (id: string) =>
-    apiRequest(`/clients/${id}`, { method: 'GET' }),
+    apiRequest(`/patients/${id}`, { method: 'GET' }),
   create: (data: any) =>
-    apiRequest('/clients', {
+    apiRequest('/patients', {
       method: 'POST',
       body: data,
     }),
   update: (id: string, data: any) =>
-    apiRequest(`/clients/${id}`, {
+    apiRequest(`/patients/${id}`, {
       method: 'PUT',
       body: data,
     }),
   delete: (id: string) =>
-    apiRequest(`/clients/${id}`, { method: 'DELETE' }),
+    apiRequest(`/patients/${id}`, { method: 'DELETE' }),
   search: (query: string) =>
-    apiRequest(`/clients/search/${query}`, { method: 'GET' }),
+    apiRequest(`/patients/search/${query}`, { method: 'GET' }),
 };
 
 // Services endpoints
@@ -173,8 +173,8 @@ export const sessionNotes = {
     }),
   delete: (id: string) =>
     apiRequest(`/session-notes/${id}`, { method: 'DELETE' }),
-  getByClient: (clientId: string) =>
-    apiRequest(`/session-notes/client/${clientId}`, { method: 'GET' }),
+  getByPatient: (patientId: string) =>
+    apiRequest(`/session-notes/patient/${patientId}`, { method: 'GET' }),
 };
 
 // Invoices endpoints
@@ -203,8 +203,8 @@ export const invoices = {
     apiRequest(`/invoices/${id}/send`, { method: 'PUT' }),
   markPaid: (id: string) =>
     apiRequest(`/invoices/${id}/mark-paid`, { method: 'PUT' }),
-  getByClient: (clientId: string) =>
-    apiRequest(`/invoices/client/${clientId}`, { method: 'GET' }),
+  getByPatient: (patientId: string) =>
+    apiRequest(`/invoices/patient/${patientId}`, { method: 'GET' }),
 };
 
 // Payments endpoints

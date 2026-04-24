@@ -6,14 +6,14 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 const appointmentSelect = `
-  SELECT a.id, a.client_id AS "clientId", a.practitioner_id AS "practitionerId", a.service_id AS "serviceId",
+  SELECT a.id, a.patient_id AS "patientId", a.practitioner_id AS "practitionerId", a.service_id AS "serviceId",
          a.start_time AS "startTime", a.end_time AS "endTime", a.status, a.notes,
          a.reminder_sent AS "reminderSent", a.session_note_id AS "sessionNoteId",
-         c.first_name AS "clientFirstName", c.last_name AS "clientLastName", c.email AS "clientEmail", c.phone AS "clientPhone",
+         c.first_name AS "patientFirstName", c.last_name AS "patientLastName", c.email AS "patientEmail", c.phone AS "patientPhone",
          u.name AS "practitionerName", u.email AS "practitionerEmail",
          s.name AS "serviceName", s.price AS "servicePrice", s.duration AS "serviceDuration"
   FROM appointments a
-  JOIN clients c ON c.id = a.client_id
+  JOIN patients c ON c.id = a.patient_id
   JOIN users u ON u.id = a.practitioner_id
   JOIN services s ON s.id = a.service_id
 `;
@@ -122,7 +122,7 @@ router.post(
   '/',
   protect,
   [
-    body('clientId', 'Valid client ID is required').notEmpty(),
+    body('patientId', 'Valid patient ID is required').notEmpty(),
     body('serviceId', 'Valid service ID is required').notEmpty(),
     body('startTime', 'Valid start time is required').isISO8601(),
     body('endTime', 'Valid end time is required').isISO8601(),
@@ -134,15 +134,15 @@ router.post(
     }
 
     try {
-      const { clientId, serviceId, startTime, endTime, notes } = req.body;
+      const { patientId, serviceId, startTime, endTime, notes } = req.body;
 
-      const client = await query('SELECT practitioner_id AS "practitionerId" FROM clients WHERE id = $1', [clientId]);
-      if (client.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Client not found' });
+      const patient = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [patientId]);
+      if (patient.rowCount === 0) {
+        return res.status(404).json({ success: false, message: 'Patient not found' });
       }
 
-      if (req.user.role !== 'admin' && client.rows[0].practitionerId !== req.user.id) {
-        return res.status(403).json({ success: false, message: 'Not authorized to book for this client' });
+      if (req.user.role !== 'admin' && patient.rows[0].practitionerId !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Not authorized to book for this patient' });
       }
 
       const service = await query('SELECT id FROM services WHERE id = $1 AND is_active = TRUE', [serviceId]);
@@ -150,7 +150,7 @@ router.post(
         return res.status(404).json({ success: false, message: 'Service not found' });
       }
 
-      const practitionerId = req.user.role === 'admin' ? client.rows[0].practitionerId : req.user.id;
+      const practitionerId = req.user.role === 'admin' ? patient.rows[0].practitionerId : req.user.id;
 
       const conflict = await query(
         `SELECT id FROM appointments
@@ -167,10 +167,10 @@ router.post(
       }
 
       const inserted = await query(
-        `INSERT INTO appointments (client_id, practitioner_id, service_id, start_time, end_time, notes)
+        `INSERT INTO appointments (patient_id, practitioner_id, service_id, start_time, end_time, notes)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id`,
-        [clientId, practitionerId, serviceId, startTime, endTime, notes || null]
+        [patientId, practitionerId, serviceId, startTime, endTime, notes || null]
       );
 
       const created = await query(`${appointmentSelect} WHERE a.id = $1`, [inserted.rows[0].id]);
@@ -264,7 +264,7 @@ router.delete('/:id', protect, async (req, res) => {
 
 router.put('/:id/complete', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId", client_id AS "clientId" FROM appointments WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId", patient_id AS "patientId" FROM appointments WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
@@ -276,12 +276,12 @@ router.put('/:id/complete', protect, async (req, res) => {
 
     await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'completed']);
     await query(
-      `UPDATE clients
+      `UPDATE patients
        SET session_count = session_count + 1,
            last_session_date = NOW(),
            updated_at = NOW()
        WHERE id = $1`,
-      [current.clientId]
+      [current.patientId]
     );
 
     const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);

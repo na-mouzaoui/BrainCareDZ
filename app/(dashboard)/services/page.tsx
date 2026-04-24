@@ -9,41 +9,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Service {
   id: string;
   name: string;
-  category: string;
-  duration: number;
   price: number;
-  description?: string;
-  isActive: boolean;
+  sessions: number;
 }
 
 export default function ServicesPage() {
   const [servicesList, setServicesList] = useState<Service[]>([]);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
-
-  const categories = [
-    { value: 'all', label: 'Toutes les catégories' },
-    { value: 'neurofeedback', label: 'Neurofeedback' },
-    { value: 'therapy', label: 'Thérapie' },
-    { value: 'assessment', label: 'Évaluation' },
-    { value: 'consultation', label: 'Consultation' },
-    { value: 'other', label: 'Autre' },
-  ];
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -57,29 +45,25 @@ export default function ServicesPage() {
   }, [isAuthenticated, authLoading, router]);
 
   useEffect(() => {
-    let filtered = servicesList;
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (service) =>
-          service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (service.description && service.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    if (!searchTerm) {
+      setFilteredServices(servicesList);
+    } else {
+      setFilteredServices(
+        servicesList.filter(
+          (service) =>
+            service.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
       );
     }
-
-    if (selectedCategory && selectedCategory !== 'all') {
-      filtered = filtered.filter((service) => service.category === selectedCategory);
-    }
-
-    setFilteredServices(filtered);
-  }, [searchTerm, selectedCategory, servicesList]);
+  }, [searchTerm, servicesList]);
 
   async function loadServices() {
     try {
       setIsLoading(true);
       const response = await services.getAll();
       if (response.success && response.data) {
-        setServicesList(response.data.services || []);
+        const servicesData = response.data;
+        setServicesList(Array.isArray(servicesData) ? servicesData : servicesData.services || []);
       } else {
         setError(response.message || 'Échec du chargement des services');
       }
@@ -87,23 +71,6 @@ export default function ServicesPage() {
       setError('Une erreur s\'est produite lors du chargement des services');
     } finally {
       setIsLoading(false);
-    }
-  }
-
-  async function handleDelete(serviceId: string, serviceName: string) {
-    if (!confirm(`Voulez-vous vraiment supprimer ${serviceName} ?`)) {
-      return;
-    }
-
-    try {
-      const response = await services.delete(serviceId);
-      if (response.success) {
-        setServicesList(servicesList.filter((s) => s.id !== serviceId));
-      } else {
-        setError(response.message || 'Échec de la suppression du service');
-      }
-    } catch (err) {
-      setError('Une erreur s\'est produite lors de la suppression du service');
     }
   }
 
@@ -116,6 +83,53 @@ export default function ServicesPage() {
     await loadServices();
   }
 
+  async function handleEditClick(service: Service) {
+    setEditingServiceId(service.id);
+    setEditingService({
+      name: service.name,
+      price: service.price,
+      sessions: service.sessions || 1,
+    });
+    setEditOpen(true);
+  }
+
+  async function handleUpdateService(data: ServiceFormData) {
+    if (!editingServiceId) return;
+    
+    const response = await services.update(editingServiceId, data);
+    if (!response.success) {
+      throw new Error(response.message || 'Échec de la modification du service');
+    }
+    setEditOpen(false);
+    setEditingService(null);
+    setEditingServiceId(null);
+    await loadServices();
+  }
+
+  async function handleDelete(serviceId: string, serviceName: string) {
+    if (!confirm(`Voulez-vous vraiment supprimer le service "${serviceName}" ?`)) {
+      return;
+    }
+
+    try {
+      const response = await services.delete(serviceId);
+      if (response.success) {
+        setServicesList(servicesList.filter((s) => s.id !== serviceId));
+      } else {
+        setError(response.message || 'Échec de la suppression du service');
+      }
+    } catch (err) {
+      setError('Une erreur s\'est produite lors de la suppression');
+    }
+  }
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price);
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -125,22 +139,16 @@ export default function ServicesPage() {
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Services</h1>
-            <p className="text-gray-600 mt-1">Gérez vos services et forfaits</p>
-          </div>
-          <Button
-            onClick={() => setCreateOpen(true)}
-            className="gap-2 bg-emerald-700 hover:bg-emerald-800"
-          >
-            <Plus className="h-4 w-4" />
-            Ajouter un service
-          </Button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Services</h1>
+          <p className="text-gray-600 mt-1">Gérez vos services et tarifs</p>
         </div>
+        <Button onClick={() => setCreateOpen(true)} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+          <Plus className="h-4 w-4" />
+          Nouveau service
+        </Button>
       </div>
 
       {error && (
@@ -150,9 +158,8 @@ export default function ServicesPage() {
         </Alert>
       )}
 
-      {/* Filters */}
       <Card className="mb-6">
-        <CardContent className="pt-6 space-y-4">
+        <CardContent className="pt-6">
           <div className="flex gap-2">
             <Search className="h-5 w-5 text-gray-400 absolute ml-3 mt-2.5" />
             <Input
@@ -162,22 +169,9 @@ export default function ServicesPage() {
               className="pl-10"
             />
           </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filtrer par catégorie" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((cat) => (
-                <SelectItem key={cat.value} value={cat.value}>
-                  {cat.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </CardContent>
       </Card>
 
-      {/* Services Table */}
       {filteredServices.length > 0 ? (
         <Card>
           <CardHeader>
@@ -189,8 +183,7 @@ export default function ServicesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nom</TableHead>
-                    <TableHead>Catégorie</TableHead>
-                    <TableHead>Durée</TableHead>
+                    <TableHead>Séances</TableHead>
                     <TableHead>Prix</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -199,16 +192,13 @@ export default function ServicesPage() {
                   {filteredServices.map((service) => (
                     <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{service.category}</Badge>
-                      </TableCell>
-                      <TableCell>{service.duration} min</TableCell>
-                      <TableCell className="font-semibold">{Number(service.price).toFixed(2)} DZD</TableCell>
+                      <TableCell>{service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}</TableCell>
+                      <TableCell className="font-semibold">{formatPrice(service.price)} DZD</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/services/${service.id}/edit`)}
+                          onClick={() => handleEditClick(service)}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -233,13 +223,15 @@ export default function ServicesPage() {
         <Card>
           <CardContent className="pt-12">
             <div className="text-center">
-              <p className="text-gray-500 mb-4">Aucun service trouvé</p>
+              <p className="text-gray-500 mb-4">
+                {searchTerm ? 'Aucun service ne correspond à votre recherche' : 'Aucun service pour le moment'}
+              </p>
               <Button
                 onClick={() => setCreateOpen(true)}
                 className="gap-2 bg-emerald-700 hover:bg-emerald-800"
               >
                 <Plus className="h-4 w-4" />
-                Ajouter un service
+                Ajouter votre premier service
               </Button>
             </div>
           </CardContent>
@@ -247,14 +239,32 @@ export default function ServicesPage() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Ajouter un service</DialogTitle>
+            <DialogTitle>Nouveau service</DialogTitle>
             <DialogDescription>
-              Remplissez le formulaire pour ajouter un nouveau service.
+              Créez un nouveau service avec son tarif.
             </DialogDescription>
           </DialogHeader>
-          <ServiceForm onSubmit={handleCreateService} submitButtonText="Enregistrer le service" />
+          <ServiceForm onSubmit={handleCreateService} submitButtonText="Créer le service" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifier le service</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations du service.
+            </DialogDescription>
+          </DialogHeader>
+          {editingService && (
+            <ServiceForm
+              initialData={editingService}
+              onSubmit={handleUpdateService}
+              submitButtonText="Enregistrer les modifications"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

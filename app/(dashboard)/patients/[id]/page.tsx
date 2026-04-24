@@ -3,12 +3,12 @@
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState } from 'react';
-import { clients } from '@/lib/api';
+import { patients } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-interface ClientDetail {
+interface PatientDetail {
   id: string;
   firstName: string;
   lastName: string;
@@ -18,12 +18,12 @@ interface ClientDetail {
   sessionCount: number;
 }
 
-export default function ClientDetailPage() {
+export default function PatientDetailPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const clientId = params?.id;
-  const [client, setClient] = useState<ClientDetail | null>(null);
+  const patientId = params?.id;
+  const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -33,22 +33,22 @@ export default function ClientDetailPage() {
       return;
     }
 
-    if (!authLoading && isAuthenticated && clientId) {
-      loadClient();
+    if (!authLoading && isAuthenticated && patientId) {
+      loadPatient();
     }
-  }, [isAuthenticated, authLoading, clientId, router]);
+  }, [isAuthenticated, authLoading, patientId, router]);
 
-  async function loadClient() {
+  async function loadPatient() {
     try {
       setIsLoading(true);
-      const response = await clients.getById(clientId as string);
+      const response = await patients.getById(patientId as string);
       if (response.success && response.data) {
-        setClient(response.data.client);
+        setPatient(response.data.patient);
       } else {
-        setError(response.message || 'Échec du chargement du client');
+        setError(response.message || 'Échec du chargement du patient');
       }
     } catch (err) {
-      setError('Une erreur s\'est produite lors du chargement du client');
+      setError('Une erreur s\'est produite lors du chargement du patient');
     } finally {
       setIsLoading(false);
     }
@@ -62,15 +62,15 @@ export default function ClientDetailPage() {
     );
   }
 
-  if (error || !client) {
+  if (error || !patient) {
     return (
       <div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Détails du client</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Détails du patient</h1>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || 'Client non trouvé'}</AlertDescription>
+          <AlertDescription>{error || 'Patient non trouvé'}</AlertDescription>
         </Alert>
       </div>
     );
@@ -80,30 +80,30 @@ export default function ClientDetailPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          {client.firstName} {client.lastName}
+          {patient.firstName} {patient.lastName}
         </h1>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Informations du client</CardTitle>
+          <CardTitle>Informations du patient</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-medium text-gray-600">E-mail</p>
-              <p className="text-lg">{client.email}</p>
+              <p className="text-lg">{patient.email}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Téléphone</p>
-              <p className="text-lg">{client.phone}</p>
+              <p className="text-lg">{patient.phone}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Statut</p>
-              <p className="text-lg capitalize">{client.status}</p>
+              <p className="text-lg capitalize">{patient.status}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Sessions</p>
-              <p className="text-lg">{client.sessionCount}</p>
+              <p className="text-lg">{patient.sessionCount}</p>
             </div>
           </div>
         </CardContent>

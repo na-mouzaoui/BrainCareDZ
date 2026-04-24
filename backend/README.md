@@ -28,12 +28,12 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/psychology_practice
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/BrainCare
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=psychology_practice
+DB_NAME=BrainCare
 JWT_SECRET=your_jwt_secret_key_here_min_32_chars_long
 PORT=5000
 NODE_ENV=development
@@ -45,7 +45,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
 ### 3. Create Database Schema
 
 ```bash
-psql -U postgres -d psychology_practice -f sql/init_postgres.sql
+psql -U postgres -d BrainCare -f sql/init_postgres.sql
 ```
 
 ### 4. Seed the Database (Optional)

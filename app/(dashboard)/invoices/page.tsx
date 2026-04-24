@@ -16,10 +16,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 interface Invoice {
   id: string;
   invoiceNumber: string;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string;
-  clientEmail: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
+  patientEmail: string;
   practitionerId: string;
   total: number;
   status: string;
@@ -183,7 +183,7 @@ export default function InvoicesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>#</TableHead>
-                    <TableHead>Client</TableHead>
+                    <TableHead>Patient</TableHead>
                     <TableHead>Montant</TableHead>
                     <TableHead>Date créée</TableHead>
                     <TableHead>Statut</TableHead>
@@ -195,7 +195,7 @@ export default function InvoicesPage() {
                     <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-sm">{invoice.invoiceNumber}</TableCell>
                       <TableCell>
-                        {invoice.clientFirstName} {invoice.clientLastName}
+                        {invoice.patientFirstName} {invoice.patientLastName}
                       </TableCell>
                       <TableCell className="font-semibold">{Number(invoice.total).toFixed(2)} DZD</TableCell>
                       <TableCell>{new Date(invoice.createdAt).toLocaleDateString('fr-FR')}</TableCell>
@@ -252,7 +252,7 @@ export default function InvoicesPage() {
           <DialogHeader>
             <DialogTitle>Créer une facture</DialogTitle>
             <DialogDescription>
-              Sélectionnez le client et les rendez-vous à facturer.
+              Sélectionnez le patient et les rendez-vous à facturer.
             </DialogDescription>
           </DialogHeader>
           <InvoiceForm onSubmit={handleCreateInvoice} submitButtonText="Créer la facture" />

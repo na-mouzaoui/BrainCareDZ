@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState } from 'react';
-import { appointments, clients, payments } from '@/lib/api';
+import { appointments, patients, payments } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Users, Calendar, Wallet, TrendingUp } from 'lucide-react';
 import {
@@ -27,9 +27,9 @@ interface DashboardStats {
   newPatientsMonth: number;
 }
 
-interface MonthlyClientPoint {
+interface MonthlyPatientPoint {
   month: string;
-  clients: number;
+  patients: number;
 }
 
 interface MonthlyAppointmentPoint {
@@ -48,7 +48,7 @@ export default function DashboardPage() {
     todayAppointments: 0,
     newPatientsMonth: 0,
   });
-  const [monthlyClientsTrend, setMonthlyClientsTrend] = useState<MonthlyClientPoint[]>([]);
+  const [monthlyPatientsTrend, setMonthlyPatientsTrend] = useState<MonthlyPatientPoint[]>([]);
   const [monthlyAppointmentsTrend, setMonthlyAppointmentsTrend] = useState<MonthlyAppointmentPoint[]>([]);
 
   useEffect(() => {
@@ -63,27 +63,37 @@ export default function DashboardPage() {
 
   async function loadDashboardStats() {
     try {
-      const [clientsResponse, appointmentsResponse, paymentsResponse] = await Promise.all([
-        clients.getAll(),
+      const [patientsResponse, appointmentsResponse, paymentsResponse] = await Promise.all([
+        patients.getAll(),
         appointments.getAll(),
         payments.getAll(),
       ]);
 
-      const clientsData = clientsResponse.data as any;
-      const appointmentsData = appointmentsResponse.data as any;
-      const paymentsData = paymentsResponse.data as any;
+      let patientItems: any[] = [];
+      let appointmentItems: any[] = [];
+      let paymentItems: any[] = [];
 
-      const clientItems = Array.isArray(clientsData)
-        ? clientsData
-        : clientsData?.clients || clientsData?.data?.clients || [];
+      if (patientsResponse.success && patientsResponse.data) {
+        patientItems = Array.isArray(patientsResponse.data) 
+          ? patientsResponse.data 
+          : patientsResponse.data.patients || [];
+      }
 
-      const appointmentItems = Array.isArray(appointmentsData)
-        ? appointmentsData
-        : appointmentsData?.appointments || appointmentsData?.data?.appointments || [];
+      if (appointmentsResponse.success && appointmentsResponse.data) {
+        appointmentItems = Array.isArray(appointmentsResponse.data)
+          ? appointmentsResponse.data
+          : appointmentsResponse.data.appointments || [];
+      }
 
-      const paymentItems = Array.isArray(paymentsData)
-        ? paymentsData
-        : paymentsData?.payments || paymentsData?.data?.payments || [];
+      if (paymentsResponse.success && paymentsResponse.data) {
+        paymentItems = Array.isArray(paymentsResponse.data)
+          ? paymentsResponse.data
+          : paymentsResponse.data.payments || [];
+      }
+
+      console.log('patientItems:', patientItems.length);
+      console.log('appointmentItems:', appointmentItems.length);
+      console.log('paymentItems:', paymentItems.length);
 
       const now = new Date();
       const startOfToday = new Date(now);
@@ -129,8 +139,8 @@ export default function DashboardPage() {
           .reduce((total, payment) => total + Number(payment.amount || 0), 0)
       );
 
-      const newPatientsMonth = clientItems.filter((client) => {
-        const createdAt = new Date(client.createdAt || '');
+      const newPatientsMonth = patientItems.filter((patient) => {
+        const createdAt = new Date(patient.createdAt || '');
         return createdAt >= startOfMonth && createdAt <= endOfMonth;
       }).length;
 
@@ -146,34 +156,25 @@ export default function DashboardPage() {
         };
       });
 
-      const monthlyClients = months.map((m) => {
-        const count = clientItems.filter((client) => {
-          const created = new Date(client.createdAt || '');
+const monthlyPatients = months.map((m) => {
+        const count = patientItems.filter((patient) => {
+          const created = new Date(patient.createdAt || '');
           return created.getFullYear() === m.year && created.getMonth() === m.month;
         }).length;
         return {
           month: m.monthLabel,
-          clients: count,
+          patients: count,
         };
       });
 
       const monthlyAppointments = months.map((m) => {
-        const appointmentsForMonth = appointmentItems.filter((appointment) => {
-          const start = new Date(appointment.startTime || '');
+        const count = appointmentItems.filter((apt) => {
+          const start = new Date(apt.startTime || '');
           return start.getFullYear() === m.year && start.getMonth() === m.month;
-        });
-
-        const fixedCount = appointmentsForMonth.filter((appointment) => {
-          const status = appointment.status;
-          return ['scheduled', 'completed', 'cancelled', 'no-show'].includes(status);
         }).length;
-
-        const attendedCount = appointmentsForMonth.filter((appointment) => appointment.status === 'completed').length;
-
         return {
           month: m.monthLabel,
-          fixed: fixedCount,
-          attended: attendedCount,
+          appointments: count,
         };
       });
 
@@ -184,7 +185,7 @@ export default function DashboardPage() {
         todayAppointments,
         newPatientsMonth,
       });
-      setMonthlyClientsTrend(monthlyClients);
+      setMonthlyPatientsTrend(monthlyPatients);
       setMonthlyAppointmentsTrend(monthlyAppointments);
     } catch (error) {
       console.error('Failed to load dashboard stats:', error);
@@ -195,7 +196,7 @@ export default function DashboardPage() {
         todayAppointments: 0,
         newPatientsMonth: 0,
       });
-      setMonthlyClientsTrend([]);
+      setMonthlyPatientsTrend([]);
       setMonthlyAppointmentsTrend([]);
     }
   }
@@ -277,11 +278,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Evolution du nombre de clients par mois</CardTitle>
+            <CardTitle>Evolution du nombre de patients par mois</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyClientsTrend}>
+              <LineChart data={monthlyPatientsTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis allowDecimals={false} />
@@ -289,8 +290,8 @@ export default function DashboardPage() {
                 <Legend />
                 <Line
                   type="monotone"
-                  dataKey="clients"
-                  name="Nouveaux clients"
+                  dataKey="patients"
+                  name="Nouveaux patients"
                   stroke="#059669"
                   strokeWidth={2}
                   dot={{ fill: '#059669', r: 3 }}
