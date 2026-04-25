@@ -10,6 +10,7 @@ router.get('/', protect, async (req, res) => {
     const result = await query(
       `SELECT id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services
+       WHERE is_active = TRUE
        ORDER BY created_at DESC`
     );
 
@@ -67,6 +68,8 @@ router.post(
   authorize('admin', 'practitioner'),
   [
     body('name', 'Le nom du service est requis').notEmpty().trim(),
+    body('price', 'Le prix doit être un nombre positif').isFloat({ min: 0 }),
+    body('sessions', 'Le nombre de séances doit être un entier >= 1').optional().isInt({ min: 1 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -76,12 +79,22 @@ router.post(
 
     try {
       const { name, price, sessions } = req.body;
-      console.log('Creating service with:', { name, price, sessions });
+      const safePrice = Number(price);
+      const safeSessions = sessions ? Number(sessions) : 1;
+
+      if (Number.isNaN(safePrice) || safePrice < 0) {
+        return res.status(400).json({ success: false, message: 'Prix invalide' });
+      }
+
+      if (!Number.isInteger(safeSessions) || safeSessions < 1) {
+        return res.status(400).json({ success: false, message: 'Nombre de séances invalide' });
+      }
+
       const result = await query(
         `INSERT INTO services (name, price, sessions)
          VALUES ($1, $2, $3)
          RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [name, price || 0, sessions || 1]
+        [name, safePrice, safeSessions]
       );
 
       return res.status(201).json({
@@ -99,6 +112,21 @@ router.post(
 router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
   try {
     const { name, price, sessions } = req.body;
+
+    if (price !== undefined) {
+      const safePrice = Number(price);
+      if (Number.isNaN(safePrice) || safePrice < 0) {
+        return res.status(400).json({ success: false, message: 'Prix invalide' });
+      }
+    }
+
+    if (sessions !== undefined) {
+      const safeSessions = Number(sessions);
+      if (!Number.isInteger(safeSessions) || safeSessions < 1) {
+        return res.status(400).json({ success: false, message: 'Nombre de séances invalide' });
+      }
+    }
+
     const result = await query(
       `UPDATE services
        SET name = COALESCE($2, name),
@@ -107,7 +135,7 @@ router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res)
            updated_at = NOW()
        WHERE id = $1
        RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, price, sessions]
+      [req.params.id, name, price !== undefined ? Number(price) : undefined, sessions !== undefined ? Number(sessions) : undefined]
     );
 
     if (result.rowCount === 0) {

@@ -23,6 +23,7 @@ interface Patient {
   id: string;
   firstName: string;
   lastName: string;
+  balance?: number;
 }
 
 interface Service {
@@ -180,6 +181,10 @@ export default function AppointmentForm({
 
   const isFormLoading = isLoading || submitting || loadingData;
   const selectedService = validServices.find((s) => s.id === formData.serviceId);
+  const selectedPatient = validPatients.find((p) => p.id === formData.patientId);
+  const patientBalance = Number(selectedPatient?.balance ?? 0);
+  const servicePrice = Number(selectedService?.price ?? 0);
+  const hasInsufficientBalance = !!selectedPatient && !!selectedService && patientBalance < servicePrice;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -242,6 +247,15 @@ export default function AppointmentForm({
             </Select>
           </Field>
 
+          {hasInsufficientBalance && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Solde insuffisant pour ce patient. Solde actuel: {patientBalance.toFixed(2)} DZD, coût de la séance: {servicePrice.toFixed(2)} DZD.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field>
               <FieldLabel>Date et heure de début *</FieldLabel>
@@ -300,6 +314,14 @@ export default function AppointmentForm({
                 {Number(selectedService.price).toFixed(2)} DZD
               </span>
             </div>
+            {selectedPatient && (
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-gray-600">Solde patient :</span>
+                <span className={`font-semibold ${hasInsufficientBalance ? 'text-red-600' : 'text-emerald-700'}`}>
+                  {patientBalance.toFixed(2)} DZD
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600">Date et heure :</span>
               <span className="font-semibold">

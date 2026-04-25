@@ -123,7 +123,7 @@ export default function PaymentsPage() {
       });
 
       if (response.success) {
-        setPayments([response.data as Payment, ...payments]);
+        await loadData();
         setFormData({
           patientId: '',
           amount: '',
@@ -149,7 +149,7 @@ export default function PaymentsPage() {
     try {
       const response = await paymentsApi.delete(id);
       if (response.success) {
-        setPayments(payments.filter((p) => p.id !== id));
+        await loadData();
       } else {
         setError('Erreur lors de la suppression du paiement');
       }

@@ -307,18 +307,21 @@ export default function PatientForm({
                 <Field>
                   <FieldLabel>Sexe</FieldLabel>
                   <div className="flex gap-4 py-2">
-                    {['Homme', 'Femme'].map((gender) => (
-                      <div key={gender} className="flex items-center gap-2">
+                    {[
+                      { value: 'male', label: 'Homme' },
+                      { value: 'female', label: 'Femme' },
+                    ].map((gender) => (
+                      <div key={gender.value} className="flex items-center gap-2">
                         <input
                           type="radio"
-                          id={`gender-${gender}`}
+                          id={`gender-${gender.value}`}
                           name="gender"
-                          value={gender}
-                          checked={formData.gender === gender}
+                          value={gender.value}
+                          checked={formData.gender === gender.value}
                           onChange={(e) => handleInputChange('gender', e.target.value)}
                           disabled={isFormLoading}
                         />
-                        <label htmlFor={`gender-${gender}`} className="text-sm cursor-pointer">{gender}</label>
+                        <label htmlFor={`gender-${gender.value}`} className="text-sm cursor-pointer">{gender.label}</label>
                       </div>
                     ))}
                   </div>

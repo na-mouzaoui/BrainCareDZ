@@ -539,7 +539,7 @@ export default function AdminPage() {
     try {
       const response = await usersApi.create(formData);
       if (response.success) {
-        setUsers([response.data as User, ...users]);
+        await loadUsers();
         setFormData({
           name: '',
           email: '',
@@ -565,7 +565,7 @@ export default function AdminPage() {
     try {
       const response = await usersApi.delete(id);
       if (response.success) {
-        setUsers(users.filter((u) => u.id !== id));
+        await loadUsers();
       } else {
         setError('Erreur lors de la suppression');
       }

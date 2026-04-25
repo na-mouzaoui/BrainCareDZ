@@ -22,6 +22,7 @@ interface Patient {
   phone: string;
   status: string;
   sessionCount: number;
+  balance: number;
   lastSessionDate?: string;
 }
 
@@ -83,14 +84,15 @@ export default function PatientsPage() {
   }
 
   async function handleDelete(patientId: string, patientName: string) {
-    if (!confirm(`Veuillez confirmer l'archivage de ${patientName}`)) {
+    if (!confirm(`Voulez-vous vraiment supprimer définitivement ${patientName} ? Cette action est irréversible.`)) {
       return;
     }
 
     try {
+      setError('');
       const response = await patients.delete(patientId);
       if (response.success) {
-        setPatientsList(patientsList.filter((p) => p.id !== patientId));
+        await loadPatients();
       } else {
         setError(response.message || 'Échec de la suppression du patient');
       }
@@ -191,6 +193,7 @@ export default function PatientsPage() {
                     <TableHead>Téléphone</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Sessions</TableHead>
+                    <TableHead>Solde</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -208,6 +211,9 @@ export default function PatientsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{patient.sessionCount}</TableCell>
+                      <TableCell className={patient.balance > 0 ? 'text-red-600 font-semibold' : patient.balance < 0 ? 'text-green-600 font-semibold' : ''}>
+                        {patient.balance > 0 ? '+' : ''}{patient.balance} DZD
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"

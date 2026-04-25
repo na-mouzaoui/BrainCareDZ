@@ -115,7 +115,12 @@ router.post(
       const practitionerId = req.user.role === 'admin' ? patient.rows[0].practitionerId : req.user.id;
 
       const appointments = await query(
-        `SELECT a.id, s.name, s.price
+        `SELECT a.id,
+                a.patient_id AS "patientId",
+                a.practitioner_id AS "practitionerId",
+                a.status,
+                s.name,
+                s.price
          FROM appointments a
          JOIN services s ON s.id = a.service_id
          WHERE a.id = ANY($1::uuid[])`,
@@ -124,6 +129,28 @@ router.post(
 
       if (appointments.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'No appointments found' });
+      }
+
+      const invalidAppointment = appointments.rows.find(
+        (apt) => apt.patientId !== patientId || apt.practitionerId !== practitionerId
+      );
+
+      if (invalidAppointment) {
+        return res.status(400).json({
+          success: false,
+          message: 'All appointments must belong to the same patient and practitioner as the invoice',
+        });
+      }
+
+      const nonBillableStatus = appointments.rows.find(
+        (apt) => !['completed', 'scheduled'].includes(String(apt.status))
+      );
+
+      if (nonBillableStatus) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointments with cancelled or invalid status cannot be invoiced',
+        });
       }
 
       const lineItems = appointments.rows.map((apt) => ({

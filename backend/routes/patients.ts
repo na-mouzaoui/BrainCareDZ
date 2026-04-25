@@ -5,6 +5,24 @@ import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
+function normalizeGender(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  const normalized = String(value).trim().toLowerCase();
+  const map = {
+    male: 'male',
+    homme: 'male',
+    m: 'male',
+    female: 'female',
+    femme: 'female',
+    f: 'female',
+    other: 'other',
+    autre: 'other',
+  };
+
+  return map[normalized] || null;
+}
+
 const baseSelect = `
   SELECT c.id, c.first_name AS "firstName", c.last_name AS "lastName", c.email, c.phone,
          c.date_of_birth AS "dateOfBirth", c.gender,
@@ -16,6 +34,20 @@ const baseSelect = `
          c.medical_history AS "medicalHistory", c.allergies, c.current_medications AS "currentMedications",
          c.referral_source AS "referralSource", c.status, c.notes, c.session_count AS "sessionCount",
          c.last_session_date AS "lastSessionDate", c.created_at AS "createdAt", c.updated_at AS "updatedAt",
+         (
+           COALESCE((
+             SELECT SUM(p.amount)
+             FROM payments p
+             WHERE p.patient_id = c.id AND p.status = 'completed'
+           ), 0)
+           -
+           COALESCE((
+             SELECT SUM(s.price)
+             FROM appointments a
+             JOIN services s ON s.id = a.service_id
+             WHERE a.patient_id = c.id AND a.status = 'completed'
+           ), 0)
+         ) AS "balance",
          c.practitioner_id AS "practitionerId", u.name AS "practitionerName", u.email AS "practitionerEmail"
   FROM patients c
   JOIN users u ON c.practitioner_id = u.id
@@ -127,6 +159,10 @@ router.post(
         notes,
       } = req.body;
 
+      if (gender !== undefined && normalizeGender(gender) === null) {
+        return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+      }
+
       const inserted = await query(
         `INSERT INTO patients (
           practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
@@ -148,7 +184,7 @@ router.post(
           email || null,
           phone,
           dateOfBirth || null,
-          gender || null,
+          normalizeGender(gender),
           addressStreet || null,
           addressCity || null,
           addressState || null,
@@ -218,6 +254,10 @@ router.put('/:id', protect, async (req, res) => {
       notes,
     } = req.body;
 
+    if (gender !== undefined && normalizeGender(gender) === null) {
+      return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+    }
+
     await query(
       `UPDATE patients SET
         first_name = COALESCE($2, first_name),
@@ -251,7 +291,7 @@ router.put('/:id', protect, async (req, res) => {
         email,
         phone,
         dateOfBirth,
-        gender,
+        gender !== undefined ? normalizeGender(gender) : undefined,
         addressStreet,
         addressCity,
         addressState,
@@ -285,7 +325,9 @@ router.put('/:id', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [req.params.id]);
+    const id = req.params.id;
+    
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
@@ -294,13 +336,23 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this patient' });
     }
 
-    await query('UPDATE patients SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'archived']);
+    // Supprimer les enregistrements liés d'abord (dans l'ordre pour éviter les contraintes)
+    await query('DELETE FROM invoice_appointments WHERE appointment_id IN (SELECT id FROM appointments WHERE patient_id = $1)', [id]);
+    await query('DELETE FROM payments WHERE patient_id = $1', [id]);
+    await query('DELETE FROM session_notes WHERE appointment_id IN (SELECT id FROM appointments WHERE patient_id = $1)', [id]);
+    await query('DELETE FROM appointments WHERE patient_id = $1', [id]);
+    await query('DELETE FROM invoices WHERE patient_id = $1', [id]);
+    await query('DELETE FROM session_notes WHERE patient_id = $1', [id]);
+
+    // Puis supprimer le patient
+    await query('DELETE FROM patients WHERE id = $1', [id]);
 
     return res.status(200).json({
       success: true,
-      message: 'Patient archived successfully',
+      message: 'Patient deleted successfully',
     });
   } catch (error) {
+    console.error('Delete error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });

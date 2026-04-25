@@ -82,7 +82,7 @@ export default function InvoicesPage() {
     try {
       const response = await invoices.delete(invoiceId);
       if (response.success) {
-        setInvoicesList(invoicesList.filter((i) => i.id !== invoiceId));
+        await loadInvoices();
       } else {
         setError(response.message || 'Échec de la suppression de la facture');
       }

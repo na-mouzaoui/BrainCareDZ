@@ -147,8 +147,11 @@ export const appointments = {
       method: 'PUT',
       body: data,
     }),
-  delete: (id: string) =>
-    apiRequest(`/appointments/${id}`, { method: 'DELETE' }),
+  delete: (id: string, reason?: string) =>
+    apiRequest(`/appointments/${id}`, { 
+      method: 'DELETE',
+      body: reason ? { reason } : {},
+    }),
   complete: (id: string) =>
     apiRequest(`/appointments/${id}/complete`, { method: 'PUT' }),
   getAvailability: (date: string) =>

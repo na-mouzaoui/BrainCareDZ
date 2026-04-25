@@ -188,7 +188,10 @@ router.post(
 
 router.put('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId", start_time AS "startTime", end_time AS "endTime" FROM appointments WHERE id = $1', [req.params.id]);
+    const existing = await query(
+      'SELECT practitioner_id AS "practitionerId", patient_id AS "patientId", start_time AS "startTime", end_time AS "endTime" FROM appointments WHERE id = $1',
+      [req.params.id]
+    );
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
@@ -198,9 +201,22 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this appointment' });
     }
 
+    let nextPractitionerId = current.practitionerId;
+    if (req.body.patientId) {
+      const patient = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [req.body.patientId]);
+      if (patient.rowCount === 0) {
+        return res.status(404).json({ success: false, message: 'Patient not found' });
+      }
+
+      if (req.user.role !== 'admin' && patient.rows[0].practitionerId !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Not authorized to assign this patient' });
+      }
+
+      nextPractitionerId = req.user.role === 'admin' ? patient.rows[0].practitionerId : req.user.id;
+    }
+
     const nextStart = req.body.startTime || current.startTime;
     const nextEnd = req.body.endTime || current.endTime;
-    const practitionerId = current.practitionerId;
 
     const conflict = await query(
       `SELECT id FROM appointments
@@ -210,25 +226,27 @@ router.put('/:id', protect, async (req, res) => {
        AND start_time < $4
        AND end_time > $3
        LIMIT 1`,
-      [req.params.id, practitionerId, nextStart, nextEnd]
+      [req.params.id, nextPractitionerId, nextStart, nextEnd]
     );
 
     if (conflict.rowCount > 0) {
       return res.status(400).json({ success: false, message: 'Time slot conflict with existing appointment' });
     }
 
-    const { startTime, endTime, status, notes, serviceId } = req.body;
+    const { patientId, startTime, endTime, status, notes, serviceId } = req.body;
 
     await query(
       `UPDATE appointments
-       SET start_time = COALESCE($2, start_time),
-           end_time = COALESCE($3, end_time),
-           status = COALESCE($4, status),
-           notes = COALESCE($5, notes),
-           service_id = COALESCE($6, service_id),
+       SET patient_id = COALESCE($2, patient_id),
+           practitioner_id = COALESCE($3, practitioner_id),
+           start_time = COALESCE($4, start_time),
+           end_time = COALESCE($5, end_time),
+           status = COALESCE($6, status),
+           notes = COALESCE($7, notes),
+           service_id = COALESCE($8, service_id),
            updated_at = NOW()
        WHERE id = $1`,
-      [req.params.id, startTime, endTime, status, notes, serviceId]
+      [req.params.id, patientId, nextPractitionerId, startTime, endTime, status, notes, serviceId]
     );
 
     const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
@@ -245,6 +263,8 @@ router.put('/:id', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
+    const { reason } = req.body || {};
+    
     const existing = await query('SELECT practitioner_id AS "practitionerId" FROM appointments WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -254,7 +274,7 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
     }
 
-    await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'cancelled']);
+    await query('UPDATE appointments SET status = $2, cancellation_reason = $3, updated_at = NOW() WHERE id = $1', [req.params.id, 'cancelled', reason || null]);
 
     return res.status(200).json({ success: true, message: 'Appointment cancelled successfully' });
   } catch (error) {

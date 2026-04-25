@@ -114,7 +114,7 @@ export default function ServicesPage() {
     try {
       const response = await services.delete(serviceId);
       if (response.success) {
-        setServicesList(servicesList.filter((s) => s.id !== serviceId));
+        await loadServices();
       } else {
         setError(response.message || 'Échec de la suppression du service');
       }
