@@ -13,6 +13,7 @@ import invoiceRoutes from './routes/invoices.js';
 import paymentRoutes from './routes/payments.js';
 import userRoutes from './routes/users.js';
 import activityLogRoutes from './routes/activity-logs.js';
+import patientPackRoutes from './routes/patient-packs.js';
 
 // Load environment variables
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/patient-packs', patientPackRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

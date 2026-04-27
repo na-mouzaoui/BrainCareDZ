@@ -23,13 +23,22 @@ interface Patient {
   status: string;
   sessionCount: number;
   balance: number;
+  packServiceName?: string;
+  packRemaining?: number;
+  packTotal?: number;
+  packList?: Array<{
+    serviceName: string;
+    packTotal: number;
+    packRemaining: number;
+    nextAppointment?: string | null;
+  }>;
   lastSessionDate?: string;
 }
 
 export default function PatientsPage() {
   const [patientsList, setPatientsList] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -37,6 +46,19 @@ export default function PatientsPage() {
   const [error, setError] = useState('');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
+
+  function getStatusColor(status: string) {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'inactive':
+        return 'bg-gray-100 text-gray-800';
+      case 'abandoned':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-blue-100 text-blue-800';
+    }
+  }
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -67,6 +89,7 @@ export default function PatientsPage() {
     try {
       setIsLoading(true);
       const response = await patients.getAll();
+      
       if (response.success && response.data) {
         const rows = Array.isArray(response.data) ? response.data : response.data.patients || [];
         setPatientsList(rows);
@@ -115,19 +138,6 @@ export default function PatientsPage() {
       throw new Error('Patient non persisté en base de données. Vérifiez la connexion backend PostgreSQL.');
     }
   }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800';
-      case 'archived':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   if (authLoading || isLoading) {
     return (
@@ -193,27 +203,38 @@ export default function PatientsPage() {
                     <TableHead>Téléphone</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Sessions</TableHead>
+                    <TableHead>Pack</TableHead>
                     <TableHead>Solde</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {filteredPatients.map((patient) => (
-                    <TableRow key={patient.id}>
-                      <TableCell className="font-medium">
-                        {patient.firstName} {patient.lastName}
-                      </TableCell>
-                      <TableCell>{patient.email || '—'}</TableCell>
-                      <TableCell>{patient.phone}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(patient.status)}>
-                          {patient.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{patient.sessionCount}</TableCell>
-                      <TableCell className={patient.balance > 0 ? 'text-red-600 font-semibold' : patient.balance < 0 ? 'text-green-600 font-semibold' : ''}>
-                        {patient.balance > 0 ? '+' : ''}{patient.balance} DZD
-                      </TableCell>
+<TableBody>
+                  {filteredPatients.map((patient) => {
+                    return (
+                      <TableRow key={patient.id}>
+                        <TableCell className="font-medium">
+                          {patient.firstName} {patient.lastName}
+                        </TableCell>
+                        <TableCell>{patient.email || '—'}</TableCell>
+                        <TableCell>{patient.phone}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(patient.status)}>
+                            {patient.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{patient.sessionCount}</TableCell>
+                        <TableCell>
+                          {patient.packServiceName && (patient.packRemaining ?? 0) > 0 ? (
+                            <span className="text-sm font-medium text-emerald-700">
+                              {patient.packServiceName} ({patient.packRemaining || 0})
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className={patient.balance > 0 ? 'text-green-600 font-semibold' : patient.balance < 0 ? 'text-red-600 font-semibold' : ''}>
+                          {patient.balance > 0 ? '+' : ''}{patient.balance} DZD
+                        </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
@@ -245,8 +266,9 @@ export default function PatientsPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  );
+                })}
+              </TableBody>
               </Table>
             </div>
           </CardContent>
@@ -320,6 +342,20 @@ export default function PatientsPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">Nombre de séances</p>
                   <p className="text-lg">{selectedPatient.sessionCount || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Packs en cours</p>
+                  {selectedPatient.packList && selectedPatient.packList.length > 0 ? (
+                    <div className="space-y-1">
+                      {selectedPatient.packList.map((pack, index) => (
+                        <p key={`${pack.serviceName}-${index}`} className="text-lg text-emerald-700">
+                          {pack.serviceName} ({pack.packRemaining})
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-lg text-gray-400">—</p>
+                  )}
                 </div>
                 {selectedPatient.lastSessionDate && (
                   <div>

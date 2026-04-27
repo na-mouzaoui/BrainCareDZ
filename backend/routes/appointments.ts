@@ -32,19 +32,19 @@ router.get('/', protect, async (req, res) => {
       params.push(req.query.startDate);
       where.push(`a.start_time >= $${params.length}`);
     }
-
     if (req.query.endDate) {
       params.push(req.query.endDate);
       where.push(`a.start_time <= $${params.length}`);
     }
 
-    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const result = await query(`${appointmentSelect} ${clause} ORDER BY a.start_time ASC`, params);
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await query(`${appointmentSelect} ${whereClause} ORDER BY a.start_time ASC`, params);
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      count: result.rowCount,
-      appointments: result.rows,
+      data: {
+        appointments: result.rows,
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -53,47 +53,22 @@ router.get('/', protect, async (req, res) => {
 
 router.get('/availability/:date', protect, async (req, res) => {
   try {
-    const date = new Date(req.params.date);
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+    const date = req.params.date;
+    const practitionerId = req.user.role === 'admin' ? req.query.practitionerId : req.user.id;
 
     const appointments = await query(
       `SELECT start_time AS "startTime", end_time AS "endTime"
        FROM appointments
-       WHERE practitioner_id = $1
-       AND status IN ('scheduled', 'completed')
-       AND start_time >= $2
-       AND start_time <= $3
-       ORDER BY start_time ASC`,
-      [req.user.id, dayStart.toISOString(), dayEnd.toISOString()]
+       WHERE practitioner_id = $1 AND status IN ('scheduled') AND DATE(start_time) = $2`,
+      [practitionerId, date]
     );
 
-    const slots = [];
-    const dayStartTime = new Date(date);
-    dayStartTime.setHours(9, 0, 0, 0);
-    const dayEndTime = new Date(date);
-    dayEndTime.setHours(17, 0, 0, 0);
-
-    for (let time = new Date(dayStartTime); time < dayEndTime; time.setMinutes(time.getMinutes() + 30)) {
-      const slotEnd = new Date(time);
-      slotEnd.setMinutes(slotEnd.getMinutes() + 30);
-
-      const isBooked = appointments.rows.some((apt) => {
-        const start = new Date(apt.startTime);
-        const end = new Date(apt.endTime);
-        return start < slotEnd && end > time;
-      });
-
-      slots.push({
-        startTime: new Date(time),
-        endTime: slotEnd,
-        available: !isBooked,
-      });
-    }
-
-    return res.status(200).json({ success: true, date, slots });
+    return res.json({
+      success: true,
+      data: {
+        appointments: appointments.rows,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -107,12 +82,12 @@ router.get('/:id', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
 
-    const appointment = result.rows[0];
-    if (req.user.role !== 'admin' && appointment.practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Not authorized to view this appointment' });
-    }
-
-    return res.status(200).json({ success: true, appointment });
+    return res.json({
+      success: true,
+      data: {
+        appointment: result.rows[0],
+      },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -155,7 +130,7 @@ router.post(
       const conflict = await query(
         `SELECT id FROM appointments
          WHERE practitioner_id = $1
-         AND status IN ('scheduled', 'completed')
+         AND status IN ('scheduled')
          AND start_time < $3
          AND end_time > $2
          LIMIT 1`,
@@ -189,7 +164,7 @@ router.post(
 router.put('/:id', protect, async (req, res) => {
   try {
     const existing = await query(
-      'SELECT practitioner_id AS "practitionerId", patient_id AS "patientId", start_time AS "startTime", end_time AS "endTime" FROM appointments WHERE id = $1',
+      'SELECT practitioner_id AS "practitionerId", patient_id AS "patientId", start_time AS "startTime", end_time AS "endTime", service_id AS "serviceId" FROM appointments WHERE id = $1',
       [req.params.id]
     );
     if (existing.rowCount === 0) {
@@ -222,7 +197,7 @@ router.put('/:id', protect, async (req, res) => {
       `SELECT id FROM appointments
        WHERE id <> $1
        AND practitioner_id = $2
-       AND status IN ('scheduled', 'completed')
+       AND status IN ('scheduled')
        AND start_time < $4
        AND end_time > $3
        LIMIT 1`,
@@ -265,7 +240,10 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const { reason } = req.body || {};
     
-    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM appointments WHERE id = $1', [req.params.id]);
+    const existing = await query(
+      'SELECT practitioner_id AS "practitionerId" FROM appointments WHERE id = $1', 
+      [req.params.id]
+    );
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
@@ -284,7 +262,7 @@ router.delete('/:id', protect, async (req, res) => {
 
 router.put('/:id/complete', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId", patient_id AS "patientId" FROM appointments WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId", patient_id AS "patientId", service_id AS "serviceId", status FROM appointments WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
@@ -292,6 +270,10 @@ router.put('/:id/complete', protect, async (req, res) => {
     const current = existing.rows[0];
     if (req.user.role !== 'admin' && current.practitionerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to complete this appointment' });
+    }
+
+    if (current.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'Appointment already completed' });
     }
 
     await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'completed']);
@@ -308,7 +290,7 @@ router.put('/:id/complete', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Appointment marked as completed',
+      message: 'Appointment completed successfully',
       appointment: updated.rows[0],
     });
   } catch (error) {

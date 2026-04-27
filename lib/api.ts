@@ -286,3 +286,20 @@ export const activityLogs = {
   getStats: () =>
     apiRequest('/activity-logs/stats/summary', { method: 'GET' }),
 };
+
+// Patient Packs endpoints
+export const patientPacks = {
+  getAll: () =>
+    apiRequest('/patient-packs', { method: 'GET' }),
+  getByPatient: (patientId: string) =>
+    apiRequest(`/patient-packs/patient/${patientId}`, { method: 'GET' }),
+  create: (data: { patientId: string; serviceId: string; totalSessions: number }) =>
+    apiRequest('/patient-packs', {
+      method: 'POST',
+      body: data,
+    }),
+  useSession: (packId: string) =>
+    apiRequest(`/patient-packs/${packId}/use`, { method: 'POST' }),
+  delete: (id: string) =>
+    apiRequest(`/patient-packs/${id}`, { method: 'DELETE' }),
+};

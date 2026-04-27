@@ -48,9 +48,53 @@ const baseSelect = `
              WHERE a.patient_id = c.id AND a.status = 'completed'
            ), 0)
          ) AS "balance",
+         pack_next.service_name AS "packServiceName",
+         pack_next.pack_total AS "packTotal",
+         pack_next.pack_remaining AS "packRemaining",
+         pack_list.pack_list AS "packList",
          c.practitioner_id AS "practitionerId", u.name AS "practitionerName", u.email AS "practitionerEmail"
   FROM patients c
   JOIN users u ON c.practitioner_id = u.id
+  LEFT JOIN LATERAL (
+    SELECT p.service_name, p.pack_total, p.pack_remaining
+    FROM (
+            SELECT s.name AS service_name,
+              COALESCE(s.sessions, 1) AS pack_total,
+              GREATEST(COALESCE(s.sessions, 1) - COUNT(*) FILTER (WHERE a.status = 'completed'), 0) AS pack_remaining,
+             MIN(a.start_time) FILTER (WHERE a.status = 'scheduled') AS next_scheduled
+      FROM appointments a
+      JOIN services s ON s.id = a.service_id
+      WHERE a.patient_id = c.id AND a.status IN ('scheduled', 'completed')
+      GROUP BY s.id, s.name, s.sessions
+    ) p
+    WHERE p.next_scheduled IS NOT NULL AND p.pack_remaining > 0
+    ORDER BY p.next_scheduled ASC
+    LIMIT 1
+  ) pack_next ON true
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(
+      json_agg(
+        json_build_object(
+          'serviceName', p.service_name,
+          'packTotal', p.pack_total,
+          'packRemaining', p.pack_remaining,
+          'nextAppointment', p.next_scheduled
+        )
+        ORDER BY p.next_scheduled NULLS LAST, p.service_name
+      ) FILTER (WHERE p.pack_remaining > 0),
+      '[]'::json
+    ) AS pack_list
+    FROM (
+            SELECT s.name AS service_name,
+              COALESCE(s.sessions, 1) AS pack_total,
+              GREATEST(COALESCE(s.sessions, 1) - COUNT(*) FILTER (WHERE a.status = 'completed'), 0) AS pack_remaining,
+             MIN(a.start_time) FILTER (WHERE a.status = 'scheduled') AS next_scheduled
+      FROM appointments a
+      JOIN services s ON s.id = a.service_id
+      WHERE a.patient_id = c.id AND a.status IN ('scheduled', 'completed')
+      GROUP BY s.id, s.name, s.sessions
+    ) p
+  ) pack_list ON true
 `;
 
 router.get('/', protect, async (req, res) => {
