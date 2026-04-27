@@ -180,34 +180,24 @@ export const sessionNotes = {
     apiRequest(`/session-notes/patient/${patientId}`, { method: 'GET' }),
 };
 
-// Invoices endpoints
-export const invoices = {
-  getAll: (status?: string) => {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest(`/invoices${query}`, { method: 'GET' });
-  },
+// Expenses endpoints (Admin only)
+export const expenses = {
+  getAll: () =>
+    apiRequest('/expenses', { method: 'GET' }),
   getById: (id: string) =>
-    apiRequest(`/invoices/${id}`, { method: 'GET' }),
+    apiRequest(`/expenses/${id}`, { method: 'GET' }),
   create: (data: any) =>
-    apiRequest('/invoices', {
+    apiRequest('/expenses', {
       method: 'POST',
       body: data,
     }),
   update: (id: string, data: any) =>
-    apiRequest(`/invoices/${id}`, {
+    apiRequest(`/expenses/${id}`, {
       method: 'PUT',
       body: data,
     }),
   delete: (id: string) =>
-    apiRequest(`/invoices/${id}`, { method: 'DELETE' }),
-  send: (id: string) =>
-    apiRequest(`/invoices/${id}/send`, { method: 'PUT' }),
-  markPaid: (id: string) =>
-    apiRequest(`/invoices/${id}/mark-paid`, { method: 'PUT' }),
-  getByPatient: (patientId: string) =>
-    apiRequest(`/invoices/patient/${patientId}`, { method: 'GET' }),
+    apiRequest(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
 // Payments endpoints

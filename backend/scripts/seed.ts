@@ -17,7 +17,7 @@ const seedDatabase = async () => {
     await query('DELETE FROM activity_logs');
     await query('DELETE FROM payments');
     await query('DELETE FROM invoice_appointments');
-    await query('DELETE FROM invoices');
+    await query('DELETE FROM expenses');
     await query('DELETE FROM session_notes');
     await query('DELETE FROM appointments');
     await query('DELETE FROM services');
@@ -112,7 +112,7 @@ const seedDatabase = async () => {
     await query('UPDATE appointments SET session_note_id = $2 WHERE id = $1', [apt2.rows[0].id, note.rows[0].id]);
 
     const invoice = await query(
-      `INSERT INTO invoices (invoice_number, patient_id, practitioner_id, line_items, subtotal, tax, total, due_date, status)
+      `INSERT INTO expenses (invoice_number, patient_id, practitioner_id, line_items, subtotal, tax, total, due_date, status)
        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, NOW() + INTERVAL '15 day', 'sent')
        RETURNING id`,
       [

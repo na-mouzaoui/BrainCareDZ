@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
-import { appointments, invoices, clients } from '../../../lib/api';
+import { appointments, expenses, clients } from '../../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -57,20 +57,20 @@ export default function AnalyticsPage() {
     try {
       setIsLoading(true);
 
-      const [appointmentsRes, invoicesRes, clientsRes] = await Promise.all([
+      const [appointmentsRes, expensesRes, clientsRes] = await Promise.all([
         appointments.getAll(),
-        invoices.getAll(),
+        expenses.getAll(),
         clients.getAll(),
       ]);
 
       const appointmentsList = appointmentsRes.success ? appointmentsRes.data?.appointments || [] : [];
-      const invoicesList = invoicesRes.success ? invoicesRes.data?.invoices || [] : [];
+      const expensesList = expensesRes.success ? expensesRes.data?.expenses || [] : [];
 
       // Prepare appointments trend data (last 7 days)
       const appointmentsTrend = generateLast7DaysTrend(appointmentsList);
 
       // Prepare revenue trend data
-      const revenueTrend = generateRevenueTrend(invoicesList);
+      const revenueTrend = generateRevenueTrend(expensesList);
 
       // Appointment status distribution
       const statusCount = {
@@ -133,14 +133,14 @@ export default function AnalyticsPage() {
     return data;
   }
 
-  function generateRevenueTrend(invoices: any[]) {
+  function generateRevenueTrend(expenses: any[]) {
     const data = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
 
-      const revenue = invoices
+      const revenue = expenses
         .filter((inv: any) => {
           const invDate = new Date(inv.createdAt).toLocaleDateString();
           return invDate === date.toLocaleDateString() && inv.status === 'paid';

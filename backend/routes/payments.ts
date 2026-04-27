@@ -14,7 +14,7 @@ const paymentSelect = `
          i.invoice_number AS "invoiceNumber", i.total AS "invoiceTotal"
   FROM payments p
   JOIN patients c ON c.id = p.patient_id
-  LEFT JOIN invoices i ON i.id = p.invoice_id
+  LEFT JOIN expenses i ON i.id = p.invoice_id
 `;
 
 router.get('/', protect, async (req, res) => {
@@ -79,7 +79,7 @@ router.post('/', protect, async (req, res) => {
     }
 
     if (invoiceId) {
-      const invoice = await query('SELECT id, patient_id AS "patientId" FROM invoices WHERE id = $1', [invoiceId]);
+      const invoice = await query('SELECT id, patient_id AS "patientId" FROM expenses WHERE id = $1', [invoiceId]);
       if (invoice.rowCount === 0) {
         return res.status(404).json({ success: false, error: 'Invoice not found' });
       }

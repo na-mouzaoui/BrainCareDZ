@@ -58,7 +58,7 @@ npm run seed
 
 This will create and seed:
 - **Test Users** with different roles (Admin, Practitioner, Receptionist)
-- **Test Clients, Services, Appointments, Session Notes, Invoices, Payments**
+- **Test Clients, Services, Appointments, Session Notes, expenses, Payments**
 
 **Test Account Credentials:**
 - Email: `test@gmail.com`
