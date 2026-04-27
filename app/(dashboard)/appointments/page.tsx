@@ -347,25 +347,10 @@ export default function AppointmentsPage() {
     }
   }
 
-  async function handleCompleteAppointment() {
-    if (!editingAppointment || editingAppointment.status === 'completed') return;
-
-    setIsSubmittingForm(true);
-    try {
-      const response = await appointments.complete(editingAppointment.id);
-      if (!response.success) {
-        throw new Error(response.message || 'Échec de la complétion du rendez-vous');
-      }
-
-      setDialogOpen(false);
-      setEditingAppointment(null);
-      setFormInitialData(undefined);
-      await loadAppointments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur s\'est produite');
-    } finally {
-      setIsSubmittingForm(false);
-    }
+  function handleOpenReport() {
+    if (!editingAppointment) return;
+    setDialogOpen(false);
+    router.push(`/appointments/${editingAppointment.id}/report`);
   }
 
   async function handleDeleteAppointment() {
@@ -704,10 +689,10 @@ export default function AppointmentsPage() {
                 <Button
                   type="button"
                   variant="default"
-                  onClick={() => handleCompleteAppointment()}
-                  disabled={isSubmittingForm || isDeletingAppointment || editingAppointment.status === 'completed'}
+                  onClick={handleOpenReport}
+                  disabled={isSubmittingForm || isDeletingAppointment}
                 >
-                  {editingAppointment.status === 'completed' ? 'Complété' : 'Marquer comme complété'}
+                  Rédiger le compte rendu
                 </Button>
                 {editingAppointment.status !== 'cancelled' && (
                   <Button

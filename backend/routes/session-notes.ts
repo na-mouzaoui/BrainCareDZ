@@ -8,17 +8,21 @@ const router = express.Router();
 const noteSelect = `
   SELECT sn.id, sn.appointment_id AS "appointmentId", sn.patient_id AS "patientId", sn.practitioner_id AS "practitionerId",
          sn.presenting_concerns AS "presentingConcerns", sn.session_goals AS "sessionGoals", sn.observations,
-         sn.interventions, sn.patient_response AS "patientResponse", sn.homework,
+         sn.interventions, sn.client_response AS "patientResponse", sn.homework,
          sn.treatment_plan AS "treatmentPlan", sn.progress_notes AS "progressNotes",
          sn.neurofeedback_baseline AS "neuroFeedbackBaseline", sn.neurofeedback_results AS "neuroFeedbackResults",
          sn.neurofeedback_improvements AS "neuroFeedbackImprovements",
          sn.follow_up_notes AS "followUpNotes", sn.next_session_date AS "nextSessionDate", sn.billable,
          sn.created_at AS "createdAt", sn.updated_at AS "updatedAt",
          c.first_name AS "patientFirstName", c.last_name AS "patientLastName",
-         u.name AS "practitionerName"
+         u.name AS "practitionerName",
+         a.start_time AS "appointmentStartTime",
+         s.name AS "serviceName"
   FROM session_notes sn
   JOIN patients c ON c.id = sn.patient_id
   JOIN users u ON u.id = sn.practitioner_id
+  JOIN appointments a ON a.id = sn.appointment_id
+  JOIN services s ON s.id = a.service_id
 `;
 
 router.get('/', protect, async (req, res) => {
@@ -114,11 +118,23 @@ router.post(
 
       const practitionerId = req.user.role === 'admin' ? appointment.rows[0].practitionerId : req.user.id;
 
+      const existing = await query(
+        'SELECT id FROM session_notes WHERE appointment_id = $1',
+        [appointmentId]
+      );
+
+      if (existing.rowCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Un compte rendu existe deja pour ce rendez-vous. Utilisez le bouton Modifier.',
+        });
+      }
+
       const inserted = await query(
         `INSERT INTO session_notes (
           appointment_id, patient_id, practitioner_id,
           presenting_concerns, session_goals, observations,
-          interventions, patient_response, homework,
+          interventions, client_response, homework,
           treatment_plan, progress_notes,
           neurofeedback_baseline, neurofeedback_results, neurofeedback_improvements,
           follow_up_notes, next_session_date, billable
