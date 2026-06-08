@@ -200,6 +200,46 @@ export const expenses = {
     apiRequest(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
+// Companies endpoints
+export const companies = {
+  getAll: () =>
+    apiRequest('/companies', { method: 'GET' }),
+  getById: (id: string) =>
+    apiRequest(`/companies/${id}`, { method: 'GET' }),
+  create: (data: any) =>
+    apiRequest('/companies', {
+      method: 'POST',
+      body: data,
+    }),
+  update: (id: string, data: any) =>
+    apiRequest(`/companies/${id}`, {
+      method: 'PUT',
+      body: data,
+    }),
+  delete: (id: string) =>
+    apiRequest(`/companies/${id}`, { method: 'DELETE' }),
+};
+
+// Company invoices endpoints
+export const companyInvoices = {
+  getAll: () =>
+    apiRequest('/company-invoices', { method: 'GET' }),
+  getById: (id: string) =>
+    apiRequest(`/company-invoices/${id}`, { method: 'GET' }),
+  create: (data: any) =>
+    apiRequest('/company-invoices', {
+      method: 'POST',
+      body: data,
+    }),
+  update: (id: string, data: any) =>
+    apiRequest(`/company-invoices/${id}`, {
+      method: 'PUT',
+      body: data,
+    }),
+  delete: (id: string) =>
+    apiRequest(`/company-invoices/${id}`, { method: 'DELETE' }),
+};
+
 // Payments endpoints
 export const payments = {
   getAll: () =>

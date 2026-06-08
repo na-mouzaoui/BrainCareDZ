@@ -385,7 +385,7 @@ router.delete('/:id', protect, async (req, res) => {
     await query('DELETE FROM payments WHERE patient_id = $1', [id]);
     await query('DELETE FROM session_notes WHERE appointment_id IN (SELECT id FROM appointments WHERE patient_id = $1)', [id]);
     await query('DELETE FROM appointments WHERE patient_id = $1', [id]);
-    await query('DELETE FROM expenses WHERE patient_id = $1', [id]);
+    await query('DELETE FROM invoices WHERE patient_id = $1', [id]);
     await query('DELETE FROM session_notes WHERE patient_id = $1', [id]);
 
     // Puis supprimer le patient

@@ -13,6 +13,7 @@ import {
   Brain,
   Package,
   CreditCard,
+  FileText,
   Lock,
 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { label: 'Rendez-vous', href: '/appointments', icon: Calendar },
   { label: 'Prestations et packs', href: '/services', icon: Package },
   { label: 'Paiements', href: '/payments', icon: CreditCard },
+  { label: 'Factures entreprises', href: '/company-invoices', icon: FileText },
   { label: 'Charges et dépenses', href: '/expenses', icon: DollarSign, adminOnly: true },
   { label: 'Admin', href: '/admin', icon: Lock, adminOnly: true },
 ];

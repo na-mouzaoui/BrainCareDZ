@@ -13,7 +13,7 @@ function generateInvoiceNumber() {
   return `INV-${year}${month}-${random}`;
 }
 
-const expenseselect = `
+const invoiceSelect = `
   SELECT i.id, i.invoice_number AS "invoiceNumber", i.patient_id AS "patientId", i.practitioner_id AS "practitionerId",
          i.line_items AS "lineItems", i.subtotal, i.tax, i.total, i.status,
          i.invoice_date AS "invoiceDate", i.due_date AS "dueDate", i.paid_date AS "paidDate",
@@ -21,7 +21,7 @@ const expenseselect = `
          i.created_at AS "createdAt", i.updated_at AS "updatedAt",
          c.first_name AS "patientFirstName", c.last_name AS "patientLastName", c.email AS "patientEmail",
          u.name AS "practitionerName", u.email AS "practitionerEmail"
-  FROM expenses i
+  FROM invoices i
   JOIN patients c ON c.id = i.patient_id
   JOIN users u ON u.id = i.practitioner_id
 `;
@@ -42,7 +42,7 @@ router.get('/', protect, async (req, res) => {
     }
 
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const result = await query(`${expenseselect} ${clause} ORDER BY i.created_at DESC`, params);
+    const result = await query(`${invoiceSelect} ${clause} ORDER BY i.created_at DESC`, params);
 
     return res.status(200).json({ success: true, count: result.rowCount, expenses: result.rows });
   } catch (error) {
@@ -60,7 +60,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
       where += ` AND i.practitioner_id = $${params.length}`;
     }
 
-    const result = await query(`${expenseselect} ${where} ORDER BY i.created_at DESC`, params);
+    const result = await query(`${invoiceSelect} ${where} ORDER BY i.created_at DESC`, params);
 
     return res.status(200).json({ success: true, count: result.rowCount, expenses: result.rows });
   } catch (error) {
@@ -70,7 +70,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
 
 router.get('/:id', protect, async (req, res) => {
   try {
-    const result = await query(`${expenseselect} WHERE i.id = $1`, [req.params.id]);
+    const result = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
@@ -166,7 +166,7 @@ router.post(
       const total = subtotal + tax;
 
       const inserted = await query(
-        `INSERT INTO expenses (
+        `INSERT INTO invoices (
           invoice_number, patient_id, practitioner_id, line_items, subtotal, tax, total, due_date, notes, status
         ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, 'draft')
         RETURNING id`,
@@ -190,7 +190,7 @@ router.post(
         );
       }
 
-      const created = await query(`${expenseselect} WHERE i.id = $1`, [inserted.rows[0].id]);
+      const created = await query(`${invoiceSelect} WHERE i.id = $1`, [inserted.rows[0].id]);
 
       return res.status(201).json({
         success: true,
@@ -205,7 +205,7 @@ router.post(
 
 router.put('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM expenses WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId" FROM invoices WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
@@ -216,7 +216,7 @@ router.put('/:id', protect, async (req, res) => {
 
     const { status, dueDate, paidDate, paymentMethod, notes } = req.body;
     await query(
-      `UPDATE expenses
+        `UPDATE invoices
        SET status = COALESCE($2, status),
            due_date = COALESCE($3, due_date),
            paid_date = COALESCE($4, paid_date),
@@ -227,7 +227,7 @@ router.put('/:id', protect, async (req, res) => {
       [req.params.id, status, dueDate, paidDate, paymentMethod, notes]
     );
 
-    const updated = await query(`${expenseselect} WHERE i.id = $1`, [req.params.id]);
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
     return res.status(200).json({
       success: true,
@@ -243,7 +243,7 @@ router.put('/:id/send', protect, async (req, res) => {
   try {
     const existing = await query(
       `SELECT id, practitioner_id AS "practitionerId"
-       FROM expenses
+       FROM invoices
        WHERE id = $1`,
       [req.params.id]
     );
@@ -257,13 +257,13 @@ router.put('/:id/send', protect, async (req, res) => {
     }
 
     await query(
-      `UPDATE expenses
+      `UPDATE invoices
        SET status = 'sent', updated_at = NOW()
        WHERE id = $1`,
       [req.params.id]
     );
 
-    const updated = await query(`${expenseselect} WHERE i.id = $1`, [req.params.id]);
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
     return res.status(200).json({
       success: true,
@@ -279,7 +279,7 @@ router.put('/:id/mark-paid', protect, async (req, res) => {
   try {
     const existing = await query(
       `SELECT id, practitioner_id AS "practitionerId"
-       FROM expenses
+       FROM invoices
        WHERE id = $1`,
       [req.params.id]
     );
@@ -293,13 +293,13 @@ router.put('/:id/mark-paid', protect, async (req, res) => {
     }
 
     await query(
-      `UPDATE expenses
+      `UPDATE invoices
        SET status = 'paid', paid_date = NOW(), updated_at = NOW()
        WHERE id = $1`,
       [req.params.id]
     );
 
-    const updated = await query(`${expenseselect} WHERE i.id = $1`, [req.params.id]);
+    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
 
     return res.status(200).json({
       success: true,
@@ -313,7 +313,7 @@ router.put('/:id/mark-paid', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const existing = await query('SELECT practitioner_id AS "practitionerId", status FROM expenses WHERE id = $1', [req.params.id]);
+    const existing = await query('SELECT practitioner_id AS "practitionerId", status FROM invoices WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
@@ -324,10 +324,10 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     if (current.status !== 'draft') {
-      return res.status(400).json({ success: false, message: 'Only draft expenses can be deleted' });
+      return res.status(400).json({ success: false, message: 'Only draft invoices can be deleted' });
     }
 
-    await query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
+    await query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
 
     return res.status(200).json({ success: true, message: 'Invoice deleted successfully' });
   } catch (error) {

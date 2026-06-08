@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { AlertCircle, Plus, Trash2, Loader2 } from 'lucide-react';
+import { AlertCircle, Edit2, Plus, Trash2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Payment {
@@ -364,6 +364,14 @@ export default function PaymentsPage() {
                         {formatDate(payment.createdAt)}
                       </TableCell>
                       <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/payments/${payment.id}/edit`)}
+                          className="text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

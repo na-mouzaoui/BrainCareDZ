@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { users as usersApi, activityLogs } from '@/lib/api';
@@ -50,7 +50,6 @@ interface Settings {
   breakfastBreakStart?: string;
   breakfastBreakEnd?: string;
   hasBreakfastBreak: boolean;
-  holidays: string[];
 }
 
 interface ActivityLogEntry {
@@ -65,26 +64,6 @@ interface ActivityLogEntry {
   status: string;
 }
 
-interface HolidayOption {
-  date: string;
-  label: string;
-}
-
-interface PublicHolidayApiItem {
-  date: string;
-  localName?: string;
-  name?: string;
-}
-
-interface HijriDayApiItem {
-  hijri?: {
-    holidays?: string[];
-  };
-  gregorian?: {
-    date?: string;
-  };
-}
-
 const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -93,48 +72,7 @@ const DEFAULT_SETTINGS: Settings = {
   workStartTime: '08:00',
   workEndTime: '18:00',
   hasBreakfastBreak: false,
-  holidays: [],
 };
-
-const NATIONAL_FIXED_MMDD = [
-  { md: '01-01', label: 'Jour de l\'An' },
-  { md: '01-12', label: 'Yennayer (Nouvel an amazigh)' },
-  { md: '05-01', label: 'Fête du Travail' },
-  { md: '07-05', label: 'Fête de l\'Indépendance' },
-  { md: '11-01', label: 'Fête de la Révolution' },
-];
-
-const INTERNATIONAL_FIXED_MMDD = [
-  { md: '03-08', label: 'Journée internationale des femmes' },
-  { md: '05-26', label: 'Fête des mères' },
-];
-
-function parseDdMmYyyyToIso(ddMmYyyy: string) {
-  const [dd, mm, yyyy] = ddMmYyyy.split('-');
-  if (!dd || !mm || !yyyy) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function dedupeHolidayOptions(options: HolidayOption[]) {
-  const seen = new Set<string>();
-  return options.filter((item) => {
-    const key = `${item.date}|${item.label}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function dedupeDateList(dates: string[]) {
-  return Array.from(new Set(dates)).sort();
-}
-
-function buildFixedHolidayList(year: number, items: Array<{ md: string; label: string }>) {
-  return items.map((item) => ({
-    date: `${year}-${item.md}`,
-    label: item.label,
-  }));
-}
 
 function getActionLabel(action: string): string {
   const labels: { [key: string]: string } = {
@@ -170,20 +108,6 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
-  // Holiday state
-  const [customHolidayDate, setCustomHolidayDate] = useState('');
-  const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
-  const [loadingHolidays, setLoadingHolidays] = useState(false);
-
-  const [nationalHolidays, setNationalHolidays] = useState<HolidayOption[]>([]);
-  const [internationalHolidays, setInternationalHolidays] = useState<HolidayOption[]>([]);
-  const [islamicHolidays, setIslamicHolidays] = useState<HolidayOption[]>([]);
-  
-  // Track selected Islamic holiday names (independent of year)
-  const [selectedIslamicHolidayNames, setSelectedIslamicHolidayNames] = useState<Set<string>>(new Set());
-
-  const selectedHolidaySet = useMemo(() => new Set(settings.holidays), [settings.holidays]);
-
   // Activity logs state
   const [activityLogsList, setActivityLogsList] = useState<ActivityLogEntry[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -205,9 +129,6 @@ export default function AdminPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    loadHolidaySources(holidayYear);
-  }, [holidayYear]);
 
   async function loadUsers() {
     setLoading(true);
@@ -236,160 +157,11 @@ export default function AdminPage() {
           hasBreakfastBreak: !!parsed.hasBreakfastBreak,
           breakfastBreakStart: parsed.breakfastBreakStart,
           breakfastBreakEnd: parsed.breakfastBreakEnd,
-          holidays: parsed.holidays || DEFAULT_SETTINGS.holidays,
         });
-      }
-
-      // Load selected Islamic holiday names
-      const savedIslamicNames = localStorage.getItem('selected-islamic-holidays');
-      if (savedIslamicNames) {
-        try {
-          const names = JSON.parse(savedIslamicNames) as string[];
-          setSelectedIslamicHolidayNames(new Set(names));
-        } catch {
-          // Silent fail if JSON parse fails
-        }
       }
     } catch {
       setError('Erreur lors du chargement des paramètres');
     }
-  }
-
-  async function loadHolidaySources(year: number) {
-    setLoadingHolidays(true);
-    try {
-      const [national, islamic] = await Promise.all([
-        loadNationalHolidays(year),
-        loadIslamicHolidays(year),
-      ]);
-
-      const dedupedNational = dedupeHolidayOptions(national);
-      const dedupedIslamic = dedupeHolidayOptions(islamic);
-      const internationalList = buildFixedHolidayList(year, INTERNATIONAL_FIXED_MMDD);
-
-      setNationalHolidays(dedupedNational);
-      setIslamicHolidays(dedupedIslamic);
-      setInternationalHolidays(internationalList);
-
-      // Resynchronize selected Islamic holidays with new year dates
-      resynchronizeIslamicHolidays(dedupedIslamic, selectedIslamicHolidayNames, dedupedNational, internationalList);
-    } catch {
-      setNationalHolidays(buildFixedHolidayList(year, NATIONAL_FIXED_MMDD));
-      setIslamicHolidays([]);
-      setInternationalHolidays(buildFixedHolidayList(year, INTERNATIONAL_FIXED_MMDD));
-    } finally {
-      setLoadingHolidays(false);
-    }
-  }
-
-  function resynchronizeIslamicHolidays(
-    islamicList: HolidayOption[],
-    selectedNames: Set<string>,
-    nationalList: HolidayOption[],
-    internationalList: HolidayOption[]
-  ) {
-    if (selectedNames.size === 0 || islamicList.length === 0) return;
-
-    setSettings((prev) => {
-      // Get all national and international holiday dates
-      const nationalDates = new Set(nationalList.map((h) => h.date));
-      const internationalDates = new Set(internationalList.map((h) => h.date));
-
-      // Keep dates that are national or international holidays
-      let newHolidays = prev.holidays.filter((date) =>
-        nationalDates.has(date) || internationalDates.has(date)
-      );
-
-      // Add selected Islamic holidays (with extra days for Eid)
-      for (const name of selectedNames) {
-        const holiday = islamicList.find((h) => h.label === name);
-        if (holiday) {
-          const extraDays = getEidExtraDays(holiday.date, name);
-          newHolidays = dedupeDateList([...newHolidays, holiday.date, ...extraDays]);
-        }
-      }
-
-      return {
-        ...prev,
-        holidays: newHolidays,
-      };
-    });
-  }
-
-  async function loadNationalHolidays(year: number) {
-    const fallback = buildFixedHolidayList(year, NATIONAL_FIXED_MMDD);
-
-    try {
-      const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/DZ`);
-      if (!response.ok) {
-        return fallback;
-      }
-
-      const data = (await response.json()) as PublicHolidayApiItem[];
-      const apiList: HolidayOption[] = data.map((item) => ({
-        date: item.date,
-        label: item.localName || item.name || 'Jour férié national',
-      }));
-
-      return [...fallback, ...apiList];
-    } catch {
-      return fallback;
-    }
-  }
-
-  async function loadIslamicHolidays(year: number) {
-    const requests = Array.from({ length: 12 }, (_, i) => i + 1).map((month) =>
-      fetch(`https://api.aladhan.com/v1/gToHCalendar/${month}/${year}`)
-    );
-
-    const responses = await Promise.all(requests);
-    const validResponses = responses.filter((res) => res.ok);
-    if (validResponses.length === 0) {
-      return [];
-    }
-
-    const payloads = (await Promise.all(validResponses.map((res) => res.json()))) as Array<{
-      data?: HijriDayApiItem[];
-    }>;
-
-    // Filter for specific Islamic holidays - more flexible matching
-    const allowedPatterns = [
-      /fitr/i,
-      /adha/i,
-      /muharram/i,
-      /arafah/i,
-      /mawlid|mouloud|maouloud/i,
-      /ashura|achoura|ashura|muharram/i,
-    ];
-
-    const options: HolidayOption[] = [];
-    const seenDates = new Set<string>();
-
-    for (const payload of payloads) {
-      const days = payload.data || [];
-      for (const day of days) {
-        const names = day.hijri?.holidays || [];
-        const gregorian = day.gregorian?.date;
-        const isoDate = gregorian ? parseDdMmYyyyToIso(gregorian) : null;
-        if (!isoDate || names.length === 0) continue;
-
-        for (const name of names) {
-          // Keep only allowed Islamic holidays using pattern matching
-          if (allowedPatterns.some((pattern) => pattern.test(name))) {
-            // Avoid duplicates for same date with different names
-            if (!seenDates.has(isoDate)) {
-              options.push({
-                date: isoDate,
-                label: `${name}`,
-              });
-              seenDates.add(isoDate);
-            }
-          }
-        }
-      }
-    }
-
-    return options;
   }
 
   async function loadActivityLogs() {
@@ -411,8 +183,6 @@ export default function AdminPage() {
       setSettingsSaving(true);
       setError('');
       localStorage.setItem('practice-settings', JSON.stringify(settings));
-      // Save selected Islamic holiday names
-      localStorage.setItem('selected-islamic-holidays', JSON.stringify(Array.from(selectedIslamicHolidayNames)));
       setSuccess('Paramètres sauvegardés avec succès!');
       setTimeout(() => setSuccess(''), 3000);
     } catch {
@@ -436,81 +206,6 @@ export default function AdminPage() {
       weekendDays: prev.weekendDays.includes(day)
         ? prev.weekendDays.filter((d) => d !== day)
         : [...prev.weekendDays, day],
-    }));
-  }
-
-  function addHolidayDate(date: string) {
-    if (!date) return;
-    setSettings((prev) => ({
-      ...prev,
-      holidays: dedupeDateList([...prev.holidays, date]),
-    }));
-    // Reset the manual date input
-    setCustomHolidayDate('');
-  }
-
-  function toggleHolidayDate(date: string) {
-    if (selectedHolidaySet.has(date)) {
-      removeHoliday(date);
-    } else {
-      addHolidayDate(date);
-    }
-  }
-
-  function getEidExtraDays(baseDate: string, label: string): string[] {
-    // Eid holidays extend for 3 days (base day + 2 extra days)
-    const isEid = /fitr|adha/i.test(label);
-    if (!isEid) return [];
-
-    const date = new Date(baseDate);
-    const extraDays: string[] = [];
-    for (let i = 1; i <= 2; i++) {
-      const nextDate = new Date(date);
-      nextDate.setDate(nextDate.getDate() + i);
-      extraDays.push(nextDate.toISOString().split('T')[0]);
-    }
-    return extraDays;
-  }
-
-  function toggleIslamicHoliday(label: string) {
-    if (selectedIslamicHolidayNames.has(label)) {
-      // Remove from selected Islamic holidays and from settings
-      const newIslamicSet = new Set(selectedIslamicHolidayNames);
-      newIslamicSet.delete(label);
-      setSelectedIslamicHolidayNames(newIslamicSet);
-
-      // Also remove from settings.holidays (all dates matching this label + extra days)
-      const islamicDay = islamicHolidays.find((day) => day.label === label);
-      if (islamicDay) {
-        const extraDays = getEidExtraDays(islamicDay.date, label);
-        const datesToRemove = new Set([islamicDay.date, ...extraDays]);
-        setSettings((prev) => ({
-          ...prev,
-          holidays: prev.holidays.filter((h) => !datesToRemove.has(h)),
-        }));
-      }
-    } else {
-      // Add to selected Islamic holidays
-      const newIslamicSet = new Set(selectedIslamicHolidayNames);
-      newIslamicSet.add(label);
-      setSelectedIslamicHolidayNames(newIslamicSet);
-
-      // Find the date for this year and add it (with extra days for Eid)
-      const islamicDay = islamicHolidays.find((day) => day.label === label);
-      if (islamicDay) {
-        const extraDays = getEidExtraDays(islamicDay.date, label);
-        setSettings((prev) => ({
-          ...prev,
-          holidays: dedupeDateList([...prev.holidays, islamicDay.date, ...extraDays]),
-        }));
-      }
-    }
-  }
-
-  function removeHoliday(date: string) {
-    setSettings((prev) => ({
-      ...prev,
-      holidays: prev.holidays.filter((h) => h !== date),
     }));
   }
 
@@ -966,109 +661,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Holidays section - full width */}
-              <div className="border-t pt-8">
-                <h4 className="font-medium mb-4 text-emerald-900">Jours fériés (Algérie)</h4>
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Label htmlFor="holiday-year">Année</Label>
-                    <Input
-                      id="holiday-year"
-                      type="number"
-                      min="2020"
-                      max="2100"
-                      value={holidayYear}
-                      onChange={(e) => setHolidayYear(parseInt(e.target.value || `${new Date().getFullYear()}`, 10))}
-                      className="w-28 h-9"
-                    />
-                    {loadingHolidays && <p className="text-sm text-gray-500">Chargement...</p>}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <h5 className="font-medium mb-3 text-sm">Jours nationaux</h5>
-                      <div className="space-y-2">
-                        {nationalHolidays.map((holiday) => (
-                          <div key={`${holiday.date}-${holiday.label}`} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`national-${holiday.date}`}
-                              checked={selectedHolidaySet.has(holiday.date)}
-                              onCheckedChange={() => toggleHolidayDate(holiday.date)}
-                            />
-                            <label
-                              htmlFor={`national-${holiday.date}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {holiday.label} ({holiday.date})
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h5 className="font-medium mb-3 text-sm">Journées internationales</h5>
-                      <div className="space-y-2">
-                        {internationalHolidays.map((holiday) => (
-                          <div key={`${holiday.date}-${holiday.label}`} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`international-${holiday.date}`}
-                              checked={selectedHolidaySet.has(holiday.date)}
-                              onCheckedChange={() => toggleHolidayDate(holiday.date)}
-                            />
-                            <label
-                              htmlFor={`international-${holiday.date}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {holiday.label} ({holiday.date})
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h5 className="font-medium mb-3 text-sm">Jours religieux (Islam)</h5>
-                      {islamicHolidays.length === 0 ? (
-                        <p className="text-sm text-gray-500">Aucun jour religieux</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {islamicHolidays.map((holiday) => (
-                            <div key={`${holiday.date}-${holiday.label}`} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`islamic-${holiday.label}`}
-                                checked={selectedIslamicHolidayNames.has(holiday.label)}
-                                onCheckedChange={() => toggleIslamicHoliday(holiday.label)}
-                              />
-                              <label
-                                htmlFor={`islamic-${holiday.label}`}
-                                className="text-sm cursor-pointer"
-                              >
-                                {holiday.label} ({holiday.date})
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h5 className="font-medium mb-3 text-sm">Ajouter une date manuellement</h5>
-                    <div className="flex gap-2">
-                      <Input
-                        type="date"
-                        value={customHolidayDate}
-                        onChange={(e) => setCustomHolidayDate(e.target.value)}
-                        className="max-w-xs"
-                      />
-                      <Button onClick={() => addHolidayDate(customHolidayDate)} className="bg-emerald-700 hover:bg-emerald-800">
-                        Ajouter
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </TabsContent>

@@ -12,6 +12,9 @@ import {
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,6 +53,7 @@ export default function DashboardPage() {
   });
   const [monthlyPatientsTrend, setMonthlyPatientsTrend] = useState<MonthlyPatientPoint[]>([]);
   const [monthlyAppointmentsTrend, setMonthlyAppointmentsTrend] = useState<MonthlyAppointmentPoint[]>([]);
+  const [referralSources, setReferralSources] = useState<{ name: string; value: number }[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -187,6 +191,15 @@ const monthlyPatients = months.map((m) => {
       });
       setMonthlyPatientsTrend(monthlyPatients);
       setMonthlyAppointmentsTrend(monthlyAppointments);
+
+      const sources: Record<string, number> = {};
+      patientItems.forEach((p) => {
+        const source = p.referralSource || 'Non renseigné';
+        sources[source] = (sources[source] || 0) + 1;
+      });
+      setReferralSources(
+        Object.entries(sources).map(([name, value]) => ({ name, value }))
+      );
     } catch (error) {
       console.error('Failed to load dashboard stats:', error);
       setStats({
@@ -316,6 +329,35 @@ const monthlyPatients = months.map((m) => {
                 <Bar dataKey="fixed" name="RDV fixés" fill="#0f766e" stackId="rdv" />
                 <Bar dataKey="attended" name="Patients venus" fill="#10b981" stackId="rdv" />
               </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sources d'acquisition des patients</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={referralSources}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ name, value }) => `${name} (${value})`}
+                >
+                  {referralSources.map((_, index) => (
+                    <Cell key={index} fill={['#059669', '#10b981', '#0f766e', '#6ee7b7', '#a7f3d0', '#34d399', '#064e3b', '#d1fae5'][index % 8]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
