@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -72,6 +73,8 @@ router.post('/', protect, async (req, res) => {
       [patientId, serviceId, totalSessions, req.user.id]
     );
 
+    await logActivity({ req, action: 'CREATE', resource: 'patient-pack', resourceId: result.rows[0].id });
+
     return res.status(201).json({
       success: true,
       data: result.rows[0],
@@ -95,6 +98,8 @@ router.post('/:id/use', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Pack non trouvé ou déjà épuisé' });
     }
 
+    await logActivity({ req, action: 'USE_SESSION', resource: 'patient-pack', resourceId: req.params.id, changes: { remainingSessions: result.rows[0].remaining_sessions } });
+
     return res.json({
       success: true,
       data: result.rows[0],
@@ -112,6 +117,8 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     await query('DELETE FROM patient_packs WHERE id = $1', [req.params.id]);
+
+    await logActivity({ req, action: 'DELETE', resource: 'patient-pack', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Pack deleted successfully' });
   } catch (error) {

@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -11,7 +12,14 @@ const appointmentSelect = `
          a.reminder_sent AS "reminderSent", a.session_note_id AS "sessionNoteId",
          c.first_name AS "patientFirstName", c.last_name AS "patientLastName", c.email AS "patientEmail", c.phone AS "patientPhone",
          u.name AS "practitionerName", u.email AS "practitionerEmail",
-         s.name AS "serviceName", s.price AS "servicePrice", s.duration AS "serviceDuration"
+         s.name AS "serviceName", s.price AS "servicePrice", s.duration AS "serviceDuration", s.type AS "serviceType",
+         COALESCE(
+           (SELECT json_agg(json_build_object('patientId', p.id, 'firstName', p.first_name, 'lastName', p.last_name))
+            FROM appointment_patients ap
+            JOIN patients p ON p.id = ap.patient_id
+            WHERE ap.appointment_id = a.id),
+           '[]'::json
+         ) AS "patients"
   FROM appointments a
   JOIN patients c ON c.id = a.patient_id
   JOIN users u ON u.id = a.practitioner_id
@@ -109,7 +117,7 @@ router.post(
     }
 
     try {
-      const { patientId, serviceId, startTime, endTime, notes } = req.body;
+      const { patientId, serviceId, startTime, endTime, notes, patientIds } = req.body;
 
       const patient = await query('SELECT practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [patientId]);
       if (patient.rowCount === 0) {
@@ -120,9 +128,21 @@ router.post(
         return res.status(403).json({ success: false, message: 'Not authorized to book for this patient' });
       }
 
-      const service = await query('SELECT id FROM services WHERE id = $1 AND is_active = TRUE', [serviceId]);
+      const service = await query('SELECT id, type FROM services WHERE id = $1 AND is_active = TRUE', [serviceId]);
       if (service.rowCount === 0) {
         return res.status(404).json({ success: false, message: 'Service not found' });
+      }
+
+      const serviceType = service.rows[0].type;
+
+      // Validate multi-patient for neurofeedback
+      const allPatientIds = [patientId, ...((patientIds || []).filter(id => id !== patientId))];
+      if (serviceType === 'neurofeedback') {
+        if (allPatientIds.length > 4) {
+          return res.status(400).json({ success: false, message: 'Maximum 4 patients pour une séance de neurofeedback' });
+        }
+      } else if (allPatientIds.length > 1) {
+        return res.status(400).json({ success: false, message: 'Un seul patient autorisé pour ce type de service' });
       }
 
       const practitionerId = req.user.role === 'admin' ? patient.rows[0].practitionerId : req.user.id;
@@ -148,7 +168,20 @@ router.post(
         [patientId, practitionerId, serviceId, startTime, endTime, notes || null]
       );
 
-      const created = await query(`${appointmentSelect} WHERE a.id = $1`, [inserted.rows[0].id]);
+      const appointmentId = inserted.rows[0].id;
+
+      // Insert all patients into junction table
+      for (const pid of allPatientIds) {
+        await query(
+          'INSERT INTO appointment_patients (appointment_id, patient_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [appointmentId, pid]
+        );
+      }
+
+      const created = await query(`${appointmentSelect} WHERE a.id = $1`, [appointmentId]);
+      const aptPatient = await query('SELECT first_name AS "firstName", last_name AS "lastName" FROM patients WHERE id = $1', [patientId]);
+      const aptPatientName = aptPatient.rows[0] ? `${aptPatient.rows[0].firstName} ${aptPatient.rows[0].lastName}` : 'Patient';
+      await logActivity({ req, action: 'CREATE', resource: 'appointment', resourceId: appointmentId, resourceName: aptPatientName });
 
       return res.status(201).json({
         success: true,
@@ -208,7 +241,7 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Time slot conflict with existing appointment' });
     }
 
-    const { patientId, startTime, endTime, status, notes, serviceId } = req.body;
+    const { patientId, startTime, endTime, status, notes, serviceId, patientIds } = req.body;
 
     await query(
       `UPDATE appointments
@@ -224,7 +257,21 @@ router.put('/:id', protect, async (req, res) => {
       [req.params.id, patientId, nextPractitionerId, startTime, endTime, status, notes, serviceId]
     );
 
+    // Update appointment_patients junction table
+    if (patientIds && Array.isArray(patientIds)) {
+      await query('DELETE FROM appointment_patients WHERE appointment_id = $1', [req.params.id]);
+      const allPatientIds = [...new Set([...(patientId ? [patientId] : []), ...patientIds])];
+      for (const pid of allPatientIds) {
+        await query(
+          'INSERT INTO appointment_patients (appointment_id, patient_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [req.params.id, pid]
+        );
+      }
+    }
+
     const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
+
+    await logActivity({ req, action: 'UPDATE', resource: 'appointment', resourceId: req.params.id });
 
     return res.status(200).json({
       success: true,
@@ -253,6 +300,8 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     await query('UPDATE appointments SET status = $2, cancellation_reason = $3, updated_at = NOW() WHERE id = $1', [req.params.id, 'cancelled', reason || null]);
+
+    await logActivity({ req, action: 'CANCEL', resource: 'appointment', resourceId: req.params.id, changes: { reason } });
 
     return res.status(200).json({ success: true, message: 'Appointment cancelled successfully' });
   } catch (error) {
@@ -287,6 +336,8 @@ router.put('/:id/complete', protect, async (req, res) => {
     );
 
     const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
+
+    await logActivity({ req, action: 'COMPLETE', resource: 'appointment', resourceId: req.params.id });
 
     return res.status(200).json({
       success: true,

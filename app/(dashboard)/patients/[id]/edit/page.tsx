@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { patients } from '@/lib/api';
-import PatientForm, { type PatientFormData } from '@/components/patient-form';
+import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 

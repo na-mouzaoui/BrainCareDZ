@@ -14,6 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+interface AppointmentPatient {
+  patientId: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface Appointment {
   id: string;
   patientId: string;
@@ -25,6 +31,7 @@ interface Appointment {
   serviceName: string;
   servicePrice: number;
   serviceDuration: number;
+  serviceType?: string;
   practitionerId: string;
   practitionerName: string;
   practitionerEmail: string;
@@ -34,6 +41,7 @@ interface Appointment {
   notes?: string;
   reminderSent?: boolean;
   sessionNoteId?: string;
+  patients?: AppointmentPatient[];
 }
 
 interface PracticeSettings {
@@ -282,12 +290,16 @@ export default function AppointmentsPage() {
 
   function editFromAppointment(appointment: Appointment) {
     setEditingAppointment(appointment);
+    const patientIds = appointment.patients?.length
+      ? appointment.patients.map(p => p.patientId)
+      : [appointment.patientId];
     setFormInitialData({
       patientId: appointment.patientId,
       serviceId: appointment.serviceId,
       startTime: formatDateTimeLocal(new Date(appointment.startTime)),
       endTime: formatDateTimeLocal(new Date(appointment.endTime)),
       notes: appointment.notes || '',
+      patientIds,
     });
     setDialogOpen(true);
   }
@@ -452,7 +464,11 @@ export default function AppointmentsPage() {
                         onClick={() => editFromAppointment(apt)}
                       >
                         <div className="flex-1">
-                          <p className="font-semibold">{apt.patientFirstName} {apt.patientLastName}</p>
+                          <p className="font-semibold">
+                            {apt.serviceType === 'neurofeedback' && apt.patients?.length
+                              ? apt.patients.map(p => `${p.firstName} ${p.lastName}`).join(', ')
+                              : `${apt.patientFirstName} ${apt.patientLastName}`}
+                          </p>
                           <p className="text-sm text-gray-600">{apt.serviceName}</p>
                         </div>
                         <div className="text-right">
@@ -578,7 +594,9 @@ export default function AppointmentsPage() {
                                     className="w-full rounded bg-white px-2 py-1 text-left text-xs shadow-sm hover:bg-emerald-100 transition-colors"
                                   >
                                     <p className="font-semibold truncate">
-                                      {apt.patientFirstName} {apt.patientLastName}
+                                      {apt.serviceType === 'neurofeedback' && apt.patients?.length
+                                        ? apt.patients.map(p => `${p.firstName} ${p.lastName}`).join(', ')
+                                        : `${apt.patientFirstName} ${apt.patientLastName}`}
                                     </p>
                                     <p className="truncate text-gray-600">{apt.serviceName}</p>
                                   </button>

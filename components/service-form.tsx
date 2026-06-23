@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -12,6 +13,7 @@ export interface ServiceFormData {
   name: string;
   price: number;
   sessions: number;
+  type?: string;
 }
 
 interface ServiceFormProps {
@@ -32,6 +34,7 @@ export default function ServiceForm({
       name: '',
       price: 0,
       sessions: 1,
+      type: 'consultation',
     }
   );
   const [error, setError] = useState('');
@@ -47,7 +50,7 @@ export default function ServiceForm({
     setError('');
     setFormData((prev) => ({
       ...prev,
-      [field]: field === 'name' ? value : parseInt(value) || 0,
+      [field]: field === 'name' || field === 'type' ? value : parseInt(value) || 0,
     }));
   };
 
@@ -117,6 +120,23 @@ export default function ServiceForm({
               required
               placeholder="p.ex., Séance de neurofeedback, Consultation psy, etc."
             />
+          </Field>
+
+          <Field>
+            <FieldLabel>Type *</FieldLabel>
+            <Select
+              value={formData.type || 'consultation'}
+              onValueChange={(value) => handleInputChange('type', value)}
+              disabled={isFormLoading}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="consultation">Consultation</SelectItem>
+                <SelectItem value="neurofeedback">Neurofeedback</SelectItem>
+              </SelectContent>
+            </Select>
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

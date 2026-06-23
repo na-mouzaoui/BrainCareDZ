@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -67,6 +68,9 @@ router.post(
       );
 
       const created = await query(`${companySelect} WHERE id = $1`, [inserted.rows[0].id]);
+
+      await logActivity({ req, action: 'CREATE', resource: 'company', resourceId: inserted.rows[0].id });
+
       return res.status(201).json({ success: true, company: created.rows[0] });
     } catch (error) {
       return res.status(500).json({ success: false, message: error.message });
@@ -112,6 +116,9 @@ router.put(
       );
 
       const updated = await query(`${companySelect} WHERE id = $1`, [req.params.id]);
+
+      await logActivity({ req, action: 'UPDATE', resource: 'company', resourceId: req.params.id });
+
       return res.status(200).json({ success: true, company: updated.rows[0] });
     } catch (error) {
       return res.status(500).json({ success: false, message: error.message });
@@ -125,6 +132,8 @@ router.delete('/:id', protect, async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
+
+    await logActivity({ req, action: 'DELETE', resource: 'company', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Company deleted successfully' });
   } catch (error) {

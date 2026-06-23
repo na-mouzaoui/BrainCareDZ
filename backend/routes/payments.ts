@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const paymentSelect = `
          i.invoice_number AS "invoiceNumber", i.total AS "invoiceTotal"
   FROM payments p
   JOIN patients c ON c.id = p.patient_id
-  LEFT JOIN expenses i ON i.id = p.invoice_id
+  LEFT JOIN invoices i ON i.id = p.invoice_id
 `;
 
 router.get('/', protect, async (req, res) => {
@@ -97,6 +98,8 @@ router.post('/', protect, async (req, res) => {
     );
 
     const created = await query(`${paymentSelect} WHERE p.id = $1`, [inserted.rows[0].id]);
+
+    await logActivity({ req, action: 'CREATE', resource: 'payment', resourceId: inserted.rows[0].id });
 
     return res.status(201).json({ success: true, data: created.rows[0] });
   } catch (error) {

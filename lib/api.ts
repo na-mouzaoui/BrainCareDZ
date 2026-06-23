@@ -176,8 +176,8 @@ export const sessionNotes = {
     }),
   delete: (id: string) =>
     apiRequest(`/session-notes/${id}`, { method: 'DELETE' }),
-  getByPatient: (patientId: string) =>
-    apiRequest(`/session-notes/patient/${patientId}`, { method: 'GET' }),
+  getByPatient: (patientId: string, appointmentId?: string) =>
+    apiRequest(`/session-notes/patient/${patientId}${appointmentId ? `?appointmentId=${appointmentId}` : ''}`, { method: 'GET' }),
 };
 
 // Expenses endpoints (Admin only)

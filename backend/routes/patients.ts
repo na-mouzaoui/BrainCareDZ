@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -34,6 +35,20 @@ const baseSelect = `
          c.medical_history AS "medicalHistory", c.allergies, c.current_medications AS "currentMedications",
          c.referral_source AS "referralSource", c.status, c.notes, c.session_count AS "sessionCount",
          c.last_session_date AS "lastSessionDate", c.created_at AS "createdAt", c.updated_at AS "updatedAt",
+         c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children_count AS "childrenCount",
+         c.profession, c.education_level AS "educationLevel", c.socio_category AS "socioCategory",
+         c.patient_type AS "patientType", c.show_parent_info AS "showParentInfo",
+         c.parent_name AS "parentName", c.parent_relationship AS "parentRelationship",
+         c.consultation_reasons AS "consultationReasons", c.difficulty_duration AS "difficultyDuration",
+         c.previous_consultation AS "previousConsultation", c.previous_type AS "previousType",
+         c.current_follow_up AS "currentFollowUp", c.follow_up_details AS "followUpDetails",
+         c.source_of_acquisition AS "sourceOfAcquisition", c.source_details AS "sourceDetails",
+         c.first_contact_date AS "firstContactDate", c.first_appointment_date AS "firstAppointmentDate",
+         c.appointment_frequency AS "appointmentFrequency", c.planned_sessions AS "plannedSessions",
+         c.completed_sessions AS "completedSessions", c.abandon_reason AS "abandonReason",
+         c.perceived_improvement AS "perceivedImprovement", c.observed_changes AS "observedChanges",
+         c.improvement_start_month AS "improvementStartMonth", c.global_satisfaction AS "globalSatisfaction",
+         c.would_recommend AS "wouldRecommend",
          (
            COALESCE((
              SELECT SUM(p.amount)
@@ -167,7 +182,13 @@ router.post(
     body('firstName', 'First name is required').notEmpty().trim(),
     body('lastName', 'Last name is required').notEmpty().trim(),
     body('phone', 'Valid phone number is required').notEmpty().trim(),
-    body('email', 'Valid email is required').optional({ checkFalsy: true }).isEmail(),
+    body('email', 'Valid email is required').notEmpty().isEmail(),
+    body('maritalStatus', 'Marital status is required').notEmpty(),
+    body('profession', 'Profession is required').notEmpty(),
+    body('educationLevel', 'Education level is required').notEmpty(),
+    body('socioCategory', 'Socio category is required').notEmpty(),
+    body('consultationReasons', 'Consultation reasons are required').isArray({ min: 1 }),
+    body('sourceOfAcquisition', 'Source of acquisition is required').notEmpty(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -179,28 +200,14 @@ router.post(
     try {
       console.log('Creating patient with data:', req.body);
       const {
-        firstName,
-        lastName,
-        email,
-        phone,
-        dateOfBirth,
-        gender,
-        addressStreet,
-        addressCity,
-        addressState,
-        addressZipCode,
-        addressCountry,
-        emergencyContactName,
-        emergencyContactRelationship,
-        emergencyContactPhone,
-        insuranceProvider,
-        insurancePolicyNumber,
-        medicalHistory,
-        allergies,
-        currentMedications,
-        referralSource,
-        status,
-        notes,
+        firstName, lastName, email, phone, dateOfBirth, gender,
+        maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
+        patientType, showParentInfo, parentName, parentRelationship,
+        consultationReasons, difficultyDuration,
+        previousConsultation, previousType, currentFollowUp, followUpDetails,
+        sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
+        plannedSessions, completedSessions, status, abandonReason,
+        perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
       } = req.body;
 
       if (gender !== undefined && normalizeGender(gender) === null) {
@@ -210,45 +217,43 @@ router.post(
       const inserted = await query(
         `INSERT INTO patients (
           practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
-          address_street, address_city, address_state, address_zip_code, address_country,
-          emergency_contact_name, emergency_contact_relationship, emergency_contact_phone,
-          insurance_provider, insurance_policy_number, medical_history, allergies,
-          current_medications, referral_source, status, notes
+          marital_status, has_children, children_count, profession, education_level, socio_category,
+          patient_type, show_parent_info, parent_name, parent_relationship,
+          consultation_reasons, difficulty_duration,
+          previous_consultation, previous_type, current_follow_up, follow_up_details,
+          source_of_acquisition, source_details, first_contact_date, first_appointment_date, appointment_frequency,
+          planned_sessions, completed_sessions, status, abandon_reason,
+          perceived_improvement, observed_changes, improvement_start_month, global_satisfaction, would_recommend
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12,
-          $13, $14, $15,
-          $16, $17, $18, $19,
-          $20, $21, COALESCE($22, 'active'), $23
+          $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17,
+          $18, $19,
+          $20, $21, $22, $23,
+          $24, $25, $26, $27, $28,
+          $29, $30, COALESCE($31, 'active'), $32,
+          $33, $34, $35, $36, $37
         ) RETURNING id`,
         [
           req.user.id,
-          firstName,
-          lastName,
-          email || null,
-          phone,
-          dateOfBirth || null,
-          normalizeGender(gender),
-          addressStreet || null,
-          addressCity || null,
-          addressState || null,
-          addressZipCode || null,
-          addressCountry || null,
-          emergencyContactName || null,
-          emergencyContactRelationship || null,
-          emergencyContactPhone || null,
-          insuranceProvider || null,
-          insurancePolicyNumber || null,
-          medicalHistory || null,
-          allergies || null,
-          currentMedications || null,
-          referralSource || null,
-          status || null,
-          notes || null,
+          firstName, lastName, email, phone, dateOfBirth || null, normalizeGender(gender),
+          maritalStatus || null, hasChildren ?? false, childrenCount || null, profession || null,
+          educationLevel || null, socioCategory || null,
+          patientType || null, showParentInfo ?? false, parentName || null, parentRelationship || null,
+          consultationReasons ? JSON.stringify(consultationReasons) : '[]',
+          difficultyDuration || null,
+          previousConsultation ?? false, previousType || null, currentFollowUp ?? false, followUpDetails || null,
+          sourceOfAcquisition || null, sourceDetails || null, firstContactDate || null, firstAppointmentDate || null,
+          appointmentFrequency || null,
+          plannedSessions || null, completedSessions || null, status || null, abandonReason || null,
+          perceivedImprovement || null, observedChanges || null, improvementStartMonth || null,
+          globalSatisfaction || null, wouldRecommend ?? false,
         ]
       );
 
       const created = await query(`${baseSelect} WHERE c.id = $1`, [inserted.rows[0].id]);
+      const patientName = `${firstName} ${lastName}`;
+      await logActivity({ req, action: 'CREATE', resource: 'patient', resourceId: inserted.rows[0].id, resourceName: patientName });
 
       return res.status(201).json({
         success: true,
@@ -274,28 +279,14 @@ router.put('/:id', protect, async (req, res) => {
     }
 
     const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      dateOfBirth,
-      gender,
-      addressStreet,
-      addressCity,
-      addressState,
-      addressZipCode,
-      addressCountry,
-      emergencyContactName,
-      emergencyContactRelationship,
-      emergencyContactPhone,
-      insuranceProvider,
-      insurancePolicyNumber,
-      medicalHistory,
-      allergies,
-      currentMedications,
-      referralSource,
-      status,
-      notes,
+      firstName, lastName, email, phone, dateOfBirth, gender,
+      maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
+      patientType, showParentInfo, parentName, parentRelationship,
+      consultationReasons, difficultyDuration,
+      previousConsultation, previousType, currentFollowUp, followUpDetails,
+      sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
+      plannedSessions, completedSessions, status, abandonReason,
+      perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
     } = req.body;
 
     if (gender !== undefined && normalizeGender(gender) === null) {
@@ -310,52 +301,58 @@ router.put('/:id', protect, async (req, res) => {
         phone = COALESCE($5, phone),
         date_of_birth = COALESCE($6, date_of_birth),
         gender = COALESCE($7, gender),
-        address_street = COALESCE($8, address_street),
-        address_city = COALESCE($9, address_city),
-        address_state = COALESCE($10, address_state),
-        address_zip_code = COALESCE($11, address_zip_code),
-        address_country = COALESCE($12, address_country),
-        emergency_contact_name = COALESCE($13, emergency_contact_name),
-        emergency_contact_relationship = COALESCE($14, emergency_contact_relationship),
-        emergency_contact_phone = COALESCE($15, emergency_contact_phone),
-        insurance_provider = COALESCE($16, insurance_provider),
-        insurance_policy_number = COALESCE($17, insurance_policy_number),
-        medical_history = COALESCE($18, medical_history),
-        allergies = COALESCE($19, allergies),
-        current_medications = COALESCE($20, current_medications),
-        referral_source = COALESCE($21, referral_source),
-        status = COALESCE($22, status),
-        notes = COALESCE($23, notes),
+        marital_status = COALESCE($8, marital_status),
+        has_children = COALESCE($9, has_children),
+        children_count = COALESCE($10, children_count),
+        profession = COALESCE($11, profession),
+        education_level = COALESCE($12, education_level),
+        socio_category = COALESCE($13, socio_category),
+        patient_type = COALESCE($14, patient_type),
+        show_parent_info = COALESCE($15, show_parent_info),
+        parent_name = COALESCE($16, parent_name),
+        parent_relationship = COALESCE($17, parent_relationship),
+        consultation_reasons = COALESCE($18, consultation_reasons),
+        difficulty_duration = COALESCE($19, difficulty_duration),
+        previous_consultation = COALESCE($20, previous_consultation),
+        previous_type = COALESCE($21, previous_type),
+        current_follow_up = COALESCE($22, current_follow_up),
+        follow_up_details = COALESCE($23, follow_up_details),
+        source_of_acquisition = COALESCE($24, source_of_acquisition),
+        source_details = COALESCE($25, source_details),
+        first_contact_date = COALESCE($26, first_contact_date),
+        first_appointment_date = COALESCE($27, first_appointment_date),
+        appointment_frequency = COALESCE($28, appointment_frequency),
+        planned_sessions = COALESCE($29, planned_sessions),
+        completed_sessions = COALESCE($30, completed_sessions),
+        status = COALESCE($31, status),
+        abandon_reason = COALESCE($32, abandon_reason),
+        perceived_improvement = COALESCE($33, perceived_improvement),
+        observed_changes = COALESCE($34, observed_changes),
+        improvement_start_month = COALESCE($35, improvement_start_month),
+        global_satisfaction = COALESCE($36, global_satisfaction),
+        would_recommend = COALESCE($37, would_recommend),
         updated_at = NOW()
       WHERE id = $1`,
       [
         req.params.id,
-        firstName,
-        lastName,
-        email,
-        phone,
-        dateOfBirth,
+        firstName, lastName, email, phone, dateOfBirth,
         gender !== undefined ? normalizeGender(gender) : undefined,
-        addressStreet,
-        addressCity,
-        addressState,
-        addressZipCode,
-        addressCountry,
-        emergencyContactName,
-        emergencyContactRelationship,
-        emergencyContactPhone,
-        insuranceProvider,
-        insurancePolicyNumber,
-        medicalHistory,
-        allergies,
-        currentMedications,
-        referralSource,
-        status,
-        notes,
+        maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
+        patientType, showParentInfo, parentName, parentRelationship,
+        consultationReasons ? JSON.stringify(consultationReasons) : null,
+        difficultyDuration,
+        previousConsultation, previousType, currentFollowUp, followUpDetails,
+        sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
+        plannedSessions, completedSessions, status, abandonReason,
+        perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
       ]
     );
 
     const updated = await query(`${baseSelect} WHERE c.id = $1`, [req.params.id]);
+
+    const patRes = await query('SELECT first_name AS "firstName", last_name AS "lastName" FROM patients WHERE id = $1', [req.params.id]);
+    const patName = patRes.rows[0] ? `${patRes.rows[0].firstName} ${patRes.rows[0].lastName}` : 'Patient';
+    await logActivity({ req, action: 'UPDATE', resource: 'patient', resourceId: req.params.id, resourceName: patName });
 
     return res.status(200).json({
       success: true,
@@ -390,6 +387,8 @@ router.delete('/:id', protect, async (req, res) => {
 
     // Puis supprimer le patient
     await query('DELETE FROM patients WHERE id = $1', [id]);
+
+    await logActivity({ req, action: 'DELETE', resource: 'patient', resourceId: id });
 
     return res.status(200).json({
       success: true,

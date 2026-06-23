@@ -4,6 +4,7 @@ import bcryptjs from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -46,6 +47,8 @@ router.post(
 
       const user = inserted.rows[0];
       const token = generateToken(user);
+
+      await logActivity({ req, action: 'REGISTER', resource: 'user', resourceId: user.id, resourceName: user.name });
 
       return res.status(201).json({
         success: true,
@@ -98,6 +101,8 @@ router.post(
       };
 
       const token = generateToken(safeUser);
+
+      await logActivity({ req, action: 'LOGIN', resource: 'auth', resourceId: user.id, resourceName: user.name });
 
       return res.status(200).json({
         success: true,

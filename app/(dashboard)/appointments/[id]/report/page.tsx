@@ -3,13 +3,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { appointments, sessionNotes } from '@/lib/api';
+import { appointments, sessionNotes, patients as patientsApi } from '@/lib/api';
+import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft, Edit2, FileText, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Edit2, FileText, Send, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
+
+interface AppointmentPatient {
+  patientId: string;
+  firstName: string;
+  lastName: string;
+}
 
 interface AppointmentDetail {
   id: string;
@@ -17,12 +25,22 @@ interface AppointmentDetail {
   patientFirstName: string;
   patientLastName: string;
   serviceName: string;
+  serviceType?: string;
   startTime: string;
   status: string;
+  patients?: AppointmentPatient[];
+}
+
+interface ViewPatient {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  [key: string]: unknown;
 }
 
 interface SessionNoteItem {
   id: string;
+  patientId?: string;
   appointmentId: string;
   appointmentStartTime?: string;
   serviceName?: string;
@@ -58,6 +76,55 @@ export default function AppointmentReportPage() {
   const [error, setError] = useState('');
   const [noteText, setNoteText] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [currentPatientIndex, setCurrentPatientIndex] = useState(0);
+  const [viewPatient, setViewPatient] = useState<ViewPatient | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const allPatients = useMemo(() => {
+    if (!appointment) return [];
+    const extra = (appointment.patients || []).filter(p => p.patientId !== appointment.patientId);
+    const main = { patientId: appointment.patientId, firstName: appointment.patientFirstName, lastName: appointment.patientLastName };
+    const unique = [main, ...extra];
+    const seen = new Set<string>();
+    return unique.filter(p => {
+      if (seen.has(p.patientId)) return false;
+      seen.add(p.patientId);
+      return true;
+    });
+  }, [appointment]);
+
+  const isMultiPatient = allPatients.length > 1;
+  const currentPatient = allPatients[currentPatientIndex] || allPatients[0];
+
+  const completedPatientIds = useMemo(() => {
+    const completed = new Set<string>();
+    notes.forEach(n => {
+      if (n.appointmentId === appointment?.id && n.patientId) {
+        completed.add(n.patientId);
+      }
+    });
+    return completed;
+  }, [notes, appointment?.id]);
+
+  const missingPatients = useMemo(() => {
+    return allPatients.filter(p => !completedPatientIds.has(p.patientId));
+  }, [allPatients, completedPatientIds]);
+
+  const allCompleted = !isMultiPatient || missingPatients.length === 0;
+
+  const currentPatientNotes = useMemo(() => {
+    if (!currentPatient) return [];
+    return notes.filter(n => n.patientId === currentPatient.patientId && n.appointmentId === appointment?.id);
+  }, [notes, currentPatient, appointment?.id]);
+
+  const sortedCurrentNotes = useMemo(() => {
+    return [...currentPatientNotes].sort((a, b) => {
+      const aTime = new Date(a.appointmentStartTime || a.createdAt).getTime();
+      const bTime = new Date(b.appointmentStartTime || b.createdAt).getTime();
+      return bTime - aTime;
+    });
+  }, [currentPatientNotes]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -77,7 +144,6 @@ export default function AppointmentReportPage() {
       const response = await appointments.getById(appointmentId as string);
       if (response.success && response.data?.appointment) {
         setAppointment(response.data.appointment as AppointmentDetail);
-        await loadNotes(response.data.appointment.patientId);
       } else {
         setError(response.message || 'Échec du chargement du rendez-vous');
       }
@@ -88,20 +154,29 @@ export default function AppointmentReportPage() {
     }
   }
 
-  async function loadNotes(patientId: string) {
+  async function loadNotesForPatient(patientId: string) {
     try {
-      const response = await sessionNotes.getByPatient(patientId);
+      const response = await sessionNotes.getByPatient(patientId, appointmentId);
       if (response.success && response.data) {
         const items = response.data.notes || [];
-        setNotes(items);
+        setNotes(prev => {
+          const other = prev.filter(n => n.patientId !== patientId);
+          return [...other, ...items];
+        });
       }
     } catch {
-      setNotes([]);
+      // keep existing notes
     }
   }
 
+  useEffect(() => {
+    if (currentPatient) {
+      loadNotesForPatient(currentPatient.patientId);
+    }
+  }, [currentPatient?.patientId, appointmentId]);
+
   async function handleCreateNote() {
-    if (!appointment) return;
+    if (!appointment || !currentPatient) return;
     if (!noteText.trim()) return;
 
     setIsSubmitting(true);
@@ -113,7 +188,7 @@ export default function AppointmentReportPage() {
         : await sessionNotes.create({
             progressNotes: noteText.trim(),
             appointmentId: appointment.id,
-            patientId: appointment.patientId,
+            patientId: currentPatient.patientId,
           });
 
       if (!response.success) {
@@ -122,7 +197,7 @@ export default function AppointmentReportPage() {
 
       setNoteText('');
       setEditingNoteId(null);
-      await loadNotes(appointment.patientId);
+      await loadNotesForPatient(currentPatient.patientId);
     } catch (err) {
       toast({
         title: 'Impossible de creer le compte rendu',
@@ -145,13 +220,49 @@ export default function AppointmentReportPage() {
     setNoteText('');
   }
 
-  const sortedNotes = useMemo(() => {
-    return [...notes].sort((a, b) => {
-      const aTime = new Date(a.appointmentStartTime || a.createdAt).getTime();
-      const bTime = new Date(b.appointmentStartTime || b.createdAt).getTime();
-      return bTime - aTime;
-    });
-  }, [notes]);
+  function goToPatient(index: number) {
+    if (index < 0 || index >= allPatients.length) return;
+    handleCancelEdit();
+    setCurrentPatientIndex(index);
+  }
+
+  function handleGoBack() {
+    if (!allCompleted) {
+      const names = missingPatients.map(p => `${p.firstName} ${p.lastName}`).join(', ');
+      toast({
+        title: 'Comptes rendus obligatoires',
+        description: `Vous devez rédiger un compte rendu pour : ${names}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    router.back();
+  }
+
+  async function handleViewPatient(patientId: string) {
+    setViewLoading(true);
+    try {
+      const response = await patientsApi.getById(patientId);
+      if (response.success && response.data) {
+        setViewPatient(response.data.patient || response.data as ViewPatient);
+        setViewOpen(true);
+      } else {
+        toast({
+          title: 'Erreur',
+          description: 'Impossible de charger les informations du patient',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: 'Une erreur est survenue',
+        variant: 'destructive',
+      });
+    } finally {
+      setViewLoading(false);
+    }
+  }
 
   if (authLoading || isLoading) {
     return (
@@ -182,14 +293,87 @@ export default function AppointmentReportPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Compte rendu</h1>
           <p className="text-gray-600 mt-1">
-            {appointment.patientFirstName} {appointment.patientLastName} · {appointment.serviceName}
+            {appointment.serviceName}
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.back()} className="gap-2">
+        <Button variant="outline" onClick={handleGoBack} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           Retour
         </Button>
       </div>
+
+      {!allCompleted && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Vous devez rédiger un compte rendu pour chaque patient avant de quitter.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isMultiPatient && (
+        <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border">
+          <div className="flex items-center gap-2">
+            {allPatients.map((p, idx) => {
+              const done = completedPatientIds.has(p.patientId);
+              return (
+                <button
+                  key={p.patientId}
+                  type="button"
+                  onClick={() => goToPatient(idx)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    idx === currentPatientIndex
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white text-gray-700 border hover:bg-gray-100'
+                  }`}
+                >
+                  {p.firstName} {p.lastName}
+                  {done ? ' ✓' : idx === currentPatientIndex ? '' : ' ○'}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => goToPatient(currentPatientIndex - 1)}
+              disabled={currentPatientIndex === 0}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Précédent
+            </Button>
+            <span className="text-sm text-gray-500">
+              {currentPatientIndex + 1}/{allPatients.length}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => goToPatient(currentPatientIndex + 1)}
+              disabled={currentPatientIndex >= allPatients.length - 1}
+              className="gap-1"
+            >
+              Suivant
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {currentPatient && (
+        <button
+          type="button"
+          onClick={() => handleViewPatient(currentPatient.patientId)}
+          className="flex items-center gap-2 text-lg font-semibold text-gray-800 hover:text-emerald-700 transition-colors"
+        >
+          <FileText className="h-5 w-5 text-emerald-600" />
+          {currentPatient.firstName} {currentPatient.lastName}
+          <Eye className="h-4 w-4 text-gray-400" />
+        </button>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -199,8 +383,8 @@ export default function AppointmentReportPage() {
       )}
 
       <div className="space-y-4">
-        {sortedNotes.length > 0 ? (
-          sortedNotes.map((note) => (
+        {sortedCurrentNotes.length > 0 ? (
+          sortedCurrentNotes.map((note) => (
             <Card key={note.id} className="border-emerald-100">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
@@ -249,7 +433,7 @@ export default function AppointmentReportPage() {
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             rows={3}
-            placeholder="Écrire un compte rendu..."
+            placeholder={`Écrire un compte rendu pour ${currentPatient?.firstName || 'le patient'}...`}
             disabled={isSubmitting}
           />
           <div className="flex justify-end">
@@ -272,6 +456,31 @@ export default function AppointmentReportPage() {
           </div>
         </div>
       </div>
+
+      {/* Patient detail dialog */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>
+              {viewPatient ? `${viewPatient.firstName} ${viewPatient.lastName}` : 'Détails du patient'}
+            </DialogTitle>
+            <DialogDescription>
+              Informations sur le patient (lecture seule)
+            </DialogDescription>
+          </DialogHeader>
+          {viewLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+            </div>
+          ) : viewPatient ? (
+            <PatientForm
+              initialData={viewPatient as unknown as PatientFormData}
+              onSubmit={async () => {}}
+              readOnly
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

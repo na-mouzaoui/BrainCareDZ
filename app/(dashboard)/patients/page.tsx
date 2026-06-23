@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { patients } from '@/lib/api';
-import PatientForm, { type PatientFormData } from '@/components/patient-form';
+import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Plus, Search, Edit2, Trash2, Eye } from 'lucide-react';
+import { AlertCircle, Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -41,6 +41,10 @@ export default function PatientsPage() {
 const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
+  const [editPatientData, setEditPatientData] = useState<PatientFormData | undefined>(undefined);
+  const [editLoading, setEditLoading] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -124,6 +128,28 @@ const [searchTerm, setSearchTerm] = useState('');
     }
   }
 
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && editingPatientId) {
+      loadEditPatient(editingPatientId);
+    }
+  }, [authLoading, isAuthenticated, editingPatientId]);
+
+  async function loadEditPatient(id: string) {
+    try {
+      setEditLoading(true);
+      const response = await patients.getById(id);
+      if (response.success && response.data) {
+        setEditPatientData(response.data as PatientFormData);
+      } else {
+        setError(response.message || 'Impossible de charger le patient');
+      }
+    } catch {
+      setError('Une erreur est survenue lors du chargement du patient');
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
   async function handleCreatePatient(data: PatientFormData) {
     const response = await patients.create(data);
     if (!response.success) {
@@ -137,6 +163,18 @@ const [searchTerm, setSearchTerm] = useState('');
     if (createdPatient?.id && !latestPatients.some((patient) => patient.id === createdPatient.id)) {
       throw new Error('Patient non persisté en base de données. Vérifiez la connexion backend PostgreSQL.');
     }
+  }
+
+  async function handleUpdatePatient(data: PatientFormData) {
+    if (!editingPatientId) return;
+    const response = await patients.update(editingPatientId, data);
+    if (!response.success) {
+      throw new Error(response.message || response.error || 'Échec de la mise à jour du patient');
+    }
+    setEditOpen(false);
+    setEditingPatientId(null);
+    setEditPatientData(undefined);
+    await loadPatients();
   }
 
   if (authLoading || isLoading) {
@@ -211,7 +249,14 @@ const [searchTerm, setSearchTerm] = useState('');
 <TableBody>
                   {filteredPatients.map((patient) => {
                     return (
-                      <TableRow key={patient.id}>
+                      <TableRow
+                        key={patient.id}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setSelectedPatient(patient);
+                          setViewOpen(true);
+                        }}
+                      >
                         <TableCell className="font-medium">
                           {patient.firstName} {patient.lastName}
                         </TableCell>
@@ -239,19 +284,11 @@ const [searchTerm, setSearchTerm] = useState('');
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
-                            setSelectedPatient(patient);
-                            setViewOpen(true);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPatientId(patient.id);
+                            setEditOpen(true);
                           }}
-                          className="gap-2"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Afficher
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => router.push(`/patients/${patient.id}/edit`)}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -259,7 +296,10 @@ const [searchTerm, setSearchTerm] = useState('');
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(patient.id, `${patient.firstName} ${patient.lastName}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(patient.id, `${patient.firstName} ${patient.lastName}`);
+                          }}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -293,8 +333,8 @@ const [searchTerm, setSearchTerm] = useState('');
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>Nouveau patient</DialogTitle>
             <DialogDescription>
               Remplissez le formulaire pour créer un nouveau patient.
@@ -304,8 +344,26 @@ const [searchTerm, setSearchTerm] = useState('');
         </DialogContent>
       </Dialog>
 
+      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditingPatientId(null); setEditPatientData(undefined); } }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>Modifier le patient</DialogTitle>
+            <DialogDescription>
+              Mettez à jour les informations du patient.
+            </DialogDescription>
+          </DialogHeader>
+          <PatientForm
+            initialData={editPatientData}
+            isLoading={editLoading}
+            onSubmit={handleUpdatePatient}
+            submitButtonText="Enregistrer les modifications"
+            key={editingPatientId}
+          />
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-3xl" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
               {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Détails du patient'}

@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -72,6 +73,8 @@ router.post(
 
       const created = await query(`${expenseSelect} WHERE e.id = $1`, [inserted.rows[0].id]);
 
+      await logActivity({ req, action: 'CREATE', resource: 'expense', resourceId: inserted.rows[0].id });
+
       return res.status(201).json({
         success: true,
         message: 'Expense created successfully',
@@ -128,6 +131,8 @@ router.put(
 
       const updated = await query(`${expenseSelect} WHERE e.id = $1`, [req.params.id]);
 
+      await logActivity({ req, action: 'UPDATE', resource: 'expense', resourceId: req.params.id });
+
       return res.status(200).json({
         success: true,
         message: 'Expense updated successfully',
@@ -145,6 +150,8 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Expense not found' });
     }
+
+    await logActivity({ req, action: 'DELETE', resource: 'expense', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Expense deleted successfully' });
   } catch (error) {

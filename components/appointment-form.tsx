@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { patients as patientsApi, services as servicesApi, appointments as appointmentsApi } from '@/lib/api';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 
 export interface AppointmentFormData {
   patientId: string;
@@ -17,6 +18,7 @@ export interface AppointmentFormData {
   startTime: string;
   endTime: string;
   notes?: string;
+  patientIds?: string[];
 }
 
 interface Patient {
@@ -31,6 +33,7 @@ interface Service {
   name: string;
   duration: number;
   price: number;
+  type?: string;
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
@@ -64,6 +67,7 @@ export default function AppointmentForm({
       startTime: '',
       endTime: '',
       notes: '',
+      patientIds: [],
     }
   );
   const [patientsList, setPatientsList] = useState<Patient[]>([]);
@@ -122,8 +126,39 @@ export default function AppointmentForm({
     }
   }
 
+  const togglePatient = (patientId: string) => {
+    setError('');
+    setFormData((prev) => {
+      const currentIds = prev.patientIds || [prev.patientId].filter(Boolean);
+      if (currentIds.includes(patientId)) {
+        const filtered = currentIds.filter(id => id !== patientId);
+        return {
+          ...prev,
+          patientIds: filtered,
+          patientId: filtered[0] || '',
+        };
+      }
+      if (currentIds.length >= 4) return prev;
+      const updated = [...currentIds, patientId];
+      return {
+        ...prev,
+        patientIds: updated,
+        patientId: updated[0],
+      };
+    });
+  };
+
   const handleInputChange = (field: keyof AppointmentFormData, value: string) => {
     setError('');
+    if (field === 'serviceId') {
+      setFormData((prev) => ({
+        ...prev,
+        serviceId: value,
+        patientIds: [],
+        patientId: '',
+      }));
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -134,9 +169,9 @@ export default function AppointmentForm({
     e.preventDefault();
     setError('');
 
-    // Validation
-    if (!formData.patientId) {
-      setError('Veuillez sélectionner un patient');
+    const effectiveIds = formData.patientIds?.length ? formData.patientIds : (formData.patientId ? [formData.patientId] : []);
+    if (effectiveIds.length === 0) {
+      setError('Veuillez sélectionner au moins un patient');
       return;
     }
     if (!formData.serviceId) {
@@ -167,11 +202,14 @@ export default function AppointmentForm({
 
     setSubmitting(true);
     try {
-      await onSubmit({
+      const submitData: AppointmentFormData = {
         ...formData,
+        patientId: effectiveIds[0],
+        patientIds: effectiveIds,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
-      });
+      };
+      await onSubmit(submitData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -181,10 +219,21 @@ export default function AppointmentForm({
 
   const isFormLoading = isLoading || submitting || loadingData;
   const selectedService = validServices.find((s) => s.id === formData.serviceId);
+  const isNeurofeedback = selectedService?.type === 'neurofeedback';
   const selectedPatient = validPatients.find((p) => p.id === formData.patientId);
   const patientBalance = Number(selectedPatient?.balance ?? 0);
   const servicePrice = Number(selectedService?.price ?? 0);
   const hasInsufficientBalance = !!selectedPatient && !!selectedService && patientBalance < servicePrice;
+
+  const effectivePatientIds = formData.patientIds?.length ? formData.patientIds : (formData.patientId ? [formData.patientId] : []);
+  const patientBalances = useMemo(() => {
+    return effectivePatientIds.map(pid => {
+      const p = validPatients.find(pat => pat.id === pid);
+      return { id: pid, patient: p, balance: Number(p?.balance ?? 0) };
+    });
+  }, [effectivePatientIds, validPatients]);
+  const insufficientPatientIds = new Set(patientBalances.filter(pb => pb.balance < servicePrice).map(pb => pb.id));
+  const hasAnyInsufficient = isNeurofeedback && insufficientPatientIds.size > 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -201,31 +250,74 @@ export default function AppointmentForm({
           <CardTitle>Détails du rendez-vous</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Field>
-            <FieldLabel>Patient *</FieldLabel>
-            <Select
-              value={formData.patientId}
-              onValueChange={(value) => handleInputChange('patientId', value)}
-              disabled={isFormLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Sélectionner un patient"} />
-              </SelectTrigger>
-              <SelectContent>
-                {validPatients.length === 0 ? (
-                  <div className="p-2 text-sm text-gray-500">
-                    Aucun patient disponible. Créez d'abord un patient.
-                  </div>
-                ) : (
-                  validPatients.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.firstName} {patient.lastName}
-                    </SelectItem>
-                  ))
+          {isNeurofeedback ? (
+            <Field>
+              <FieldLabel>Patients * (max 4)</FieldLabel>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(formData.patientIds?.length ? formData.patientIds : formData.patientId ? [formData.patientId] : []).map((pid) => {
+                    const p = validPatients.find(pat => pat.id === pid);
+                    if (!p) return null;
+                    const isInsufficient = insufficientPatientIds.has(pid);
+                    return (
+                      <Badge key={pid} variant="secondary" className={`gap-1 pr-1 ${isInsufficient ? 'bg-red-100 text-red-700 border-red-300' : ''}`}>
+                        <span className={isInsufficient ? 'text-red-700' : ''}>{p.firstName} {p.lastName}</span>
+                        <button type="button" onClick={() => togglePatient(pid)} className="ml-1 hover:text-red-600">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+                {(formData.patientIds?.length || (formData.patientId ? 1 : 0)) < 4 && (
+                  <Select
+                    value=""
+                    onValueChange={(value) => togglePatient(value)}
+                    disabled={isFormLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Ajouter un patient"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validPatients
+                        .filter(p => !(formData.patientIds || [formData.patientId].filter(Boolean)).includes(p.id))
+                        .map((patient) => (
+                          <SelectItem key={patient.id} value={patient.id}>
+                            {patient.firstName} {patient.lastName}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 )}
-              </SelectContent>
-            </Select>
-          </Field>
+              </div>
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel>Patient *</FieldLabel>
+              <Select
+                value={formData.patientId}
+                onValueChange={(value) => handleInputChange('patientId', value)}
+                disabled={isFormLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Sélectionner un patient"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {validPatients.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">
+                      Aucun patient disponible. Créez d'abord un patient.
+                    </div>
+                  ) : (
+                    validPatients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.firstName} {patient.lastName}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <Field>
             <FieldLabel>Service *</FieldLabel>
@@ -247,7 +339,15 @@ export default function AppointmentForm({
             </Select>
           </Field>
 
-          {hasInsufficientBalance && (
+          {hasAnyInsufficient && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Certains utilisateurs ont un solde insuffisant.
+              </AlertDescription>
+            </Alert>
+          )}
+          {!isNeurofeedback && hasInsufficientBalance && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -304,6 +404,23 @@ export default function AppointmentForm({
               <span className="text-gray-600">Service :</span>
               <span className="font-semibold">{selectedService.name}</span>
             </div>
+            {isNeurofeedback && (
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-gray-600">Patients :</span>
+                <div className="font-semibold text-right">
+                  {(formData.patientIds?.length ? formData.patientIds : formData.patientId ? [formData.patientId] : [])
+                    .map(pid => {
+                      const p = validPatients.find(pat => pat.id === pid);
+                      const isInsuf = insufficientPatientIds.has(pid);
+                      return p ? (
+                        <div key={pid} className={isInsuf ? 'text-red-600' : ''}>
+                          {p.firstName} {p.lastName} ({Number(p.balance ?? 0).toFixed(0)} DZD)
+                        </div>
+                      ) : '';
+                    })}
+                </div>
+              </div>
+            )}
             <div className="flex justify-between items-center py-2 border-b">
               <span className="text-gray-600">Durée :</span>
               <span className="font-semibold">{selectedService.duration} minutes</span>
@@ -314,7 +431,7 @@ export default function AppointmentForm({
                 {Number(selectedService.price).toFixed(2)} DZD
               </span>
             </div>
-            {selectedPatient && (
+            {selectedPatient && !isNeurofeedback && (
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Solde patient :</span>
                 <span className={`font-semibold ${hasInsufficientBalance ? 'text-red-600' : 'text-emerald-700'}`}>

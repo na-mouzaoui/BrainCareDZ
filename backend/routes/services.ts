@@ -2,13 +2,14 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
 router.get('/', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services
        WHERE is_active = TRUE
        ORDER BY created_at DESC`
@@ -47,7 +48,7 @@ router.get('/category/:category', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services WHERE id = $1`,
       [req.params.id]
     );
@@ -78,7 +79,7 @@ router.post(
     }
 
     try {
-      const { name, price, sessions } = req.body;
+      const { name, price, sessions, type } = req.body;
       const safePrice = Number(price);
       const safeSessions = sessions ? Number(sessions) : 1;
 
@@ -91,11 +92,13 @@ router.post(
       }
 
       const result = await query(
-        `INSERT INTO services (name, price, sessions)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [name, safePrice, safeSessions]
+        `INSERT INTO services (name, price, sessions, type)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [name, safePrice, safeSessions, type || 'consultation']
       );
+
+      await logActivity({ req, action: 'CREATE', resource: 'service', resourceId: result.rows[0].id, resourceName: name });
 
       return res.status(201).json({
         success: true,
@@ -111,7 +114,7 @@ router.post(
 
 router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
   try {
-    const { name, price, sessions } = req.body;
+    const { name, price, sessions, type } = req.body;
 
     if (price !== undefined) {
       const safePrice = Number(price);
@@ -132,15 +135,18 @@ router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res)
        SET name = COALESCE($2, name),
            price = COALESCE($3, price),
            sessions = COALESCE($4, sessions),
+           type = COALESCE($5, type),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, price, sessions, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, price !== undefined ? Number(price) : undefined, sessions !== undefined ? Number(sessions) : undefined]
+       RETURNING id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [req.params.id, name, price !== undefined ? Number(price) : undefined, sessions !== undefined ? Number(sessions) : undefined, type || null]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
+
+    await logActivity({ req, action: 'UPDATE', resource: 'service', resourceId: req.params.id, resourceName: name || 'Service' });
 
     return res.status(200).json({
       success: true,
@@ -162,6 +168,8 @@ router.delete('/:id', protect, authorize('admin', 'practitioner'), async (req, r
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
+
+    await logActivity({ req, action: 'DELETE', resource: 'service', resourceId: req.params.id });
 
     return res.status(200).json({
       success: true,

@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -51,10 +52,18 @@ router.get('/patient/:patientId', protect, async (req, res) => {
   try {
     const params = [req.params.patientId];
     let where = 'WHERE sn.patient_id = $1';
+    let paramIndex = 1;
+
+    if (req.query.appointmentId) {
+      paramIndex++;
+      params.push(req.query.appointmentId);
+      where += ` AND sn.appointment_id = $${paramIndex}`;
+    }
 
     if (req.user.role !== 'admin') {
+      paramIndex++;
       params.push(req.user.id);
-      where += ` AND sn.practitioner_id = $${params.length}`;
+      where += ` AND sn.practitioner_id = $${paramIndex}`;
     }
 
     const result = await query(`${noteSelect} ${where} ORDER BY sn.created_at DESC`, params);
@@ -119,14 +128,14 @@ router.post(
       const practitionerId = req.user.role === 'admin' ? appointment.rows[0].practitionerId : req.user.id;
 
       const existing = await query(
-        'SELECT id FROM session_notes WHERE appointment_id = $1',
-        [appointmentId]
+        'SELECT id FROM session_notes WHERE appointment_id = $1 AND patient_id = $2',
+        [appointmentId, patientId]
       );
 
       if (existing.rowCount > 0) {
         return res.status(409).json({
           success: false,
-          message: 'Un compte rendu existe deja pour ce rendez-vous. Utilisez le bouton Modifier.',
+          message: 'Un compte rendu existe deja pour ce patient pour ce rendez-vous. Utilisez le bouton Modifier.',
         });
       }
 
@@ -167,8 +176,15 @@ router.post(
         ]
       );
 
-      await query('UPDATE appointments SET session_note_id = $2, updated_at = NOW() WHERE id = $1', [appointmentId, inserted.rows[0].id]);
+      // Check if this is a neurofeedback appointment (multi-patient)
+      const aptCheck = await query('SELECT s.type FROM appointments a JOIN services s ON s.id = a.service_id WHERE a.id = $1', [appointmentId]);
+      const isMultiPatient = aptCheck.rowCount > 0 && aptCheck.rows[0].type === 'neurofeedback';
+      if (!isMultiPatient) {
+        await query('UPDATE appointments SET session_note_id = $2, updated_at = NOW() WHERE id = $1', [appointmentId, inserted.rows[0].id]);
+      }
       const created = await query(`${noteSelect} WHERE sn.id = $1`, [inserted.rows[0].id]);
+
+      await logActivity({ req, action: 'CREATE', resource: 'session-note', resourceId: inserted.rows[0].id });
 
       return res.status(201).json({
         success: true,
@@ -232,6 +248,8 @@ router.put('/:id', protect, async (req, res) => {
 
     const updated = await query(`${noteSelect} WHERE sn.id = $1`, [req.params.id]);
 
+    await logActivity({ req, action: 'UPDATE', resource: 'session-note', resourceId: req.params.id });
+
     return res.status(200).json({
       success: true,
       message: 'Session note updated successfully',
@@ -256,6 +274,8 @@ router.delete('/:id', protect, async (req, res) => {
 
     await query('DELETE FROM session_notes WHERE id = $1', [req.params.id]);
     await query('UPDATE appointments SET session_note_id = NULL, updated_at = NOW() WHERE id = $1', [current.appointmentId]);
+
+    await logActivity({ req, action: 'DELETE', resource: 'session-note', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Session note deleted successfully' });
   } catch (error) {

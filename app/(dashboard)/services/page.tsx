@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +19,7 @@ interface Service {
   name: string;
   price: number;
   sessions: number;
+  type?: string;
 }
 
 export default function ServicesPage() {
@@ -89,6 +91,7 @@ export default function ServicesPage() {
       name: service.name,
       price: service.price,
       sessions: service.sessions || 1,
+      type: service.type || 'consultation',
     });
     setEditOpen(true);
   }
@@ -183,6 +186,7 @@ export default function ServicesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nom</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Séances</TableHead>
                     <TableHead>Prix</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -192,6 +196,11 @@ export default function ServicesPage() {
                   {filteredServices.map((service) => (
                     <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
+                      <TableCell>
+                        <Badge className={service.type === 'neurofeedback' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}>
+                          {service.type === 'neurofeedback' ? 'Neurofeedback' : 'Consultation'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}</TableCell>
                       <TableCell className="font-semibold">{formatPrice(service.price)} DZD</TableCell>
                       <TableCell className="text-right space-x-2">

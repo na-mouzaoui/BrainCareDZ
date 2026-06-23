@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -147,6 +148,8 @@ router.post(
       const created = await query(`${invoiceSelect} WHERE i.id = $1`, [inserted.rows[0].id]);
       const invoice = created.rows[0];
       invoice.items = await loadItems(inserted.rows[0].id);
+
+      await logActivity({ req, action: 'CREATE', resource: 'company-invoice', resourceId: inserted.rows[0].id });
 
       await query('COMMIT');
 

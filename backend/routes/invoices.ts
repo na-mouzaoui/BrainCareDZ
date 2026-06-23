@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
+import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
@@ -192,6 +193,8 @@ router.post(
 
       const created = await query(`${invoiceSelect} WHERE i.id = $1`, [inserted.rows[0].id]);
 
+      await logActivity({ req, action: 'CREATE', resource: 'invoice', resourceId: inserted.rows[0].id });
+
       return res.status(201).json({
         success: true,
         message: 'Invoice created successfully',
@@ -227,7 +230,9 @@ router.put('/:id', protect, async (req, res) => {
       [req.params.id, status, dueDate, paidDate, paymentMethod, notes]
     );
 
-    const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
+          const updated = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
+
+      await logActivity({ req, action: 'UPDATE', resource: 'invoice', resourceId: req.params.id });
 
     return res.status(200).json({
       success: true,
@@ -328,6 +333,8 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     await query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
+
+    await logActivity({ req, action: 'DELETE', resource: 'invoice', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Invoice deleted successfully' });
   } catch (error) {
