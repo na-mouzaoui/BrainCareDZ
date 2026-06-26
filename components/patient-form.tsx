@@ -63,7 +63,6 @@ const STEPS = [
   { id: 3, title: 'Motif', requiredFields: ['consultationReasons'] },
   { id: 4, title: 'Historique', requiredFields: [] },
   { id: 5, title: 'Source', requiredFields: ['sourceOfAcquisition'] },
-  { id: 6, title: 'Évolution', requiredFields: ['status'] },
 ];
 
 interface ValidationResult {
@@ -104,10 +103,6 @@ function validateStep(stepId: number, formData: PatientFormData): ValidationResu
     case 5:
       if (!formData.sourceOfAcquisition?.trim()) errors.push('La source d\'acquisition est obligatoire');
       break;
-      
-    case 6:
-      if (!formData.status?.trim()) errors.push('Le statut est obligatoire');
-      break;
   }
   
   return { isValid: errors.length === 0, errors };
@@ -133,7 +128,7 @@ export function PatientForm({
       previousConsultation: false, previousType: '', currentFollowUp: false, followUpDetails: '',
       sourceOfAcquisition: '', sourceDetails: '', firstContactDate: '', firstAppointmentDate: '',
       appointmentFrequency: '', plannedSessions: undefined, completedSessions: undefined,
-      status: '', abandonReason: '',
+      abandonReason: '',
       perceivedImprovement: undefined, observedChanges: '', improvementStartMonth: undefined,
       globalSatisfaction: undefined, wouldRecommend: false,
     }
@@ -572,92 +567,6 @@ export function PatientForm({
                 />
               </Field>
             )}
-          </div>
-        );
-
-      case 6:
-        return (
-          <div className="space-y-5">
-            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Évolution</h3>
-            <Field>
-              <FieldLabel>Statut</FieldLabel>
-              <Select
-                value={formData.status || ''}
-                onValueChange={(value) => handleInputChange('status', value)}
-                disabled={isFormLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="En cours">En cours</SelectItem>
-                  <SelectItem value="Terminé">Terminé</SelectItem>
-                  <SelectItem value="Abandon">Abandon</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            {formData.status === 'Abandon' && (
-              <Field>
-                <FieldLabel>Raison de l'abandon</FieldLabel>
-                <Input
-                  type="text"
-                  value={formData.abandonReason || ''}
-                  onChange={(e) => handleInputChange('abandonReason', e.target.value)}
-                  disabled={isFormLoading}
-                />
-              </Field>
-            )}
-            <Field>
-              <FieldLabel>Amélioration perçue (0-10)</FieldLabel>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={formData.perceivedImprovement ?? ''}
-                onChange={(e) => handleInputChange('perceivedImprovement', e.target.value ? parseInt(e.target.value) : undefined)}
-                disabled={isFormLoading}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Changements observés</FieldLabel>
-              <Input
-                type="text"
-                value={formData.observedChanges || ''}
-                onChange={(e) => handleInputChange('observedChanges', e.target.value)}
-                disabled={isFormLoading}
-              />
-            </Field>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Satisfaction globale (0-10)</FieldLabel>
-                <Input
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={formData.globalSatisfaction ?? ''}
-                  onChange={(e) => handleInputChange('globalSatisfaction', e.target.value ? parseInt(e.target.value) : undefined)}
-                  disabled={isFormLoading}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Recommanderait-il ?</FieldLabel>
-                <div className="flex items-center gap-4 py-2">
-                  {['Non', 'Oui'].map((option) => (
-                    <div key={option} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        id={`recommend-${option}`}
-                        name="wouldRecommend"
-                        checked={formData.wouldRecommend === (option === 'Oui')}
-                        onChange={() => handleInputChange('wouldRecommend', option === 'Oui')}
-                        disabled={isFormLoading}
-                      />
-                      <label htmlFor={`recommend-${option}`} className="text-sm cursor-pointer">{option}</label>
-                    </div>
-                  ))}
-                </div>
-              </Field>
-            </div>
           </div>
         );
 

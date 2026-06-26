@@ -7,9 +7,12 @@ import { appointments, sessionNotes, patients as patientsApi } from '@/lib/api';
 import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Edit2, FileText, Send, Eye } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Edit2, FileText, Eye, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
@@ -80,6 +83,12 @@ export default function AppointmentReportPage() {
   const [viewPatient, setViewPatient] = useState<ViewPatient | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
+  const [evoStatus, setEvoStatus] = useState('');
+  const [evoAbandonReason, setEvoAbandonReason] = useState('');
+  const [evoPerceivedImprovement, setEvoPerceivedImprovement] = useState<number | undefined>(undefined);
+  const [evoObservedChanges, setEvoObservedChanges] = useState('');
+  const [evoGlobalSatisfaction, setEvoGlobalSatisfaction] = useState<number | undefined>(undefined);
+  const [evoWouldRecommend, setEvoWouldRecommend] = useState(false);
 
   const allPatients = useMemo(() => {
     if (!appointment) return [];
@@ -175,40 +184,6 @@ export default function AppointmentReportPage() {
     }
   }, [currentPatient?.patientId, appointmentId]);
 
-  async function handleCreateNote() {
-    if (!appointment || !currentPatient) return;
-    if (!noteText.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      const response = editingNoteId
-        ? await sessionNotes.update(editingNoteId, {
-            progressNotes: noteText.trim(),
-          })
-        : await sessionNotes.create({
-            progressNotes: noteText.trim(),
-            appointmentId: appointment.id,
-            patientId: currentPatient.patientId,
-          });
-
-      if (!response.success) {
-        throw new Error(response.message || 'Échec de la création du compte rendu');
-      }
-
-      setNoteText('');
-      setEditingNoteId(null);
-      await loadNotesForPatient(currentPatient.patientId);
-    } catch (err) {
-      toast({
-        title: 'Impossible de creer le compte rendu',
-        description: err instanceof Error ? err.message : 'Veuillez reessayer.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   function handleEditNote(note: SessionNoteItem) {
     const body = getNoteBody(note);
     setEditingNoteId(note.id);
@@ -237,6 +212,71 @@ export default function AppointmentReportPage() {
       return;
     }
     router.back();
+  }
+
+  async function loadPatientEvolution(patientId: string) {
+    try {
+      const response = await patientsApi.getById(patientId);
+      if (response.success && response.data) {
+        const p = response.data.patient || response.data;
+        setEvoStatus(p.status || '');
+        setEvoAbandonReason(p.abandonReason || '');
+        setEvoPerceivedImprovement(p.perceivedImprovement ?? undefined);
+        setEvoObservedChanges(p.observedChanges || '');
+        setEvoGlobalSatisfaction(p.globalSatisfaction ?? undefined);
+        setEvoWouldRecommend(p.wouldRecommend ?? false);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    if (currentPatient) {
+      loadPatientEvolution(currentPatient.patientId);
+    }
+  }, [currentPatient?.patientId]);
+
+  async function handleSaveAll() {
+    if (!appointment || !currentPatient) return;
+    setIsSubmitting(true);
+    try {
+      const evoResponse = await patientsApi.update(currentPatient.patientId, {
+        status: evoStatus,
+        abandonReason: evoAbandonReason || undefined,
+        perceivedImprovement: evoPerceivedImprovement,
+        observedChanges: evoObservedChanges || undefined,
+        globalSatisfaction: evoGlobalSatisfaction,
+        wouldRecommend: evoWouldRecommend,
+      });
+      if (!evoResponse.success) {
+        throw new Error(evoResponse.message || 'Échec de la sauvegarde de l\'évolution');
+      }
+      if (noteText.trim()) {
+        const noteResponse = editingNoteId
+          ? await sessionNotes.update(editingNoteId, { progressNotes: noteText.trim() })
+          : await sessionNotes.create({
+              progressNotes: noteText.trim(),
+              appointmentId: appointment.id,
+              patientId: currentPatient.patientId,
+            });
+        if (!noteResponse.success) {
+          throw new Error(noteResponse.message || 'Échec de la création du compte rendu');
+        }
+      }
+      setNoteText('');
+      setEditingNoteId(null);
+      await loadNotesForPatient(currentPatient.patientId);
+      toast({ title: 'Compte rendu sauvegardé', variant: 'default' });
+    } catch (err) {
+      toast({
+        title: 'Erreur',
+        description: err instanceof Error ? err.message : 'Une erreur est survenue',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function handleViewPatient(patientId: string) {
@@ -427,35 +467,75 @@ export default function AppointmentReportPage() {
         )}
       </div>
 
-      <div className="border-t pt-4">
-        <div className="flex flex-col gap-3">
-          <Textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            rows={3}
-            placeholder={`Écrire un compte rendu pour ${currentPatient?.firstName || 'le patient'}...`}
-            disabled={isSubmitting}
-          />
-          <div className="flex justify-end">
-            <div className="flex items-center gap-2">
-              {editingNoteId && (
-                <Button type="button" variant="ghost" onClick={handleCancelEdit}>
-                  Annuler
-                </Button>
-              )}
-              <Button
-                type="button"
-                onClick={handleCreateNote}
-                disabled={isSubmitting || !noteText.trim()}
-                className="gap-2"
-              >
-                <Send className="h-4 w-4" />
-                {editingNoteId ? 'Mettre a jour' : 'Enregistrer'}
-              </Button>
-            </div>
+      <Card className="border-emerald-100">
+        <CardHeader>
+          <CardTitle className="text-emerald-700">Compte rendu et évolution</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field>
+            <FieldLabel>Statut</FieldLabel>
+            <Select value={evoStatus} onValueChange={setEvoStatus} disabled={isSubmitting}>
+              <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="En cours">En cours</SelectItem>
+                <SelectItem value="Terminé">Terminé</SelectItem>
+                <SelectItem value="Abandon">Abandon</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          {evoStatus === 'Abandon' && (
+            <Field>
+              <FieldLabel>Raison de l'abandon</FieldLabel>
+              <Input type="text" value={evoAbandonReason} onChange={(e) => setEvoAbandonReason(e.target.value)} disabled={isSubmitting} />
+            </Field>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel>Amélioration perçue (0-10)</FieldLabel>
+              <Input type="number" min={0} max={10} value={evoPerceivedImprovement ?? ''} onChange={(e) => setEvoPerceivedImprovement(e.target.value ? parseInt(e.target.value) : undefined)} disabled={isSubmitting} />
+            </Field>
+            <Field>
+              <FieldLabel>Satisfaction globale (0-10)</FieldLabel>
+              <Input type="number" min={0} max={10} value={evoGlobalSatisfaction ?? ''} onChange={(e) => setEvoGlobalSatisfaction(e.target.value ? parseInt(e.target.value) : undefined)} disabled={isSubmitting} />
+            </Field>
           </div>
-        </div>
-      </div>
+          <Field>
+            <FieldLabel>Changements observés</FieldLabel>
+            <Input type="text" value={evoObservedChanges} onChange={(e) => setEvoObservedChanges(e.target.value)} disabled={isSubmitting} />
+          </Field>
+          <Field>
+            <FieldLabel>Recommanderait-il ?</FieldLabel>
+            <div className="flex items-center gap-4 py-2">
+              {['Non', 'Oui'].map((option) => (
+                <div key={option} className="flex items-center gap-2">
+                  <input type="radio" id={`evoreco-${option}`} name="evoWouldRecommend" checked={evoWouldRecommend === (option === 'Oui')} onChange={() => setEvoWouldRecommend(option === 'Oui')} disabled={isSubmitting} />
+                  <label htmlFor={`evoreco-${option}`} className="text-sm cursor-pointer">{option}</label>
+                </div>
+              ))}
+            </div>
+          </Field>
+          <div className="border-t pt-4">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              rows={3}
+              placeholder={`Écrire un compte rendu pour ${currentPatient?.firstName || 'le patient'}...`}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            {editingNoteId && (
+              <Button type="button" variant="ghost" onClick={handleCancelEdit} disabled={isSubmitting}>
+                Annuler
+              </Button>
+            )}
+            <Button type="button" onClick={handleSaveAll} disabled={isSubmitting} className="gap-2">
+              <Save className="h-4 w-4" />
+              {isSubmitting ? 'Sauvegarde...' : 'Enregistrer'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Patient detail dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>

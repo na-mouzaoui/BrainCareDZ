@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
-import { appointments, expenses, clients } from '../../../lib/api';
+import { appointments, expenses } from '../../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   PieChart,
@@ -57,10 +57,9 @@ export default function AnalyticsPage() {
     try {
       setIsLoading(true);
 
-      const [appointmentsRes, expensesRes, clientsRes] = await Promise.all([
+      const [appointmentsRes, expensesRes] = await Promise.all([
         appointments.getAll(),
         expenses.getAll(),
-        clients.getAll(),
       ]);
 
       const appointmentsList = appointmentsRes.success ? appointmentsRes.data?.appointments || [] : [];
@@ -183,22 +182,33 @@ export default function AnalyticsPage() {
         <CardHeader>
           <CardTitle>Tendance des rendez-vous (7 derniers jours)</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.appointmentsTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="appointments"
-                stroke="#059669"
-                strokeWidth={2}
-                dot={{ fill: '#059669', r: 4 }}
-              />
-            </LineChart>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart key={`appointments-${chartData.appointmentsTrend.length}`} data={chartData.appointmentsTrend}>
+                <defs>
+                  <linearGradient id="aptTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                <Area
+                  type="monotone"
+                  dataKey="appointments"
+                  name="Rendez-vous"
+                  stroke="#059669"
+                  strokeWidth={2}
+                  fill="url(#aptTrendGradient)"
+                  dot={{ fill: '#059669', r: 4 }}
+                  activeDot={{ r: 6, fill: '#059669' }}
+                  isAnimationActive={true}
+                  animationDuration={2000}
+                  animationEasing="ease-in-out"
+                />
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
@@ -212,12 +222,18 @@ export default function AnalyticsPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={chartData.revenueTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.4} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
                 <Legend />
-                <Bar dataKey="revenue" fill="#10b981" />
+                <Bar dataKey="revenue" fill="url(#revenueGradient)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -231,21 +247,35 @@ export default function AnalyticsPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
+                <defs>
+                  <radialGradient id="analyticsPieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#166534" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="analyticsPieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#059669" stopOpacity={1} /><stop offset="100%" stopColor="#047857" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="analyticsPieGrad2" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#ef4444" stopOpacity={1} /><stop offset="100%" stopColor="#dc2626" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="analyticsPieGrad3" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#f59e0b" stopOpacity={1} /><stop offset="100%" stopColor="#d97706" stopOpacity={0.8} /></radialGradient>
+                </defs>
                 <Pie
                   data={chartData.appointmentStatus}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
+                  innerRadius={50}
                   outerRadius={80}
+                  paddingAngle={3}
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                   fill="#8884d8"
                   dataKey="value"
                 >
                   {chartData.appointmentStatus.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={`url(#analyticsPieGrad${index})`} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value: number) => [`${value}`, '']} />
+                <text x="50%" y="48%" textAnchor="middle" fill="#166534" fontSize={24} fontWeight="bold" dominantBaseline="middle">
+                  {chartData.appointmentStatus.reduce((sum, s) => sum + s.value, 0)}
+                </text>
+                <text x="50%" y="58%" textAnchor="middle" fill="#6b7280" fontSize={12} dominantBaseline="middle">
+                  total
+                </text>
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

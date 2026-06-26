@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { AlertCircle, Plus, Search, Edit2, Trash2, FileText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -46,10 +46,40 @@ const [searchTerm, setSearchTerm] = useState('');
   const [editPatientData, setEditPatientData] = useState<PatientFormData | undefined>(undefined);
   const [editLoading, setEditLoading] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [viewPatientData, setViewPatientData] = useState<PatientFormData | undefined>(undefined);
+  const [viewLoading, setViewLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
+
+  async function loadViewPatient(id: string) {
+    try {
+      setViewLoading(true);
+      const response = await patients.getById(id);
+      if (response.success && response.data) {
+        setViewPatientData(response.data as PatientFormData);
+      } else {
+        setError(response.message || 'Impossible de charger le patient');
+      }
+    } catch {
+      setError('Une erreur est survenue lors du chargement du patient');
+    } finally {
+      setViewLoading(false);
+    }
+  }
+
+  function handleOpenView(patient: Patient) {
+    setSelectedPatient(patient);
+    setViewOpen(true);
+    loadViewPatient(patient.id);
+  }
+
+  function handleCloseView() {
+    setViewOpen(false);
+    setSelectedPatient(null);
+    setViewPatientData(undefined);
+  }
 
   function getStatusColor(status: string) {
     switch (status?.toLowerCase()) {
@@ -252,10 +282,7 @@ const [searchTerm, setSearchTerm] = useState('');
                       <TableRow
                         key={patient.id}
                         className="cursor-pointer"
-                        onClick={() => {
-                          setSelectedPatient(patient);
-                          setViewOpen(true);
-                        }}
+                        onClick={() => handleOpenView(patient)}
                       >
                         <TableCell className="font-medium">
                           {patient.firstName} {patient.lastName}
@@ -362,70 +389,44 @@ const [searchTerm, setSearchTerm] = useState('');
         </DialogContent>
       </Dialog>
 
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="sm:max-w-3xl" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
+      <Dialog open={viewOpen} onOpenChange={(open) => { if (!open) handleCloseView(); }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>
               {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Détails du patient'}
             </DialogTitle>
             <DialogDescription>
-              Informations sur le patient
+              Informations sur le patient (lecture seule)
             </DialogDescription>
           </DialogHeader>
-          {selectedPatient && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Prénom</p>
-                  <p className="text-lg">{selectedPatient.firstName}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Nom</p>
-                  <p className="text-lg">{selectedPatient.lastName}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Email</p>
-                  <p className="text-lg">{selectedPatient.email || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Téléphone</p>
-                  <p className="text-lg">{selectedPatient.phone}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Statut</p>
-                  <Badge className={getStatusColor(selectedPatient.status)}>
-                    {selectedPatient.status === 'active' ? 'Actif' : selectedPatient.status === 'inactive' ? 'Inactif' : 'Archivé'}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Nombre de séances</p>
-                  <p className="text-lg">{selectedPatient.sessionCount || 0}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Packs en cours</p>
-                  {selectedPatient.packList && selectedPatient.packList.length > 0 ? (
-                    <div className="space-y-1">
-                      {selectedPatient.packList.map((pack, index) => (
-                        <p key={`${pack.serviceName}-${index}`} className="text-lg text-emerald-700">
-                          {pack.serviceName} ({pack.packRemaining})
-                        </p>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-lg text-gray-400">—</p>
-                  )}
-                </div>
-                {selectedPatient.lastSessionDate && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Dernière séance</p>
-                    <p className="text-lg">
-                      {new Date(selectedPatient.lastSessionDate).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                )}
+          {viewLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+            </div>
+          ) : selectedPatient ? (
+            <div className="px-6 pb-6">
+              <PatientForm
+                initialData={viewPatientData}
+                onSubmit={async () => {}}
+                readOnly
+                key={selectedPatient.id}
+              />
+              <div className="mt-4 flex justify-end border-t pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    handleCloseView();
+                    router.push(`/patients/${selectedPatient.id}/notes`);
+                  }}
+                >
+                  <FileText className="h-4 w-4" />
+                  Voir l'historique des comptes rendus
+                </Button>
               </div>
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

@@ -2,19 +2,20 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { appointments, patients, payments } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Users, Calendar, Wallet, TrendingUp } from 'lucide-react';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   PieChart,
   Pie,
   Cell,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -39,6 +40,31 @@ interface MonthlyAppointmentPoint {
   month: string;
   fixed: number;
   attended: number;
+}
+
+function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<number>(0);
+  const startTime = useRef<number>(0);
+  const duration = 1200;
+
+  useEffect(() => {
+    startTime.current = performance.now();
+    ref.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(ref.current);
+  }, [value]);
+
+  function animate(time: number) {
+    const elapsed = time - startTime.current;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    setDisplay(Math.round(value * eased * Math.pow(10, decimals)) / Math.pow(10, decimals));
+    if (progress < 1) {
+      ref.current = requestAnimationFrame(animate);
+    }
+  }
+
+  return <>{display.toFixed(decimals)}{suffix}</>;
 }
 
 export default function DashboardPage() {
@@ -172,13 +198,18 @@ const monthlyPatients = months.map((m) => {
       });
 
       const monthlyAppointments = months.map((m) => {
-        const count = appointmentItems.filter((apt) => {
+        const fixed = appointmentItems.filter((apt) => {
           const start = new Date(apt.startTime || '');
-          return start.getFullYear() === m.year && start.getMonth() === m.month;
+          return start.getFullYear() === m.year && start.getMonth() === m.month && apt.status === 'scheduled';
+        }).length;
+        const attended = appointmentItems.filter((apt) => {
+          const start = new Date(apt.startTime || '');
+          return start.getFullYear() === m.year && start.getMonth() === m.month && apt.status === 'completed';
         }).length;
         return {
           month: m.monthLabel,
-          appointments: count,
+          fixed,
+          attended,
         };
       });
 
@@ -194,7 +225,7 @@ const monthlyPatients = months.map((m) => {
 
       const sources: Record<string, number> = {};
       patientItems.forEach((p) => {
-        const source = p.referralSource || 'Non renseigné';
+        const source = p.sourceOfAcquisition || 'Non renseigné';
         sources[source] = (sources[source] || 0) + 1;
       });
       setReferralSources(
@@ -233,57 +264,52 @@ const monthlyPatients = months.map((m) => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chiffre d'affaires du mois</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+            <CardTitle className="text-sm font-medium">Chiffre d'affaires du mois (DZD)</CardTitle>
+            <DollarSign className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.monthlyRevenue.toFixed(2)} DZD</div>
-            <p className="text-xs text-gray-600 mt-1">Encaissements du mois</p>
+            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyRevenue} decimals={2} /></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dépenses du mois</CardTitle>
-            <Wallet className="h-4 w-4 text-emerald-600" />
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+            <CardTitle className="text-sm font-medium">Dépenses du mois (DZD)</CardTitle>
+            <Wallet className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.monthlyExpenses.toFixed(2)} DZD</div>
-            <p className="text-xs text-gray-600 mt-1">Sorties du mois</p>
+            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyExpenses} decimals={2} /></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bénéfice net</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-600" />
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+            <CardTitle className="text-sm font-medium">Bénéfice net (DZD)</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.monthlyNetProfit.toFixed(2)} DZD</div>
-            <p className="text-xs text-gray-600 mt-1">Automatique (CA - Dépenses)</p>
+            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyNetProfit} decimals={2} /></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
             <CardTitle className="text-sm font-medium">RDV aujourd'hui</CardTitle>
-            <Calendar className="h-4 w-4 text-emerald-600" />
+            <Calendar className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.todayAppointments}</div>
-            <p className="text-xs text-gray-600 mt-1">Planifiés et terminés</p>
+            <div className="text-2xl font-bold"><AnimatedCounter value={stats.todayAppointments} /></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
             <CardTitle className="text-sm font-medium">Nouveaux patients (mois)</CardTitle>
-            <Users className="h-4 w-4 text-emerald-600" />
+            <Users className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.newPatientsMonth}</div>
-            <p className="text-xs text-gray-600 mt-1">Créés ce mois</p>
+            <div className="text-2xl font-bold"><AnimatedCounter value={stats.newPatientsMonth} /></div>
           </CardContent>
         </Card>
       </div>
@@ -295,21 +321,31 @@ const monthlyPatients = months.map((m) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyPatientsTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Line
+              <AreaChart key={`patients-${monthlyPatientsTrend.length}`} data={monthlyPatientsTrend}>
+                <defs>
+                  <linearGradient id="patientGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                <Area
                   type="monotone"
                   dataKey="patients"
                   name="Nouveaux patients"
                   stroke="#059669"
                   strokeWidth={2}
+                  fill="url(#patientGradient)"
                   dot={{ fill: '#059669', r: 3 }}
+                  activeDot={{ r: 5, fill: '#059669' }}
+                  isAnimationActive={true}
+                  animationDuration={2000}
+                  animationEasing="ease-in-out"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -321,13 +357,23 @@ const monthlyPatients = months.map((m) => {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={monthlyAppointmentsTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <defs>
+                  <linearGradient id="fixedGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0f766e" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#0f766e" stopOpacity={0.5} />
+                  </linearGradient>
+                  <linearGradient id="attendedGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.4} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
                 <Legend />
-                <Bar dataKey="fixed" name="RDV fixés" fill="#0f766e" stackId="rdv" />
-                <Bar dataKey="attended" name="Patients venus" fill="#10b981" stackId="rdv" />
+                <Bar dataKey="fixed" name="RDV fixés" fill="url(#fixedGradient)" stackId="rdv" radius={[4, 4, 0, 0]} animationBegin={0} animationDuration={600} />
+                <Bar dataKey="attended" name="Patients venus" fill="url(#attendedGradient)" stackId="rdv" radius={[4, 4, 0, 0]} animationBegin={600} animationDuration={600} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -342,20 +388,49 @@ const monthlyPatients = months.map((m) => {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
+                <defs>
+                  <radialGradient id="pieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#166534" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#059669" stopOpacity={1} /><stop offset="100%" stopColor="#047857" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad2" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#10b981" stopOpacity={1} /><stop offset="100%" stopColor="#059669" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad3" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#34d399" stopOpacity={1} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad4" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#6ee7b7" stopOpacity={1} /><stop offset="100%" stopColor="#34d399" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad5" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#a7f3d0" stopOpacity={1} /><stop offset="100%" stopColor="#6ee7b7" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad6" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#047857" stopOpacity={1} /><stop offset="100%" stopColor="#166534" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="pieGrad7" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#064e3b" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
+                </defs>
                 <Pie
                   data={referralSources}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
                   cy="50%"
+                  innerRadius={60}
                   outerRadius={100}
-                  label={({ name, value }) => `${name} (${value})`}
+                  paddingAngle={3}
                 >
                   {referralSources.map((_, index) => (
-                    <Cell key={index} fill={['#059669', '#10b981', '#0f766e', '#6ee7b7', '#a7f3d0', '#34d399', '#064e3b', '#d1fae5'][index % 8]} />
+                    <Cell key={index} fill={`url(#pieGrad${index % 8})`} />
                   ))}
+                  <LabelList
+                    dataKey="value"
+                    position="inside"
+                    formatter={(value: number, entry: any) => {
+                      const total = referralSources.reduce((s, v) => s + v.value, 0);
+                      return total > 0 ? `${((value / total) * 100).toFixed(0)}%` : '0%';
+                    }}
+                    fill="#fff"
+                    fontSize={12}
+                  />
                 </Pie>
-                <Tooltip />
+                <Tooltip
+                  formatter={(value: number) => [`${value} patient${value > 1 ? 's' : ''}`]}
+                  contentStyle={{ backgroundColor: '#065f46', border: '1px solid #047857', borderRadius: '0.5rem', padding: '0.375rem 0.75rem', fontSize: '0.875rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  labelStyle={{ display: 'none' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="-0.55em" fontSize={28} className="font-bold" fill="#166534">
+                  {referralSources.reduce((sum, s) => sum + s.value, 0)}
+                </text>
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
