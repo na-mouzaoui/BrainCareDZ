@@ -105,7 +105,7 @@ export default function PaymentEditPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -114,7 +114,6 @@ export default function PaymentEditPage() {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Modifier le paiement</h1>
-        <p className="text-gray-600 mt-1">Mettez a jour les informations du paiement</p>
       </div>
 
       {error && (

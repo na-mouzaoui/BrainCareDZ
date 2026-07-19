@@ -102,6 +102,8 @@ export const patients = {
     apiRequest(`/patients/${id}`, { method: 'DELETE' }),
   search: (query: string) =>
     apiRequest(`/patients/search/${query}`, { method: 'GET' }),
+  getHistory: (id: string) =>
+    apiRequest(`/patients/${id}/history`, { method: 'GET' }),
 };
 
 // Services endpoints

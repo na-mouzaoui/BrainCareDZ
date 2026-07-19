@@ -92,7 +92,7 @@ export default function SessionNotesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -104,11 +104,10 @@ export default function SessionNotesPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Notes de session</h1>
-            <p className="text-gray-600 mt-1">Gérez vos notes cliniques et observations</p>
           </div>
           <Button
             onClick={() => setCreateOpen(true)}
-            className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+            className="gap-2 bg-brand-700 hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" />
             Ajouter une note
@@ -181,7 +180,7 @@ export default function SessionNotesPage() {
               <p className="text-gray-500 mb-4">Aucune note de session trouvée</p>
               <Button
                 onClick={() => setCreateOpen(true)}
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" />
                 Ajouter une note

@@ -58,19 +58,19 @@ export function DashboardNav() {
   };
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-white border-r border-emerald-900/20 text-gray-900 transition-all duration-200 z-50 shadow-lg flex flex-col ${
+    <aside className={`fixed left-0 top-0 h-screen bg-white border-r border-brand-900/20 text-gray-900 transition-all duration-200 z-50 shadow-lg flex flex-col ${
       isOpen ? 'w-64' : 'w-20'
     }`}>
       {/* Logo + Toggle */}
-      <div className="flex items-center justify-between p-4 border-b border-emerald-900/20">
+      <div className="flex items-center justify-between p-4 border-b border-brand-900/20">
         <button
           onClick={toggleSidebar}
-          className="flex items-center gap-3 min-w-0 hover:bg-emerald-50 transition-colors rounded-lg p-1 -ml-1"
+          className="flex items-center gap-3 min-w-0 hover:bg-brand-50 transition-colors rounded-lg p-1 -ml-1"
           title={isOpen ? 'Réduire' : 'Développer'}
         >
-          <Brain className="h-8 w-8 flex-shrink-0 text-emerald-700" />
+          <Brain className="h-8 w-8 flex-shrink-0 text-brand-700" />
           {isOpen && (
-            <span className="font-bold text-lg text-emerald-900 whitespace-nowrap truncate">BrainCareDZ</span>
+            <span className="font-bold text-lg text-brand-900 whitespace-nowrap truncate">BrainCareDZ</span>
           )}
         </button>
       </div>
@@ -90,8 +90,8 @@ export function DashboardNav() {
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-emerald-700 text-white shadow-md'
-                  : 'text-gray-700 hover:bg-emerald-50'
+                  ? 'bg-brand-700 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-brand-50'
               }`}
             >
               <Icon className="size-5 min-h-5 min-w-5 shrink-0" />
@@ -103,7 +103,7 @@ export function DashboardNav() {
             return (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8} className="bg-emerald-800 text-white border border-emerald-700 shadow-lg px-3 py-1.5 text-sm font-medium">
+                <TooltipContent side="right" sideOffset={8} className="bg-brand-800 text-white border border-brand-700 shadow-lg px-3 py-1.5 text-sm font-medium">
                   {item.label}
                 </TooltipContent>
               </Tooltip>
@@ -115,25 +115,25 @@ export function DashboardNav() {
       </nav>
 
       {/* User Info and Logout */}
-      <div className="border-t border-emerald-900/20 p-4 space-y-3">
+      <div className="border-t border-brand-900/20 p-4 space-y-3">
         {isOpen && user && (
-          <div className="px-2 py-2 bg-emerald-50 rounded-lg">
+          <div className="px-2 py-2 bg-brand-50 rounded-lg">
             <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-            <p className="text-xs text-emerald-700 capitalize">{user.role}</p>
+            <p className="text-xs text-brand-700 capitalize">{user.role}</p>
           </div>
         )}
         {!isOpen && user && (
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="px-2 py-2 text-center">
-                <div className="h-8 w-8 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-sm">
+                <div className="h-8 w-8 mx-auto rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm">
                   {user.name?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8} className="bg-emerald-800 text-white border border-emerald-700 shadow-lg px-3 py-1.5 text-sm font-medium">
+            <TooltipContent side="right" sideOffset={8} className="bg-brand-800 text-white border border-brand-700 shadow-lg px-3 py-1.5 text-sm font-medium">
               <p>{user.name}</p>
-              <p className="text-xs text-emerald-200 capitalize">{user.role}</p>
+              <p className="text-xs text-brand-200 capitalize">{user.role}</p>
             </TooltipContent>
           </Tooltip>
         )}

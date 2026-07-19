@@ -411,7 +411,7 @@ export default function AdminPage() {
   if (authLoading || (user?.role === 'admin' && loading)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-700" />
       </div>
     );
   }
@@ -432,7 +432,6 @@ export default function AdminPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Administration</h1>
-        <p className="text-gray-600 mt-1">Gérez les utilisateurs, les paramètres et les journaux d'activité</p>
       </div>
 
       {error && (
@@ -451,7 +450,7 @@ export default function AdminPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6 bg-emerald-100">
+        <TabsList className="grid w-full grid-cols-3 mb-6 bg-brand-100">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span>Utilisateurs</span>
@@ -468,12 +467,12 @@ export default function AdminPage() {
 
         {/* Tab Content - Users */}
         <TabsContent value="users" className="space-y-6">
-          <div className="border border-emerald-200 rounded-lg overflow-hidden">
-            <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
-              <h2 className="text-lg font-semibold text-emerald-900 flex items-center gap-2">
+          <div className="border border-brand-200 rounded-lg overflow-hidden">
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+              <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <Shield className="h-5 w-5" />
                 Gestion des utilisateurs
-                <span className="text-sm font-normal text-emerald-700">({users.length})</span>
+                <span className="text-sm font-normal text-brand-700">({users.length})</span>
               </h2>
             </div>
             <div className="p-6 space-y-6">
@@ -484,7 +483,7 @@ export default function AdminPage() {
                   setError('');
                   setIsCreateOpen(true);
                 }}
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" />
                 Ajouter un utilisateur
@@ -493,14 +492,14 @@ export default function AdminPage() {
 
             {/* Users Table */}
             {users.length === 0 ? (
-              <div className="text-center py-8 border border-dashed border-emerald-300 rounded-lg">
+              <div className="text-center py-8 border border-dashed border-brand-300 rounded-lg">
                 <p className="text-gray-500">Aucun utilisateur trouvé</p>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-emerald-200 rounded-lg">
+              <div className="overflow-x-auto border border-brand-200 rounded-lg">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-emerald-50">
+                    <TableRow className="bg-brand-50">
                       <TableHead>Nom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Rôle</TableHead>
@@ -537,7 +536,7 @@ export default function AdminPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEditUser(u)}
-                              className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                              className="text-brand-600 hover:text-brand-800 hover:bg-brand-50"
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
@@ -563,9 +562,9 @@ export default function AdminPage() {
 
         {/* Tab Content - Work Hours and Settings */}
         <TabsContent value="workHours" className="space-y-6">
-          <div className="border border-emerald-200 rounded-lg overflow-hidden">
-            <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
-              <h2 className="text-lg font-semibold text-emerald-900 flex items-center gap-2">
+          <div className="border border-brand-200 rounded-lg overflow-hidden">
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+              <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <Clock className="h-5 w-5" />
                 Jours et horaires de travail
               </h2>
@@ -577,7 +576,7 @@ export default function AdminPage() {
                 <div className="space-y-6">
                   {/* Consultation Duration */}
                   <div>
-                    <h3 className="font-medium mb-4 text-emerald-900">Durée de consultation</h3>
+                    <h3 className="font-medium mb-4 text-brand-900">Durée de consultation</h3>
                     <div>
                       <Label htmlFor="duration">Durée par défaut (minutes)</Label>
                       <Input
@@ -595,7 +594,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="border-t pt-6">
-                    <h4 className="font-medium mb-4 text-emerald-900">Horaires de travail</h4>
+                    <h4 className="font-medium mb-4 text-brand-900">Horaires de travail</h4>
                     <div className="space-y-4">
                       <div>
                         <Label htmlFor="work-start">Début de journée (24h)</Label>
@@ -624,7 +623,7 @@ export default function AdminPage() {
                 {/* Right Column */}
                 <div className="space-y-6">
                   <div>
-                    <h4 className="font-medium mb-4 text-emerald-900">Pause déjeuner</h4>
+                    <h4 className="font-medium mb-4 text-brand-900">Pause déjeuner</h4>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -640,7 +639,7 @@ export default function AdminPage() {
                       </div>
 
                       {settings.hasBreakfastBreak && (
-                        <div className="space-y-3 pl-6 border-l-2 border-emerald-600">
+                        <div className="space-y-3 pl-6 border-l-2 border-brand-600">
                           <div>
                             <Label htmlFor="break-start">Début (24h)</Label>
                             <Input
@@ -687,7 +686,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="border-t pt-6">
-                    <h4 className="font-medium mb-4 text-emerald-900">Jours de week-end</h4>
+                    <h4 className="font-medium mb-4 text-brand-900">Jours de week-end</h4>
                     <div className="grid grid-cols-2 gap-3">
                       {DAYS.map((day, index) => (
                         <div key={index} className="flex items-center space-x-2">
@@ -712,7 +711,7 @@ export default function AdminPage() {
             <Button
               onClick={saveSettings}
               disabled={settingsSaving}
-              className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+              className="gap-2 bg-brand-700 hover:bg-brand-800"
             >
               <Save className="h-4 w-4" />
               {settingsSaving ? 'Sauvegarde...' : 'Sauvegarder les paramètres'}
@@ -722,12 +721,12 @@ export default function AdminPage() {
 
         {/* Tab Content - Activity Logs */}
         <TabsContent value="logs" className="space-y-6">
-          <div className="border border-emerald-200 rounded-lg overflow-hidden">
-            <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
-              <h2 className="text-lg font-semibold text-emerald-900 flex items-center gap-2">
+          <div className="border border-brand-200 rounded-lg overflow-hidden">
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+              <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <History className="h-5 w-5" />
                 Journaux d'activité
-                <span className="text-sm font-normal text-emerald-700">({logsTotal})</span>
+                <span className="text-sm font-normal text-brand-700">({logsTotal})</span>
               </h2>
             </div>
             <div className="p-6 space-y-4">
@@ -783,17 +782,17 @@ export default function AdminPage() {
 
             {loadingLogs ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-emerald-700" />
+                <Loader2 className="h-6 w-6 animate-spin text-brand-700" />
               </div>
             ) : activityLogsList.length === 0 ? (
-              <div className="text-center py-8 border border-dashed border-emerald-300 rounded-lg">
+              <div className="text-center py-8 border border-dashed border-brand-300 rounded-lg">
                 <p className="text-gray-500">Aucun log d'activité trouvé</p>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-emerald-200 rounded-lg">
+              <div className="overflow-x-auto border border-brand-200 rounded-lg">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-emerald-50">
+                    <TableRow className="bg-brand-50">
                       <TableHead>Date & Heure</TableHead>
                       <TableHead>Utilisateur</TableHead>
                       <TableHead>Email</TableHead>
@@ -980,7 +979,7 @@ export default function AdminPage() {
               <Button type="button" variant="outline" onClick={() => { setIsCreateOpen(false); setError(''); }}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-emerald-700 hover:bg-emerald-800">
+              <Button type="submit" disabled={isSubmitting} className="bg-brand-700 hover:bg-brand-800">
                 {isSubmitting ? (
                   <><Loader2 className="h-4 w-4 animate-spin mr-2" />Création...</>
                 ) : (
@@ -1100,7 +1099,7 @@ export default function AdminPage() {
                 <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
                   Annuler
                 </Button>
-                <Button type="submit" className="bg-emerald-700 hover:bg-emerald-800">
+                <Button type="submit" className="bg-brand-700 hover:bg-brand-800">
                   <Save className="h-4 w-4 mr-2" />
                   Enregistrer
                 </Button>

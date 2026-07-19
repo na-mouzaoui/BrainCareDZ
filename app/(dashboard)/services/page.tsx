@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -133,10 +134,12 @@ export default function ServicesPage() {
     }).format(price);
   };
 
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredServices);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -146,9 +149,8 @@ export default function ServicesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Services</h1>
-          <p className="text-gray-600 mt-1">Gérez vos services et tarifs</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+        <Button onClick={() => setCreateOpen(true)} className="gap-2 bg-brand-700 hover:bg-brand-800">
           <Plus className="h-4 w-4" />
           Nouveau service
         </Button>
@@ -178,7 +180,7 @@ export default function ServicesPage() {
       {filteredServices.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Services ({filteredServices.length})</CardTitle>
+            <CardTitle>Services ({totalItems})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -193,7 +195,7 @@ export default function ServicesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredServices.map((service) => (
+                  {paginatedItems.map((service) => (
                     <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell>
@@ -226,6 +228,7 @@ export default function ServicesPage() {
                 </TableBody>
               </Table>
             </div>
+            <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           </CardContent>
         </Card>
       ) : (
@@ -237,7 +240,7 @@ export default function ServicesPage() {
               </p>
               <Button
                 onClick={() => setCreateOpen(true)}
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" />
                 Ajouter votre premier service

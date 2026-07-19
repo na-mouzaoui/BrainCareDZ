@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { sessionNotes } from '@/lib/api';
@@ -84,10 +85,12 @@ export default function ReportsPage() {
     );
   }, [notes, searchTerm]);
 
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredNotes);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -98,7 +101,6 @@ export default function ReportsPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Comptes rendus</h1>
-            <p className="text-gray-600 mt-1">Historique de tous les comptes rendus</p>
           </div>
         </div>
       </div>
@@ -126,15 +128,15 @@ export default function ReportsPage() {
 
       {filteredNotes.length > 0 ? (
         <div className="space-y-4">
-          {filteredNotes.map((note) => (
+          {paginatedItems.map((note) => (
             <Card
               key={note.id}
-              className="border-emerald-100 cursor-pointer hover:shadow-md transition-shadow"
+              className="border-brand-100 cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => router.push(`/patients/${note.patientId}/notes`)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base text-emerald-700">
+                  <CardTitle className="text-base text-brand-700">
                     {note.patientFirstName} {note.patientLastName}
                   </CardTitle>
                   <span className="text-xs text-gray-500">{note.serviceName || 'Compte rendu'}</span>
@@ -152,6 +154,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           ))}
+          <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
         </div>
       ) : (
         <Card>

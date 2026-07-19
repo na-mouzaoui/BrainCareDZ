@@ -77,7 +77,7 @@ export default function NewCompanyInvoicePage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -87,7 +87,6 @@ export default function NewCompanyInvoicePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Nouvelle facture entreprise</h1>
-          <p className="text-gray-600 mt-1">Remplissez le template puis enregistrez la facture</p>
         </div>
         <Button variant="outline" onClick={() => router.push('/company-invoices')} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -118,8 +117,8 @@ export default function NewCompanyInvoicePage() {
               <p className="text-gray-600">Email: {SUPPLIER_INFO.email}</p>
               <p className="text-gray-600">Web: {SUPPLIER_INFO.web}</p>
             </div>
-            <div className="space-y-2 rounded-lg border border-dashed border-emerald-300 p-4">
-              <p className="font-semibold text-emerald-700">Zone client</p>
+            <div className="space-y-2 rounded-lg border border-dashed border-brand-300 p-4">
+              <p className="font-semibold text-brand-700">Zone client</p>
               <p className="text-gray-600">Selectionnez l'entreprise et renseignez les informations facture ci-dessous.</p>
             </div>
           </div>

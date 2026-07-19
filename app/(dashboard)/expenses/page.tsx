@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { AlertCircle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -31,6 +32,7 @@ export default function expensesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(expensesList);
   const router = useRouter();
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function expensesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -130,7 +132,7 @@ export default function expensesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -155,11 +157,10 @@ export default function expensesPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Charges et dépenses</h1>
-            <p className="text-gray-600 mt-1">Suivi des dépenses et charges du cabinet</p>
           </div>
           <Button
             onClick={openCreateDialog}
-            className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+            className="gap-2 bg-brand-700 hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" />
             Nouvelle dépense
@@ -177,7 +178,7 @@ export default function expensesPage() {
       {expensesList.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Charges et dépenses ({expensesList.length})</CardTitle>
+            <CardTitle>Charges et dépenses ({totalItems})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -193,7 +194,7 @@ export default function expensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expensesList.map((expense) => (
+                  {paginatedItems.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">{expense.title}</TableCell>
                       <TableCell>
@@ -228,15 +229,16 @@ export default function expensesPage() {
                   ))}
                 </TableBody>
               </Table>
-              <div className="mt-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <div className="mt-4 p-4 bg-brand-50 rounded-lg border border-brand-200">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-emerald-800">Total des dépenses</span>
-                  <span className="text-xl font-bold text-emerald-700">
+                  <span className="text-lg font-semibold text-brand-800">Total des dépenses</span>
+                  <span className="text-xl font-bold text-brand-700">
                     {expensesList.reduce((sum, exp) => sum + Number(exp.amount), 0).toFixed(2)} DZD
                   </span>
                 </div>
               </div>
             </div>
+            <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           </CardContent>
         </Card>
       ) : (
@@ -246,7 +248,7 @@ export default function expensesPage() {
               <p className="text-gray-500 mb-4">Aucune dépense trouvée</p>
               <Button
                 onClick={openCreateDialog}
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" />
                 Nouvelle dépense

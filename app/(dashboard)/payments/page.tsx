@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { AlertCircle, Edit2, Plus, Trash2, Loader2 } from 'lucide-react';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Payment {
@@ -174,10 +175,12 @@ export default function PaymentsPage() {
     });
   };
 
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(payments);
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-700" />
       </div>
     );
   }
@@ -188,11 +191,10 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Paiements</h1>
-          <p className="text-gray-600 mt-1">Gérez les paiements de vos patients</p>
         </div>
         <Button
           onClick={() => setIsDialogOpen(true)}
-          className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+          className="gap-2 bg-brand-700 hover:bg-brand-800"
         >
           <Plus className="h-4 w-4" />
           Ajouter un paiement
@@ -208,7 +210,7 @@ export default function PaymentsPage() {
 
       {/* Add Payment Dialog */}
       {isDialogOpen && (
-        <Card className="border-emerald-200 bg-emerald-50">
+        <Card className="border-brand-200 bg-brand-50">
           <CardHeader>
             <CardTitle>Nouveau paiement</CardTitle>
           </CardHeader>
@@ -293,7 +295,7 @@ export default function PaymentsPage() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                  className="gap-2 bg-brand-700 hover:bg-brand-800"
                 >
                   {isSubmitting ? (
                     <>
@@ -313,7 +315,7 @@ export default function PaymentsPage() {
       {/* Payments Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Paiements récents</CardTitle>
+          <CardTitle>Paiements ({totalItems})</CardTitle>
         </CardHeader>
         <CardContent>
           {payments.length === 0 ? (
@@ -334,7 +336,7 @@ export default function PaymentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment, index) => (
+                  {paginatedItems.map((payment, index) => (
                     <TableRow key={payment.id || `payment-${index}`}>
                       <TableCell className="font-medium">
                         {payment.patientFirstName} {payment.patientLastName}
@@ -368,7 +370,7 @@ export default function PaymentsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => router.push(`/payments/${payment.id}/edit`)}
-                          className="text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50"
+                          className="text-brand-700 hover:text-brand-900 hover:bg-brand-50"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -387,6 +389,7 @@ export default function PaymentsPage() {
               </Table>
             </div>
           )}
+          <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

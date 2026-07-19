@@ -196,12 +196,16 @@ try {
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS parent_relationship VARCHAR(100)`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS consultation_reasons JSONB DEFAULT '[]'::jsonb`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS difficulty_duration VARCHAR(50)`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS commune VARCHAR(100)`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS previous_consultation BOOLEAN DEFAULT FALSE`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS previous_neurofeedback BOOLEAN DEFAULT FALSE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS previous_type VARCHAR(255)`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS current_follow_up BOOLEAN DEFAULT FALSE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS follow_up_details TEXT`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS source_of_acquisition VARCHAR(100)`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS source_details TEXT`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS source_sub VARCHAR(100)`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS source_account VARCHAR(100)`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS first_contact_date DATE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS first_appointment_date DATE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS appointment_frequency VARCHAR(50)`);

@@ -61,7 +61,7 @@ export default function ServiceEditPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -81,7 +81,6 @@ export default function ServiceEditPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Modifier le service</h1>
-        <p className="text-gray-600 mt-1">Modifiez les informations du service</p>
       </div>
 
       {service && (

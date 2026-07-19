@@ -434,7 +434,7 @@ export default function AppointmentForm({
             {selectedPatient && !isNeurofeedback && (
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Solde patient :</span>
-                <span className={`font-semibold ${hasInsufficientBalance ? 'text-red-600' : 'text-emerald-700'}`}>
+                <span className={`font-semibold ${hasInsufficientBalance ? 'text-red-600' : 'text-brand-700'}`}>
                   {patientBalance.toFixed(2)} DZD
                 </span>
               </div>

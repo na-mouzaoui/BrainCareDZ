@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Plus, Search, Edit2, Trash2, FileText } from 'lucide-react';
+import { AlertCircle, Plus, Search, Edit2, Trash2, FileText, History } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Patient {
@@ -42,6 +42,10 @@ const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
   const [editPatientData, setEditPatientData] = useState<PatientFormData | undefined>(undefined);
   const [editLoading, setEditLoading] = useState(false);
@@ -50,6 +54,7 @@ const [searchTerm, setSearchTerm] = useState('');
   const [viewLoading, setViewLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredPatients);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -79,19 +84,6 @@ const [searchTerm, setSearchTerm] = useState('');
     setViewOpen(false);
     setSelectedPatient(null);
     setViewPatientData(undefined);
-  }
-
-  function getStatusColor(status: string) {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800';
-      case 'abandoned':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-blue-100 text-blue-800';
-    }
   }
 
   useEffect(() => {
@@ -210,7 +202,7 @@ const [searchTerm, setSearchTerm] = useState('');
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -221,11 +213,10 @@ const [searchTerm, setSearchTerm] = useState('');
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Patients</h1>
-            <p className="text-gray-600 mt-1">Gérez votre base de données de patients</p>
           </div>
           <Button
             onClick={() => setCreateOpen(true)}
-            className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+            className="gap-2 bg-brand-700 hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" />
             Nouveau patient
@@ -250,15 +241,16 @@ const [searchTerm, setSearchTerm] = useState('');
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+            <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
+          </CardContent>
+        </Card>
 
       {filteredPatients.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>
-              Patients ({filteredPatients.length})
+              Patients ({totalItems})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -269,15 +261,13 @@ const [searchTerm, setSearchTerm] = useState('');
                     <TableHead>Nom</TableHead>
                     <TableHead>E-mail</TableHead>
                     <TableHead>Téléphone</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Sessions</TableHead>
                     <TableHead>Pack</TableHead>
                     <TableHead>Solde</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
 <TableBody>
-                  {filteredPatients.map((patient) => {
+                  {paginatedItems.map((patient) => {
                     return (
                       <TableRow
                         key={patient.id}
@@ -290,14 +280,8 @@ const [searchTerm, setSearchTerm] = useState('');
                         <TableCell>{patient.email || '—'}</TableCell>
                         <TableCell>{patient.phone}</TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(patient.status)}>
-                            {patient.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{patient.sessionCount}</TableCell>
-                        <TableCell>
                           {patient.packServiceName && (patient.packRemaining ?? 0) > 0 ? (
-                            <span className="text-sm font-medium text-emerald-700">
+                            <span className="text-sm font-medium text-brand-700">
                               {patient.packServiceName} ({patient.packRemaining || 0})
                             </span>
                           ) : (
@@ -308,6 +292,23 @@ const [searchTerm, setSearchTerm] = useState('');
                           {patient.balance > 0 ? '+' : ''}{patient.balance} DZD
                         </TableCell>
                       <TableCell className="text-right space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryPatient(patient);
+                            setHistoryOpen(true);
+                            setHistoryLoading(true);
+                            patients.getHistory(patient.id).then((res: any) => {
+                              setHistoryData(res.data || []);
+                              setHistoryLoading(false);
+                            }).catch(() => setHistoryLoading(false));
+                          }}
+                          className="gap-2"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -349,7 +350,7 @@ const [searchTerm, setSearchTerm] = useState('');
               </p>
               <Button
                 onClick={() => setCreateOpen(true)}
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" />
                 Ajouter votre premier patient
@@ -401,7 +402,7 @@ const [searchTerm, setSearchTerm] = useState('');
           </DialogHeader>
           {viewLoading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
             </div>
           ) : selectedPatient ? (
             <div className="px-6 pb-6">
@@ -427,6 +428,68 @@ const [searchTerm, setSearchTerm] = useState('');
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>
+              {historyPatient ? `${historyPatient.firstName} ${historyPatient.lastName}` : 'Patient'} — Historique des séances
+            </DialogTitle>
+            <DialogDescription>
+              Packs, services et séances consommés par le patient
+            </DialogDescription>
+          </DialogHeader>
+          {historyLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+            </div>
+          ) : historyData.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Aucune séance trouvée</p>
+          ) : (
+            <div className="space-y-3">
+              {historyData.map((item: any) => {
+                const startTime = new Date(item.startTime);
+                const now = new Date();
+                const isPlanned = startTime > now && item.status === 'scheduled';
+                return (
+                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium">{item.serviceName}</p>
+                      <p className="text-sm text-gray-500">
+                        {startTime.toLocaleDateString('fr-FR')} à {startTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {item.packTotal && (
+                        <p className="text-xs text-gray-400">
+                          Pack : {item.packRemaining}/{item.packTotal} séances restantes
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isPlanned ? (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                          Planifiée
+                        </span>
+                      ) : item.status === 'completed' ? (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                          Effectuée
+                        </span>
+                      ) : item.status === 'cancelled' ? (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                          Annulée
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full font-medium">
+                          {item.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

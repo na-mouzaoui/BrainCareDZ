@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 
 interface CompanyOption {
   id: string;
@@ -46,6 +47,7 @@ export default function CompanyInvoicesPage() {
   const [invoiceList, setInvoiceList] = useState<CompanyInvoiceListItem[]>([]);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invoices' | 'companies'>('invoices');
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(invoiceList);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -147,7 +149,7 @@ export default function CompanyInvoicesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -157,7 +159,6 @@ export default function CompanyInvoicesPage() {
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Factures entreprises</h1>
-          <p className="text-gray-600 mt-1">Gestion des factures destinees aux entreprises clientes</p>
         </div>
         <div className="flex flex-wrap gap-3">
           {activeTab === 'companies' ? (
@@ -165,7 +166,7 @@ export default function CompanyInvoicesPage() {
               Nouvelle entreprise
             </Button>
           ) : (
-            <Button onClick={() => router.push('/company-invoices/new')} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+            <Button onClick={() => router.push('/company-invoices/new')} className="gap-2 bg-brand-700 hover:bg-brand-800">
               <Plus className="h-4 w-4" />
               Nouvelle facture
             </Button>
@@ -189,7 +190,7 @@ export default function CompanyInvoicesPage() {
         <TabsContent value="invoices">
           <Card>
             <CardHeader>
-              <CardTitle>Factures ({invoiceList.length})</CardTitle>
+              <CardTitle>Factures ({totalItems})</CardTitle>
             </CardHeader>
             <CardContent>
               {invoiceList.length === 0 ? (
@@ -207,7 +208,7 @@ export default function CompanyInvoicesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoiceList.map((invoice) => (
+                      {paginatedItems.map((invoice) => (
                         <TableRow key={invoice.id}>
                           <TableCell className="font-medium">{invoice.reference}</TableCell>
                           <TableCell>{invoice.companyName}</TableCell>
@@ -237,6 +238,9 @@ export default function CompanyInvoicesPage() {
                     </TableBody>
                   </Table>
                 </div>
+              )}
+              {invoiceList.length > 0 && (
+                <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
               )}
             </CardContent>
           </Card>

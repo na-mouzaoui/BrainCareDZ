@@ -40,9 +40,12 @@ const baseSelect = `
          c.patient_type AS "patientType", c.show_parent_info AS "showParentInfo",
          c.parent_name AS "parentName", c.parent_relationship AS "parentRelationship",
          c.consultation_reasons AS "consultationReasons", c.difficulty_duration AS "difficultyDuration",
+         c.commune,
          c.previous_consultation AS "previousConsultation", c.previous_type AS "previousType",
+         c.previous_neurofeedback AS "previousNeurofeedback",
          c.current_follow_up AS "currentFollowUp", c.follow_up_details AS "followUpDetails",
          c.source_of_acquisition AS "sourceOfAcquisition", c.source_details AS "sourceDetails",
+         c.source_sub AS "sourceSub", c.source_account AS "sourceAccount",
          c.first_contact_date AS "firstContactDate", c.first_appointment_date AS "firstAppointmentDate",
          c.appointment_frequency AS "appointmentFrequency", c.planned_sessions AS "plannedSessions",
          c.completed_sessions AS "completedSessions", c.abandon_reason AS "abandonReason",
@@ -203,9 +206,9 @@ router.post(
         firstName, lastName, email, phone, dateOfBirth, gender,
         maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
         patientType, showParentInfo, parentName, parentRelationship,
-        consultationReasons, difficultyDuration,
-        previousConsultation, previousType, currentFollowUp, followUpDetails,
-        sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
+        consultationReasons, difficultyDuration, commune,
+        previousConsultation, previousType, previousNeurofeedback, currentFollowUp, followUpDetails,
+        sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount, firstContactDate, firstAppointmentDate, appointmentFrequency,
         plannedSessions, completedSessions, status, abandonReason,
         perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
       } = req.body;
@@ -219,20 +222,20 @@ router.post(
           practitioner_id, first_name, last_name, email, phone, date_of_birth, gender,
           marital_status, has_children, children_count, profession, education_level, socio_category,
           patient_type, show_parent_info, parent_name, parent_relationship,
-          consultation_reasons, difficulty_duration,
-          previous_consultation, previous_type, current_follow_up, follow_up_details,
-          source_of_acquisition, source_details, first_contact_date, first_appointment_date, appointment_frequency,
+          consultation_reasons, difficulty_duration, commune,
+          previous_consultation, previous_type, previous_neurofeedback, current_follow_up, follow_up_details,
+          source_of_acquisition, source_details, source_sub, source_account, first_contact_date, first_appointment_date, appointment_frequency,
           planned_sessions, completed_sessions, status, abandon_reason,
           perceived_improvement, observed_changes, improvement_start_month, global_satisfaction, would_recommend
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17,
-          $18, $19,
-          $20, $21, $22, $23,
-          $24, $25, $26, $27, $28,
-          $29, $30, COALESCE($31, 'active'), $32,
-          $33, $34, $35, $36, $37
+          $18, $19, $20,
+          $21, $22, $23, $24, $25,
+          $26, $27, $28, $29, $30, $31, $32,
+          $33, $34, COALESCE($35, 'active'), $36,
+          $37, $38, $39, $40, $41
         ) RETURNING id`,
         [
           req.user.id,
@@ -241,9 +244,10 @@ router.post(
           educationLevel || null, socioCategory || null,
           patientType || null, showParentInfo ?? false, parentName || null, parentRelationship || null,
           consultationReasons ? JSON.stringify(consultationReasons) : '[]',
-          difficultyDuration || null,
-          previousConsultation ?? false, previousType || null, currentFollowUp ?? false, followUpDetails || null,
-          sourceOfAcquisition || null, sourceDetails || null, firstContactDate || null, firstAppointmentDate || null,
+          difficultyDuration || null, commune || null,
+          previousConsultation ?? false, previousType || null, previousNeurofeedback ?? false,
+          currentFollowUp ?? false, followUpDetails || null,
+          sourceOfAcquisition || null, sourceDetails || null, sourceSub || null, sourceAccount || null, firstContactDate || null, firstAppointmentDate || null,
           appointmentFrequency || null,
           plannedSessions || null, completedSessions || null, status || null, abandonReason || null,
           perceivedImprovement || null, observedChanges || null, improvementStartMonth || null,
@@ -282,11 +286,11 @@ router.put('/:id', protect, async (req, res) => {
       firstName, lastName, email, phone, dateOfBirth, gender,
       maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
       patientType, showParentInfo, parentName, parentRelationship,
-      consultationReasons, difficultyDuration,
-      previousConsultation, previousType, currentFollowUp, followUpDetails,
-      sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
-      plannedSessions, completedSessions, status, abandonReason,
-      perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
+      consultationReasons, difficultyDuration, commune,
+        previousConsultation, previousType, previousNeurofeedback, currentFollowUp, followUpDetails,
+        sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount, firstContactDate, firstAppointmentDate, appointmentFrequency,
+        plannedSessions, completedSessions, status, abandonReason,
+        perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
     } = req.body;
 
     if (gender !== undefined && normalizeGender(gender) === null) {
@@ -313,24 +317,28 @@ router.put('/:id', protect, async (req, res) => {
         parent_relationship = COALESCE($17, parent_relationship),
         consultation_reasons = COALESCE($18, consultation_reasons),
         difficulty_duration = COALESCE($19, difficulty_duration),
-        previous_consultation = COALESCE($20, previous_consultation),
-        previous_type = COALESCE($21, previous_type),
-        current_follow_up = COALESCE($22, current_follow_up),
-        follow_up_details = COALESCE($23, follow_up_details),
-        source_of_acquisition = COALESCE($24, source_of_acquisition),
-        source_details = COALESCE($25, source_details),
-        first_contact_date = COALESCE($26, first_contact_date),
-        first_appointment_date = COALESCE($27, first_appointment_date),
-        appointment_frequency = COALESCE($28, appointment_frequency),
-        planned_sessions = COALESCE($29, planned_sessions),
-        completed_sessions = COALESCE($30, completed_sessions),
-        status = COALESCE($31, status),
-        abandon_reason = COALESCE($32, abandon_reason),
-        perceived_improvement = COALESCE($33, perceived_improvement),
-        observed_changes = COALESCE($34, observed_changes),
-        improvement_start_month = COALESCE($35, improvement_start_month),
-        global_satisfaction = COALESCE($36, global_satisfaction),
-        would_recommend = COALESCE($37, would_recommend),
+        commune = COALESCE($20, commune),
+        previous_consultation = COALESCE($21, previous_consultation),
+        previous_type = COALESCE($22, previous_type),
+        previous_neurofeedback = COALESCE($23, previous_neurofeedback),
+        current_follow_up = COALESCE($24, current_follow_up),
+        follow_up_details = COALESCE($25, follow_up_details),
+        source_of_acquisition = COALESCE($26, source_of_acquisition),
+        source_details = COALESCE($27, source_details),
+        source_sub = COALESCE($28, source_sub),
+        source_account = COALESCE($29, source_account),
+        first_contact_date = COALESCE($30, first_contact_date),
+        first_appointment_date = COALESCE($31, first_appointment_date),
+        appointment_frequency = COALESCE($32, appointment_frequency),
+        planned_sessions = COALESCE($33, planned_sessions),
+        completed_sessions = COALESCE($34, completed_sessions),
+        status = COALESCE($35, status),
+        abandon_reason = COALESCE($36, abandon_reason),
+        perceived_improvement = COALESCE($37, perceived_improvement),
+        observed_changes = COALESCE($38, observed_changes),
+        improvement_start_month = COALESCE($39, improvement_start_month),
+        global_satisfaction = COALESCE($40, global_satisfaction),
+        would_recommend = COALESCE($41, would_recommend),
         updated_at = NOW()
       WHERE id = $1`,
       [
@@ -340,9 +348,9 @@ router.put('/:id', protect, async (req, res) => {
         maritalStatus, hasChildren, childrenCount, profession, educationLevel, socioCategory,
         patientType, showParentInfo, parentName, parentRelationship,
         consultationReasons ? JSON.stringify(consultationReasons) : null,
-        difficultyDuration,
-        previousConsultation, previousType, currentFollowUp, followUpDetails,
-        sourceOfAcquisition, sourceDetails, firstContactDate, firstAppointmentDate, appointmentFrequency,
+        difficultyDuration, commune,
+        previousConsultation, previousType, previousNeurofeedback, currentFollowUp, followUpDetails,
+        sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount, firstContactDate, firstAppointmentDate, appointmentFrequency,
         plannedSessions, completedSessions, status, abandonReason,
         perceivedImprovement, observedChanges, improvementStartMonth, globalSatisfaction, wouldRecommend,
       ]
@@ -360,6 +368,28 @@ router.put('/:id', protect, async (req, res) => {
       patient: updated.rows[0],
     });
   } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/:id/history', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT a.id, a.start_time AS "startTime", a.end_time AS "endTime", a.status,
+              s.name AS "serviceName", s.type AS "serviceType",
+              pp.total_sessions AS "packTotal", pp.remaining_sessions AS "packRemaining"
+       FROM appointments a
+       JOIN services s ON s.id = a.service_id
+       LEFT JOIN patient_packs pp ON pp.id = a.patient_pack_id
+       WHERE a.patient_id = $1
+          OR a.id IN (SELECT ap.appointment_id FROM appointment_patients ap WHERE ap.patient_id = $1)
+       ORDER BY a.start_time DESC`,
+      [id]
+    );
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('History error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });

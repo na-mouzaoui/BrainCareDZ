@@ -88,7 +88,7 @@ export default function PatientNotesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -110,7 +110,6 @@ export default function PatientNotesPage() {
             <h1 className="text-3xl font-bold text-gray-900">
               {patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
             </h1>
-            <p className="text-gray-600 mt-1">Historique des comptes rendus</p>
           </div>
         </div>
       </div>
@@ -125,9 +124,9 @@ export default function PatientNotesPage() {
       {sortedNotes.length > 0 ? (
         <div className="space-y-4">
           {sortedNotes.map((note) => (
-            <Card key={note.id} className="border-emerald-100">
+            <Card key={note.id} className="border-brand-100">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base text-emerald-700">
+                <CardTitle className="text-base text-brand-700">
                   {note.serviceName || 'Compte rendu'}
                 </CardTitle>
               </CardHeader>

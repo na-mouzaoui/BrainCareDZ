@@ -80,8 +80,8 @@ export default function AnalyticsPage() {
       };
 
       const appointmentStatus = [
-        { name: 'Planifiés', value: statusCount.scheduled, color: '#059669' },
-        { name: 'Terminés', value: statusCount.completed, color: '#10b981' },
+        { name: 'Planifiés', value: statusCount.scheduled, color: '#0E4D4B' },
+        { name: 'Terminés', value: statusCount.completed, color: '#167D79' },
         { name: 'Annulés', value: statusCount.cancelled, color: '#ef4444' },
         { name: 'Absent', value: statusCount.noshow, color: '#f59e0b' },
       ];
@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -167,7 +167,6 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Analytique</h1>
-        <p className="text-gray-600 mt-1">Insights détaillés et métriques de performance</p>
       </div>
 
       {error && (
@@ -187,8 +186,8 @@ export default function AnalyticsPage() {
               <AreaChart key={`appointments-${chartData.appointmentsTrend.length}`} data={chartData.appointmentsTrend}>
                 <defs>
                   <linearGradient id="aptTrendGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#059669" stopOpacity={0.05} />
+                    <stop offset="5%" stopColor="#0E4D4B" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#0E4D4B" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -199,11 +198,11 @@ export default function AnalyticsPage() {
                   type="monotone"
                   dataKey="appointments"
                   name="Rendez-vous"
-                  stroke="#059669"
+                  stroke="#0E4D4B"
                   strokeWidth={2}
                   fill="url(#aptTrendGradient)"
-                  dot={{ fill: '#059669', r: 4 }}
-                  activeDot={{ r: 6, fill: '#059669' }}
+                  dot={{ fill: '#0E4D4B', r: 4 }}
+                  activeDot={{ r: 6, fill: '#0E4D4B' }}
                   isAnimationActive={true}
                   animationDuration={2000}
                   animationEasing="ease-in-out"
@@ -224,8 +223,8 @@ export default function AnalyticsPage() {
               <BarChart data={chartData.revenueTrend}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={1} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="5%" stopColor="#167D79" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#167D79" stopOpacity={0.4} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -248,8 +247,8 @@ export default function AnalyticsPage() {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <defs>
-                  <radialGradient id="analyticsPieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#166534" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="analyticsPieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#059669" stopOpacity={1} /><stop offset="100%" stopColor="#047857" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="analyticsPieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#0E4D4B" stopOpacity={1} /><stop offset="100%" stopColor="#0A3634" stopOpacity={0.8} /></radialGradient>
+                  <radialGradient id="analyticsPieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#167D79" stopOpacity={1} /><stop offset="100%" stopColor="#0E4D4B" stopOpacity={0.8} /></radialGradient>
                   <radialGradient id="analyticsPieGrad2" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#ef4444" stopOpacity={1} /><stop offset="100%" stopColor="#dc2626" stopOpacity={0.8} /></radialGradient>
                   <radialGradient id="analyticsPieGrad3" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#f59e0b" stopOpacity={1} /><stop offset="100%" stopColor="#d97706" stopOpacity={0.8} /></radialGradient>
                 </defs>
@@ -270,7 +269,7 @@ export default function AnalyticsPage() {
                   ))}
                 </Pie>
                 <Tooltip formatter={(value: number) => [`${value}`, '']} />
-                <text x="50%" y="48%" textAnchor="middle" fill="#166534" fontSize={24} fontWeight="bold" dominantBaseline="middle">
+                <text x="50%" y="48%" textAnchor="middle" fill="#0E4D4B" fontSize={24} fontWeight="bold" dominantBaseline="middle">
                   {chartData.appointmentStatus.reduce((sum, s) => sum + s.value, 0)}
                 </text>
                 <text x="50%" y="58%" textAnchor="middle" fill="#6b7280" fontSize={12} dominantBaseline="middle">

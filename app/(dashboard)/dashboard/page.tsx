@@ -3,9 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState, useRef } from 'react';
-import { appointments, patients, payments } from '@/lib/api';
+import { appointments, patients, payments, expenses } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Users, Calendar, Wallet, TrendingUp } from 'lucide-react';
+import { DollarSign, Calendar, Wallet, TrendingUp } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -91,17 +91,26 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const handleFocus = () => { void loadDashboardStats(); };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isAuthenticated]);
+
   async function loadDashboardStats() {
     try {
-      const [patientsResponse, appointmentsResponse, paymentsResponse] = await Promise.all([
+      const [patientsResponse, appointmentsResponse, paymentsResponse, expensesResponse] = await Promise.all([
         patients.getAll(),
         appointments.getAll(),
         payments.getAll(),
+        expenses.getAll(),
       ]);
 
       let patientItems: any[] = [];
       let appointmentItems: any[] = [];
       let paymentItems: any[] = [];
+      let expenseItems: any[] = [];
 
       if (patientsResponse.success && patientsResponse.data) {
         patientItems = Array.isArray(patientsResponse.data) 
@@ -119,6 +128,12 @@ export default function DashboardPage() {
         paymentItems = Array.isArray(paymentsResponse.data)
           ? paymentsResponse.data
           : paymentsResponse.data.payments || [];
+      }
+
+      if (expensesResponse.success && expensesResponse.data) {
+        expenseItems = Array.isArray(expensesResponse.data)
+          ? expensesResponse.data
+          : expensesResponse.data.expenses || [];
       }
 
       console.log('patientItems:', patientItems.length);
@@ -159,15 +174,12 @@ export default function DashboardPage() {
         })
         .reduce((total, payment) => total + Number(payment.amount || 0), 0);
 
-      const monthlyExpenses = Math.abs(
-        paymentItems
-          .filter((payment) => {
-            const amount = Number(payment.amount || 0);
-            const paymentDate = payment.processedDate || payment.createdAt;
-            return amount < 0 && isInCurrentMonth(paymentDate);
-          })
-          .reduce((total, payment) => total + Number(payment.amount || 0), 0)
-      );
+      const monthlyExpenses = expenseItems
+        .filter((expense) => {
+          const date = expense.expenseDate || expense.createdAt;
+          return isInCurrentMonth(date);
+        })
+        .reduce((total, expense) => total + Math.abs(Number(expense.amount || 0)), 0);
 
       const newPatientsMonth = patientItems.filter((patient) => {
         const createdAt = new Date(patient.createdAt || '');
@@ -248,7 +260,7 @@ const monthlyPatients = months.map((m) => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -258,60 +270,114 @@ const monthlyPatients = months.map((m) => {
       {/* Header */}
       <div className="pt-6">
         <h1 className="text-3xl font-bold text-gray-900">Tableau de bord</h1>
-        <p className="text-gray-600 mt-2">Bienvenue dans votre cabinet de psychologie</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+      {/* Stats + Sources */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="w-full md:w-1/2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Card className="py-1.5">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 py-1.5">
             <CardTitle className="text-sm font-medium">Chiffre d'affaires du mois (DZD)</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <DollarSign className="h-3.5 w-3.5 text-brand-600 mt-0.5 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyRevenue} decimals={2} /></div>
+          <CardContent className="px-3 pb-2 pt-0">
+            <div className="text-lg font-bold"><AnimatedCounter value={stats.monthlyRevenue} decimals={2} /></div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+        <Card className="py-1.5">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 py-1.5">
             <CardTitle className="text-sm font-medium">Dépenses du mois (DZD)</CardTitle>
-            <Wallet className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <Wallet className="h-3.5 w-3.5 text-brand-600 mt-0.5 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyExpenses} decimals={2} /></div>
+          <CardContent className="px-3 pb-2 pt-0">
+            <div className="text-lg font-bold"><AnimatedCounter value={stats.monthlyExpenses} decimals={2} /></div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+        <Card className="py-1.5">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 py-1.5">
             <CardTitle className="text-sm font-medium">Bénéfice net (DZD)</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <TrendingUp className="h-3.5 w-3.5 text-brand-600 mt-0.5 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold"><AnimatedCounter value={stats.monthlyNetProfit} decimals={2} /></div>
+          <CardContent className="px-3 pb-2 pt-0">
+            <div className="text-lg font-bold"><AnimatedCounter value={stats.monthlyNetProfit} decimals={2} /></div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
+        <Card className="py-1.5">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 py-1.5">
             <CardTitle className="text-sm font-medium">RDV aujourd'hui</CardTitle>
-            <Calendar className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <Calendar className="h-3.5 w-3.5 text-brand-600 mt-0.5 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold"><AnimatedCounter value={stats.todayAppointments} /></div>
+          <CardContent className="px-3 pb-2 pt-0">
+            <div className="text-lg font-bold"><AnimatedCounter value={stats.todayAppointments} /></div>
           </CardContent>
         </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-h-[3.5rem]">
-            <CardTitle className="text-sm font-medium">Nouveaux patients (mois)</CardTitle>
-            <Users className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold"><AnimatedCounter value={stats.newPatientsMonth} /></div>
-          </CardContent>
-        </Card>
+        <div className="w-full md:w-1/2">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Sources d'acquisition des patients</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260} style={{ overflow: 'visible' }}>
+                <PieChart>
+                  <defs>
+                    <radialGradient id="pieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#0E4D4B" stopOpacity={1} /><stop offset="100%" stopColor="#0A3634" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#126562" stopOpacity={1} /><stop offset="100%" stopColor="#0E4D4B" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad2" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#167D79" stopOpacity={1} /><stop offset="100%" stopColor="#126562" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad3" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#40A09C" stopOpacity={1} /><stop offset="100%" stopColor="#167D79" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad4" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#6BBBB8" stopOpacity={1} /><stop offset="100%" stopColor="#40A09C" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad5" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#95D5D2" stopOpacity={1} /><stop offset="100%" stopColor="#6BBBB8" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad6" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#0E4D4B" stopOpacity={1} /><stop offset="100%" stopColor="#0E4D4B" stopOpacity={0.8} /></radialGradient>
+                    <radialGradient id="pieGrad7" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#061E1D" stopOpacity={1} /><stop offset="100%" stopColor="#0A3634" stopOpacity={0.8} /></radialGradient>
+                  </defs>
+                  <Pie
+                    data={referralSources}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    isAnimationActive={true}
+                    animationDuration={1200}
+                    animationEasing="ease-out"
+                  >
+                    {referralSources.map((_, index) => (
+                      <Cell key={index} fill={`url(#pieGrad${index % 8})`} />
+                    ))}
+                    <LabelList
+                      dataKey="value"
+                      position="inside"
+                      formatter={(value: number) => {
+                        const total = referralSources.reduce((s, v) => s + v.value, 0);
+                        return total > 0 ? `${((value / total) * 100).toFixed(0)}%` : '0%';
+                      }}
+                      fill="#fff"
+                      fontSize={12}
+                      fontWeight={500}
+                    />
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [`${value} patient${value > 1 ? 's' : ''}`, name]}
+                    contentStyle={{ backgroundColor: '#0A3634', border: '1px solid #0E4D4B', borderRadius: '0.5rem', padding: '0.375rem 0.75rem', fontSize: '0.875rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    labelStyle={{ color: '#fff', fontWeight: 500 }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="-0.1em" fontSize={28} className="font-bold" fill="#0E4D4B">
+                    {referralSources.reduce((sum, s) => sum + s.value, 0)}
+                  </text>
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -324,8 +390,8 @@ const monthlyPatients = months.map((m) => {
               <AreaChart key={`patients-${monthlyPatientsTrend.length}`} data={monthlyPatientsTrend}>
                 <defs>
                   <linearGradient id="patientGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#059669" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#059669" stopOpacity={0.05} />
+                    <stop offset="5%" stopColor="#126562" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#126562" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -336,11 +402,11 @@ const monthlyPatients = months.map((m) => {
                   type="monotone"
                   dataKey="patients"
                   name="Nouveaux patients"
-                  stroke="#059669"
+                  stroke="#126562"
                   strokeWidth={2}
                   fill="url(#patientGradient)"
-                  dot={{ fill: '#059669', r: 3 }}
-                  activeDot={{ r: 5, fill: '#059669' }}
+                  dot={{ fill: '#126562', r: 3 }}
+                  activeDot={{ r: 5, fill: '#126562' }}
                   isAnimationActive={true}
                   animationDuration={2000}
                   animationEasing="ease-in-out"
@@ -359,12 +425,12 @@ const monthlyPatients = months.map((m) => {
               <BarChart data={monthlyAppointmentsTrend}>
                 <defs>
                   <linearGradient id="fixedGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0f766e" stopOpacity={1} />
-                    <stop offset="95%" stopColor="#0f766e" stopOpacity={0.5} />
+                    <stop offset="5%" stopColor="#167D79" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#167D79" stopOpacity={0.5} />
                   </linearGradient>
                   <linearGradient id="attendedGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={1} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="5%" stopColor="#167D79" stopOpacity={1} />
+                    <stop offset="95%" stopColor="#167D79" stopOpacity={0.4} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -375,64 +441,6 @@ const monthlyPatients = months.map((m) => {
                 <Bar dataKey="fixed" name="RDV fixés" fill="url(#fixedGradient)" stackId="rdv" radius={[4, 4, 0, 0]} animationBegin={0} animationDuration={600} />
                 <Bar dataKey="attended" name="Patients venus" fill="url(#attendedGradient)" stackId="rdv" radius={[4, 4, 0, 0]} animationBegin={600} animationDuration={600} />
               </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sources d'acquisition des patients</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <defs>
-                  <radialGradient id="pieGrad0" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#166534" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad1" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#059669" stopOpacity={1} /><stop offset="100%" stopColor="#047857" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad2" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#10b981" stopOpacity={1} /><stop offset="100%" stopColor="#059669" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad3" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#34d399" stopOpacity={1} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad4" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#6ee7b7" stopOpacity={1} /><stop offset="100%" stopColor="#34d399" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad5" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#a7f3d0" stopOpacity={1} /><stop offset="100%" stopColor="#6ee7b7" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad6" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#047857" stopOpacity={1} /><stop offset="100%" stopColor="#166534" stopOpacity={0.8} /></radialGradient>
-                  <radialGradient id="pieGrad7" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#064e3b" stopOpacity={1} /><stop offset="100%" stopColor="#14532d" stopOpacity={0.8} /></radialGradient>
-                </defs>
-                <Pie
-                  data={referralSources}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                >
-                  {referralSources.map((_, index) => (
-                    <Cell key={index} fill={`url(#pieGrad${index % 8})`} />
-                  ))}
-                  <LabelList
-                    dataKey="value"
-                    position="inside"
-                    formatter={(value: number, entry: any) => {
-                      const total = referralSources.reduce((s, v) => s + v.value, 0);
-                      return total > 0 ? `${((value / total) * 100).toFixed(0)}%` : '0%';
-                    }}
-                    fill="#fff"
-                    fontSize={12}
-                  />
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => [`${value} patient${value > 1 ? 's' : ''}`]}
-                  contentStyle={{ backgroundColor: '#065f46', border: '1px solid #047857', borderRadius: '0.5rem', padding: '0.375rem 0.75rem', fontSize: '0.875rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                  labelStyle={{ display: 'none' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="-0.55em" fontSize={28} className="font-bold" fill="#166534">
-                  {referralSources.reduce((sum, s) => sum + s.value, 0)}
-                </text>
-                <Legend />
-              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

@@ -278,7 +278,7 @@ export default function SettingsPage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -287,7 +287,6 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Paramètres de la pratique</h1>
-        <p className="text-gray-600 mt-1">Configurez les horaires et les préférences de votre cabinet</p>
       </div>
 
       {error && (
@@ -408,7 +407,7 @@ export default function SettingsPage() {
             </div>
 
             {settings.hasBreakfastBreak && (
-              <div className="space-y-3 pl-8 border-l-2 border-emerald-600">
+              <div className="space-y-3 pl-8 border-l-2 border-brand-600">
                 <div>
                   <Label htmlFor="break-start">Début de la pause (24h)</Label>
                   <Input
@@ -484,7 +483,7 @@ export default function SettingsPage() {
                     variant={selectedHolidaySet.has(holiday.date) ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => addHolidayDate(holiday.date)}
-                    className={selectedHolidaySet.has(holiday.date) ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                    className={selectedHolidaySet.has(holiday.date) ? 'bg-brand-600 hover:bg-brand-700' : ''}
                   >
                     {holiday.label} ({holiday.date})
                   </Button>
@@ -501,7 +500,7 @@ export default function SettingsPage() {
                     variant={selectedHolidaySet.has(holiday.date) ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => addHolidayDate(holiday.date)}
-                    className={selectedHolidaySet.has(holiday.date) ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                    className={selectedHolidaySet.has(holiday.date) ? 'bg-brand-600 hover:bg-brand-700' : ''}
                   >
                     {holiday.label} ({holiday.date})
                   </Button>
@@ -521,7 +520,7 @@ export default function SettingsPage() {
                       variant={selectedHolidaySet.has(holiday.date) ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => addHolidayDate(holiday.date)}
-                      className={selectedHolidaySet.has(holiday.date) ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                      className={selectedHolidaySet.has(holiday.date) ? 'bg-brand-600 hover:bg-brand-700' : ''}
                     >
                       {holiday.label} ({holiday.date})
                     </Button>
@@ -539,7 +538,7 @@ export default function SettingsPage() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomHolidayDate(e.target.value)}
                   className="max-w-xs"
                 />
-                <Button onClick={() => addHolidayDate(customHolidayDate)} className="bg-emerald-700 hover:bg-emerald-800">
+                <Button onClick={() => addHolidayDate(customHolidayDate)} className="bg-brand-700 hover:bg-brand-800">
                   Ajouter
                 </Button>
               </div>
@@ -573,7 +572,7 @@ export default function SettingsPage() {
         <Button
           onClick={saveSettings}
           disabled={saving}
-          className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+          className="gap-2 bg-brand-700 hover:bg-brand-800"
         >
           <Save className="h-4 w-4" />
           {saving ? 'Sauvegarde...' : 'Sauvegarder les paramètres'}

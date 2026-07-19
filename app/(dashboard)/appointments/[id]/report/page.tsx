@@ -307,7 +307,7 @@ export default function AppointmentReportPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -332,9 +332,6 @@ export default function AppointmentReportPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Compte rendu</h1>
-          <p className="text-gray-600 mt-1">
-            {appointment.serviceName}
-          </p>
         </div>
         <Button variant="outline" onClick={handleGoBack} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -363,7 +360,7 @@ export default function AppointmentReportPage() {
                   onClick={() => goToPatient(idx)}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                     idx === currentPatientIndex
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-brand-600 text-white'
                       : 'bg-white text-gray-700 border hover:bg-gray-100'
                   }`}
                 >
@@ -407,9 +404,9 @@ export default function AppointmentReportPage() {
         <button
           type="button"
           onClick={() => handleViewPatient(currentPatient.patientId)}
-          className="flex items-center gap-2 text-lg font-semibold text-gray-800 hover:text-emerald-700 transition-colors"
+          className="flex items-center gap-2 text-lg font-semibold text-gray-800 hover:text-brand-700 transition-colors"
         >
-          <FileText className="h-5 w-5 text-emerald-600" />
+          <FileText className="h-5 w-5 text-brand-600" />
           {currentPatient.firstName} {currentPatient.lastName}
           <Eye className="h-4 w-4 text-gray-400" />
         </button>
@@ -425,10 +422,10 @@ export default function AppointmentReportPage() {
       <div className="space-y-4">
         {sortedCurrentNotes.length > 0 ? (
           sortedCurrentNotes.map((note) => (
-            <Card key={note.id} className="border-emerald-100">
+            <Card key={note.id} className="border-brand-100">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base text-emerald-700">
+                  <CardTitle className="text-base text-brand-700">
                     {note.serviceName || 'Pack'}
                   </CardTitle>
                   {note.appointmentId === appointment.id && (
@@ -467,9 +464,9 @@ export default function AppointmentReportPage() {
         )}
       </div>
 
-      <Card className="border-emerald-100">
+      <Card className="border-brand-100">
         <CardHeader>
-          <CardTitle className="text-emerald-700">Compte rendu et évolution</CardTitle>
+          <CardTitle className="text-brand-700">Compte rendu et évolution</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Field>
@@ -550,7 +547,7 @@ export default function AppointmentReportPage() {
           </DialogHeader>
           {viewLoading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
             </div>
           ) : viewPatient ? (
             <PatientForm

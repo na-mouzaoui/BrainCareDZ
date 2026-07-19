@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ALGERIAN_WILAYAS } from '@/lib/communes';
 import { AlertCircle, Loader2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -17,6 +18,7 @@ export interface PatientFormData {
   gender?: string;
   phone: string;
   email: string;
+  commune?: string;
   maritalStatus?: string;
   hasChildren?: boolean;
   childrenCount?: number;
@@ -31,10 +33,13 @@ export interface PatientFormData {
   difficultyDuration?: string;
   previousConsultation?: boolean;
   previousType?: string;
+  previousNeurofeedback?: boolean;
   currentFollowUp?: boolean;
   followUpDetails?: string;
   sourceOfAcquisition?: string;
   sourceDetails?: string;
+  sourceSub?: string;
+  sourceAccount?: string;
   firstContactDate?: string;
   firstAppointmentDate?: string;
   appointmentFrequency?: string;
@@ -58,7 +63,7 @@ interface PatientFormProps {
 }
 
 const STEPS = [
-  { id: 1, title: 'Identité', requiredFields: ['firstName', 'lastName', 'phone', 'email', 'dateOfBirth', 'gender'] },
+  { id: 1, title: 'Identité', requiredFields: ['firstName', 'lastName', 'phone', 'dateOfBirth', 'gender'] },
   { id: 2, title: 'Situation', requiredFields: ['maritalStatus', 'profession', 'educationLevel', 'socioCategory'] },
   { id: 3, title: 'Motif', requiredFields: ['consultationReasons'] },
   { id: 4, title: 'Historique', requiredFields: [] },
@@ -79,7 +84,6 @@ function validateStep(stepId: number, formData: PatientFormData): ValidationResu
       if (!formData.lastName?.trim()) errors.push('Le nom est obligatoire');
       if (!formData.phone?.trim()) errors.push('Le téléphone est obligatoire');
       else if (!/^[\d\s\-\+\(\)]{8,}$/.test(formData.phone)) errors.push('Le numéro de téléphone n\'est pas valide');
-      if (!formData.email?.trim()) errors.push('L\'email est obligatoire');
       if (!formData.dateOfBirth?.trim()) errors.push('La date de naissance est obligatoire');
       if (!formData.gender?.trim()) errors.push('Le sexe est obligatoire');
       break;
@@ -120,13 +124,13 @@ export function PatientForm({
   const [formData, setFormData] = useState<PatientFormData>(
     initialData || {
       firstName: '', lastName: '', dateOfBirth: '', age: undefined, gender: '',
-      phone: '', email: '',
+      phone: '', email: '', commune: '',
       maritalStatus: '', hasChildren: false, childrenCount: undefined,
       profession: '', educationLevel: '', socioCategory: '', patientType: '',
       showParentInfo: false, parentName: '', parentRelationship: '',
       consultationReasons: [], difficultyDuration: '',
-      previousConsultation: false, previousType: '', currentFollowUp: false, followUpDetails: '',
-      sourceOfAcquisition: '', sourceDetails: '', firstContactDate: '', firstAppointmentDate: '',
+      previousConsultation: false, previousType: '', previousNeurofeedback: false, currentFollowUp: false, followUpDetails: '',
+      sourceOfAcquisition: '', sourceDetails: '', sourceSub: '', sourceAccount: '', firstContactDate: '', firstAppointmentDate: '',
       appointmentFrequency: '', plannedSessions: undefined, completedSessions: undefined,
       abandonReason: '',
       perceivedImprovement: undefined, observedChanges: '', improvementStartMonth: undefined,
@@ -158,8 +162,14 @@ export function PatientForm({
       
       if (age < 12) {
         newData.patientType = 'Enfant';
+        newData.hasChildren = false;
+        newData.childrenCount = 0;
+        newData.maritalStatus = 'Célibataire';
       } else if (age >= 12 && age < 18) {
         newData.patientType = 'Adolescent';
+        newData.hasChildren = false;
+        newData.childrenCount = 0;
+        newData.maritalStatus = 'Célibataire';
       } else {
         newData.patientType = 'Adulte';
       }
@@ -287,7 +297,7 @@ export function PatientForm({
                         value={gender.value}
                         checked={formData.gender === gender.value}
                         onChange={(e) => handleInputChange('gender', e.target.value)}
-                        disabled={isFormLoading}
+                      disabled={isFormLoading}
                       />
                       <label htmlFor={`gender-${gender.value}`} className="text-sm cursor-pointer">{gender.label}</label>
                     </div>
@@ -316,6 +326,23 @@ export function PatientForm({
                 />
               </Field>
             </div>
+            <Field>
+              <FieldLabel>Commune</FieldLabel>
+              <Select
+                value={formData.commune || ''}
+                onValueChange={(value) => handleInputChange('commune', value)}
+                disabled={isFormLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionnez une wilaya" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALGERIAN_WILAYAS.map((wilaya) => (
+                    <SelectItem key={wilaya} value={wilaya}>{wilaya}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
         );
 
@@ -335,7 +362,7 @@ export function PatientForm({
                       value={status}
                       checked={formData.maritalStatus === status}
                       onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
-                      disabled={isFormLoading}
+                      disabled={isFormLoading || (formData.age !== undefined && formData.age < 18)}
                     />
                     <label htmlFor={`marital-${status}`} className="text-sm cursor-pointer">{status}</label>
                   </div>
@@ -354,7 +381,7 @@ export function PatientForm({
                       value={option === 'Oui'}
                       checked={formData.hasChildren === (option === 'Oui')}
                       onChange={(e) => handleInputChange('hasChildren', e.target.value === 'true')}
-                      disabled={isFormLoading}
+                      disabled={isFormLoading || (formData.age !== undefined && formData.age < 18)}
                     />
                     <label htmlFor={`children-${option}`} className="text-sm cursor-pointer">{option}</label>
                   </div>
@@ -366,10 +393,13 @@ export function PatientForm({
                       placeholder="Nombre"
                       value={formData.childrenCount || ''}
                       onChange={(e) => handleInputChange('childrenCount', e.target.value ? parseInt(e.target.value) : undefined)}
-                      disabled={isFormLoading}
+                      disabled={isFormLoading || (formData.age !== undefined && formData.age < 18)}
                       className="w-24"
                     />
                   </Field>
+                )}
+                {formData.age !== undefined && formData.age < 18 && (
+                  <span className="text-xs text-gray-400">Non applicable (mineur)</span>
                 )}
               </div>
             </Field>
@@ -470,6 +500,24 @@ export function PatientForm({
               </Select>
             </Field>
             <Field>
+              <FieldLabel>Avez-vous déjà testé le NeuroFeedback ?</FieldLabel>
+              <div className="flex items-center gap-4">
+                {['Non', 'Oui'].map((option) => (
+                  <div key={option} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      id={`neurofeedback-${option}`}
+                      name="previousNeurofeedback"
+                      checked={formData.previousNeurofeedback === (option === 'Oui')}
+                      onChange={() => handleInputChange('previousNeurofeedback', option === 'Oui')}
+                      disabled={isFormLoading}
+                    />
+                    <label htmlFor={`neurofeedback-${option}`} className="text-sm cursor-pointer">{option}</label>
+                  </div>
+                ))}
+              </div>
+            </Field>
+            <Field>
               <FieldLabel>Avez-vous déjà consulté ?</FieldLabel>
               <div className="flex items-center gap-4">
                 {['Non', 'Oui'].map((option) => (
@@ -543,7 +591,7 @@ export function PatientForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="instagram">Instagram</SelectItem>
+                  <SelectItem value="social">Réseaux sociaux</SelectItem>
                   <SelectItem value="recommendation">Recommandation</SelectItem>
                   <SelectItem value="doctor">Médecin</SelectItem>
                   <SelectItem value="google">Google</SelectItem>
@@ -553,8 +601,65 @@ export function PatientForm({
                 </SelectContent>
               </Select>
             </Field>
+            {formData.sourceOfAcquisition === 'social' && (
+              <>
+                <Field>
+                  <FieldLabel>Quel réseau social ?</FieldLabel>
+                  <Select
+                    value={formData.sourceSub || ''}
+                    onValueChange={(value) => handleInputChange('sourceSub', value)}
+                    disabled={isFormLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionnez" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                      <SelectItem value="instagram">Instagram</SelectItem>
+                      <SelectItem value="x">X</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {formData.sourceSub === 'instagram' && (
+                  <Field>
+                    <FieldLabel>Sur quel compte ?</FieldLabel>
+                    <Select
+                      value={formData.sourceAccount || ''}
+                      onValueChange={(value) => handleInputChange('sourceAccount', value)}
+                      disabled={isFormLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sabrina">Sabrina</SelectItem>
+                        <SelectItem value="braincare">BrainCare</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              </>
+            )}
+            {formData.sourceOfAcquisition === 'doctor' && (
+              <Field>
+                <FieldLabel>Spécialité du médecin</FieldLabel>
+                <Select
+                  value={formData.sourceDetails || ''}
+                  onValueChange={(value) => handleInputChange('sourceDetails', value)}
+                  disabled={isFormLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="medecin">Médecin</SelectItem>
+                    <SelectItem value="psychologue">Psychologue</SelectItem>
+                    <SelectItem value="psychiatre">Psychiatre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
             {(formData.sourceOfAcquisition === 'recommendation' ||
-              formData.sourceOfAcquisition === 'doctor' ||
               formData.sourceOfAcquisition === 'other') && (
               <Field>
                 <FieldLabel>Préciser</FieldLabel>
@@ -563,7 +668,7 @@ export function PatientForm({
                   value={formData.sourceDetails || ''}
                   onChange={(e) => handleInputChange('sourceDetails', e.target.value)}
                   disabled={isFormLoading}
-                  placeholder={formData.sourceOfAcquisition === 'recommendation' ? 'Par qui ?' : formData.sourceOfAcquisition === 'doctor' ? 'Nom du médecin' : 'Veuillez préciser'}
+                  placeholder={formData.sourceOfAcquisition === 'recommendation' ? 'Par qui ?' : 'Veuillez préciser'}
                 />
               </Field>
             )}
@@ -608,13 +713,13 @@ export function PatientForm({
                   setCurrentStep(step.id);
                 }}
                 className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                  currentStep === step.id ? 'text-emerald-700' :
-                  currentStep > step.id ? 'text-emerald-600' : 'text-gray-400'
+                  currentStep === step.id ? 'text-brand-700' :
+                  currentStep > step.id ? 'text-brand-600' : 'text-gray-400'
                 }`}
               >
                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                  currentStep === step.id ? 'border-emerald-700 bg-emerald-50 text-emerald-700' :
-                  currentStep > step.id ? 'border-emerald-600 bg-emerald-600 text-white' :
+                  currentStep === step.id ? 'border-brand-700 bg-brand-50 text-brand-700' :
+                  currentStep > step.id ? 'border-brand-600 bg-brand-600 text-white' :
                   'border-gray-300 text-gray-400'
                 }`}>
                   {currentStep > step.id ? <Check className="h-3.5 w-3.5" /> : step.id}
@@ -623,7 +728,7 @@ export function PatientForm({
               </button>
               {idx < STEPS.length - 1 && (
                 <div className={`flex-1 h-0.5 mx-3 transition-colors ${
-                  currentStep > step.id ? 'bg-emerald-600' : 'bg-gray-200'
+                  currentStep > step.id ? 'bg-brand-600' : 'bg-gray-200'
                 }`} />
               )}
             </div>
@@ -651,7 +756,7 @@ export function PatientForm({
             <Button
               type="submit"
               disabled={isFormLoading}
-              className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+              className="gap-2 bg-brand-700 hover:bg-brand-800"
             >
               {isFormLoading ? (
                 <>
@@ -667,7 +772,7 @@ export function PatientForm({
               type="button"
               onClick={goToNextStep}
               disabled={isFormLoading}
-              className="bg-emerald-700 hover:bg-emerald-800"
+              className="bg-brand-700 hover:bg-brand-800"
             >
               Suivant
               <ChevronRight className="h-4 w-4 ml-2" />

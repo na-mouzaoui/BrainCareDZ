@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { appointments } from '@/lib/api';
@@ -379,10 +380,22 @@ export default function AppointmentsPage() {
     year: 'numeric',
   })}`;
 
+  const filteredAppointments = useMemo(() => {
+    return appointmentsList
+      .filter((apt) => {
+        const aptDate = new Date(apt.startTime);
+        if (!showCancelled && apt.status === 'cancelled') return false;
+        return aptDate >= weekDays[0] && aptDate <= weekDays[6];
+      })
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [appointmentsList, showCancelled, weekDays]);
+
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredAppointments);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -391,8 +404,7 @@ export default function AppointmentsPage() {
     <div className="space-y-6">
       <div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Agenda des rendez-vous</h1>
-          <p className="text-gray-600 mt-1">Cliquez sur une cellule vide pour créer un rendez-vous, ou sur un rendez-vous existant pour le modifier.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Agenda des rendez-vous ({totalItems})</h1>
         </div>
       </div>
 
@@ -442,24 +454,17 @@ export default function AppointmentsPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              {appointmentsList.length === 0 ? (
+              {totalItems === 0 ? (
                 <p className="text-center text-gray-500 py-8">
                  Aucun rendez-vous cette semaine
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {appointmentsList
-                    .filter((apt) => {
-                      const aptDate = new Date(apt.startTime);
-                      if (!showCancelled && apt.status === 'cancelled') return false;
-                      return aptDate >= weekDays[0] && aptDate <= weekDays[6];
-                    })
-                    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-                    .map((apt) => (
+                  {paginatedItems.map((apt) => (
                       <div
                         key={apt.id}
                         className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
-                          apt.status === 'cancelled' ? 'bg-red-50 opacity-60' : 'bg-white hover:bg-emerald-50'
+                          apt.status === 'cancelled' ? 'bg-red-50 opacity-60' : 'bg-white hover:bg-brand-50'
                         }`}
                         onClick={() => editFromAppointment(apt)}
                       >
@@ -484,9 +489,10 @@ export default function AppointmentsPage() {
                         </div>
                       </div>
                     ))}
-                </div>
-              )}
-            </div>
+                  <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
+                  </div>
+                )}
+              </div>
           ) : (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
@@ -576,7 +582,7 @@ export default function AppointmentsPage() {
                                   key={`${dateKey(day)}-${slotStartMinutes}`}
                                   type="button"
                                   onClick={() => createFromSlot(day, slotStartMinutes)}
-                                  className="h-10 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-emerald-50 transition-colors"
+                                  className="h-10 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-brand-50 transition-colors"
                                   aria-label="Créer un rendez-vous"
                                 />
                               );
@@ -584,14 +590,14 @@ export default function AppointmentsPage() {
                             return (
                               <div
                                 key={`${dateKey(day)}-${slotStartMinutes}`}
-                                className="h-10 border-r bg-emerald-50 px-1 py-1 space-y-1 overflow-hidden"
+                                className="h-10 border-r bg-brand-50 px-1 py-1 space-y-1 overflow-hidden"
                               >
                                 {visibleAppointments.slice(0, 2).map((apt) => (
                                   <button
                                     key={apt.id}
                                     type="button"
                                     onClick={() => editFromAppointment(apt)}
-                                    className="w-full rounded bg-white px-2 py-1 text-left text-xs shadow-sm hover:bg-emerald-100 transition-colors"
+                                    className="w-full rounded bg-white px-2 py-1 text-left text-xs shadow-sm hover:bg-brand-100 transition-colors"
                                   >
                                     <p className="font-semibold truncate">
                                       {apt.serviceType === 'neurofeedback' && apt.patients?.length
@@ -602,7 +608,7 @@ export default function AppointmentsPage() {
                                   </button>
                                 ))}
                                 {visibleAppointments.length > 2 && (
-                                  <p className="text-[10px] text-emerald-700 px-1">+{visibleAppointments.length - 2} autres</p>
+                                  <p className="text-[10px] text-brand-700 px-1">+{visibleAppointments.length - 2} autres</p>
                                 )}
                               </div>
                             );
@@ -613,7 +619,7 @@ export default function AppointmentsPage() {
                               key={`${dateKey(day)}-${slotStartMinutes}`}
                               type="button"
                               onClick={() => createFromSlot(day, slotStartMinutes)}
-                              className="h-10 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-emerald-50 transition-colors"
+                              className="h-10 border-r px-2 py-2 text-left text-xs text-gray-400 hover:bg-brand-50 transition-colors"
                               aria-label="Créer un rendez-vous"
                             />
                           );
