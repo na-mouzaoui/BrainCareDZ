@@ -2,40 +2,40 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export interface CompanyInvoicePdfItem {
-  designation: string;
+  description: string;
   sessionCount: number;
   learnerCount: number;
   unitPrice: number;
-  totalHT: number;
+  subtotal: number;
 }
 
 export interface CompanyInvoicePdfData {
   reference: string;
   invoiceDate: string;
-  totalHT: number;
+  subtotal: number;
   discount: number;
-  totalDiscountHT: number;
-  vat: number;
-  totalTTC: number;
+  discountedTotal: number;
+  vatAmount: number;
+  grandTotal: number;
   paymentMethod: string;
   companyName: string;
   companyAddress?: string;
   companyOwner?: string;
   companyRC?: string;
   companyNIF?: string;
-  companyNIS?: string;
+  companyArt?: string;
   items: CompanyInvoicePdfItem[];
 }
 
 const SUPPLIER_INFO = {
   name: 'Brain Care',
   owner: 'Sabrina MOKRANE',
-  address: 'BT 12 URBA 2000 EI Achour Alger Algerie',
+  address: 'BT 38 URBA 2000 El Achour Alger Algerie',
   rc: 'R.C. N° : 16/00-4958914A19',
   nif: 'NIF : 279421201996194',
   art: 'Art : 16510 78 0966',
-  email: 's.mokrane@coachingwellnesscenter.com',
-  web: 'www.coachingwellnesscenter.com',
+  email: 'Sabrina@braincaredz.com',
+  tel: '+213 550 93 29 86',
 };
 
 function formatNumber(value: number) {
@@ -133,7 +133,7 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
   pdf.text(SUPPLIER_INFO.nif, margin, 41);
   pdf.text(SUPPLIER_INFO.art, margin, 46);
   pdf.text(`Email: ${SUPPLIER_INFO.email}`, margin, 51);
-  pdf.text(`Web: ${SUPPLIER_INFO.web}`, margin, 56);
+  pdf.text(`Tel : ${SUPPLIER_INFO.tel}`, margin, 56);
 
   const clientX = pageWidth - margin - 70;
   pdf.setFont('helvetica', 'bold');
@@ -158,8 +158,8 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
     pdf.text(`NIF: ${invoice.companyNIF}`, clientX, clientLine);
     clientLine += 5;
   }
-  if (invoice.companyNIS) {
-    pdf.text(`NIS: ${invoice.companyNIS}`, clientX, clientLine);
+  if (invoice.companyArt) {
+    pdf.text(`Art: ${invoice.companyArt}`, clientX, clientLine);
   }
 
   const infoBoxY = 66;
@@ -181,11 +181,11 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
 
   const tableStartY = infoBoxY + 35;
   const rows = invoice.items.map((item) => [
-    item.designation,
+    item.description,
     String(item.sessionCount),
     String(item.learnerCount),
     formatNumber(item.unitPrice),
-    formatNumber(item.totalHT),
+    formatNumber(item.subtotal),
   ]);
 
   autoTable(pdf, {
@@ -219,7 +219,7 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
   pdf.rect(totalsX, afterTableY, totalsWidth, lineHeight, 'F');
   pdf.setFont('helvetica', 'bold');
   pdf.text('TOTAL (HT)', totalsX + 2, afterTableY + 4.5);
-  pdf.text(formatNumber(invoice.totalHT), totalsX + totalsWidth - 2, afterTableY + 4.5, { align: 'right' });
+  pdf.text(formatNumber(invoice.subtotal), totalsX + totalsWidth - 2, afterTableY + 4.5, { align: 'right' });
 
   pdf.setFont('helvetica', 'normal');
   pdf.rect(totalsX, afterTableY + lineHeight, totalsWidth, lineHeight);
@@ -230,18 +230,18 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
   pdf.rect(totalsX, afterTableY + lineHeight * 2, totalsWidth, lineHeight, 'F');
   pdf.setFont('helvetica', 'bold');
   pdf.text('TOTAL REMISE (HT)', totalsX + 2, afterTableY + lineHeight * 2 + 4.5);
-  pdf.text(formatNumber(invoice.totalDiscountHT), totalsX + totalsWidth - 2, afterTableY + lineHeight * 2 + 4.5, { align: 'right' });
+  pdf.text(formatNumber(invoice.discountedTotal), totalsX + totalsWidth - 2, afterTableY + lineHeight * 2 + 4.5, { align: 'right' });
 
   pdf.setFont('helvetica', 'normal');
   pdf.rect(totalsX, afterTableY + lineHeight * 3, totalsWidth, lineHeight);
   pdf.text('TVA', totalsX + 2, afterTableY + lineHeight * 3 + 4.5);
-  pdf.text(formatNumber(invoice.vat), totalsX + totalsWidth - 2, afterTableY + lineHeight * 3 + 4.5, { align: 'right' });
+  pdf.text(formatNumber(invoice.vatAmount), totalsX + totalsWidth - 2, afterTableY + lineHeight * 3 + 4.5, { align: 'right' });
 
   pdf.setFillColor(191, 218, 232);
   pdf.rect(totalsX, afterTableY + lineHeight * 4, totalsWidth, lineHeight, 'F');
   pdf.setFont('helvetica', 'bold');
   pdf.text('TOTAL (TTC)', totalsX + 2, afterTableY + lineHeight * 4 + 4.5);
-  pdf.text(formatNumber(invoice.totalTTC), totalsX + totalsWidth - 2, afterTableY + lineHeight * 4 + 4.5, { align: 'right' });
+  pdf.text(formatNumber(invoice.grandTotal), totalsX + totalsWidth - 2, afterTableY + lineHeight * 4 + 4.5, { align: 'right' });
 
   const footerY = afterTableY + lineHeight * 5 + 4;
   const footerWidth = pageWidth - margin * 2;
@@ -258,7 +258,7 @@ export function generateCompanyInvoicePdf(invoice: CompanyInvoicePdfData) {
   pdf.text('Arretee la presente facture a la somme de', margin + 2, footerY + 7);
   pdf.setFont('helvetica', 'normal');
   pdf.text(
-    capitalizeSentence(formatAmountInWords(invoice.totalTTC)),
+    capitalizeSentence(formatAmountInWords(invoice.grandTotal)),
     margin + colLeft + 2,
     footerY + 7,
     { maxWidth: colRight - 4 }

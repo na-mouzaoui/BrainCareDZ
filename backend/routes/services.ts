@@ -2,8 +2,6 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect, authorize } from '../middleware/auth.js';
-import { logActivity } from '../utils/activity-logger.js';
-
 const router = express.Router();
 
 router.get('/', protect, async (req, res) => {
@@ -66,7 +64,7 @@ router.get('/:id', protect, async (req, res) => {
 router.post(
   '/',
   protect,
-  authorize('admin', 'practitioner'),
+  authorize('admin', 'psy'),
   [
     body('name', 'Le nom du service est requis').notEmpty().trim(),
     body('price', 'Le prix doit être un nombre positif').isFloat({ min: 0 }),
@@ -75,7 +73,8 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const msg = errors.array().map((e: any) => e.msg).join(', ');
+      return res.status(400).json({ success: false, message: msg, errors: errors.array() });
     }
 
     try {
@@ -98,21 +97,18 @@ router.post(
         [name, safePrice, safeSessions, type || 'consultation']
       );
 
-      await logActivity({ req, action: 'CREATE', resource: 'service', resourceId: result.rows[0].id, resourceName: name });
-
       return res.status(201).json({
         success: true,
         message: 'Service créé avec succès',
         service: result.rows[0],
       });
     } catch (error) {
-      console.error('Create service error:', error);
       return res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
-router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
+router.put('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
   try {
     const { name, price, sessions, type } = req.body;
 
@@ -146,8 +142,6 @@ router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res)
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
-    await logActivity({ req, action: 'UPDATE', resource: 'service', resourceId: req.params.id, resourceName: name || 'Service' });
-
     return res.status(200).json({
       success: true,
       message: 'Service updated successfully',
@@ -158,7 +152,7 @@ router.put('/:id', protect, authorize('admin', 'practitioner'), async (req, res)
   }
 });
 
-router.delete('/:id', protect, authorize('admin', 'practitioner'), async (req, res) => {
+router.delete('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
   try {
     const result = await query(
       `UPDATE services SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
@@ -168,8 +162,6 @@ router.delete('/:id', protect, authorize('admin', 'practitioner'), async (req, r
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
-
-    await logActivity({ req, action: 'DELETE', resource: 'service', resourceId: req.params.id });
 
     return res.status(200).json({
       success: true,

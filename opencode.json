@@ -1,0 +1,48 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": "allow",
+    "task": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "webfetch": "allow",
+    "websearch": "allow",
+    "skill": "allow",
+    "bash": {
+      "*": "ask",
+      "npm *": "allow",
+      "npm": "allow",
+      "npx *": "allow",
+      "yarn *": "allow",
+      "pnpm *": "allow",
+      "node *": "allow",
+      "tsx *": "allow",
+      "next *": "allow",
+      "rm *": "allow",
+      "rm": "allow",
+      "del *": "allow",
+      "del": "allow",
+      "Remove-Item *": "allow",
+      "Remove-Item": "allow",
+      "ren *": "allow",
+      "ren": "allow",
+      "Rename-Item *": "allow",
+      "Rename-Item": "allow",
+      "Move-Item *": "allow",
+      "Move-Item": "allow",
+      "robocopy *": "allow",
+      "git*": "deny",
+      "git *": "deny"
+    },
+    "external_directory": {
+      "*": "ask",
+      "C:/Users/Latitude/AppData/Local/Temp/opencode": "allow",
+      "C:/Users/Latitude/AppData/Local/Temp/opencode/**": "allow",
+      "C:/Users/Latitude/Documents/BrainCareDZ/**": "allow"
+    }
+  }
+}

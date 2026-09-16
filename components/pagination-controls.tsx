@@ -49,8 +49,8 @@ export function PaginationControls({ page, totalPages, totalItems, onPageChange 
   }
 
   return (
-    <div className="flex items-center justify-between mt-4">
-      <p className="text-sm text-gray-500">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4">
+      <p className="text-sm text-gray-500 hidden sm:block">
         {totalItems} résultat{totalItems > 1 ? 's' : ''}
       </p>
       <Pagination className="w-auto mx-0">

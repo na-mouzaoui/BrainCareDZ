@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { users as usersApi, activityLogs, services as servicesApi } from '@/lib/api';
+import { users as usersApi, activityLogs, services as servicesApi, calendarSettings as calendarSettingsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,20 +19,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { AlertCircle, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Loader2, Shield, Save, Users, Clock, History, RefreshCw } from 'lucide-react';
+import { AlertCircle, Plus, Trash2, Edit2, Shield, Save, Users, Clock, History, RefreshCw, Briefcase, Stethoscope, KeyRound, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { getPatientLists, savePatientLists, DEFAULT_LISTS, type PatientLists } from '@/lib/patient-lists';
+import { useSort, SortableHeader } from '@/components/sortable-header';
+import ServiceForm, { type ServiceFormData } from '@/components/service-form';
+import { Badge } from '@/components/ui/badge';
 
 interface User {
   id: string;
   name: string;
-  email: string;
-  role: 'admin' | 'practitioner' | 'receptionist';
+  pseudo: string;
+  firstName?: string;
+  lastName?: string;
+  role: 'admin' | 'psy' | 'coach';
   phone?: string;
-  isActive: boolean;
   createdAt: string;
+  patientCount?: number;
 }
 
 interface Service {
@@ -41,28 +48,29 @@ interface Service {
 }
 
 interface NewUserForm {
-  name: string;
-  email: string;
-  password: string;
-  role: 'admin' | 'practitioner' | 'receptionist';
+  firstName: string;
+  lastName: string;
+  role: 'admin' | 'psy' | 'coach';
   phone: string;
   serviceIds: string[];
 }
 
-interface Settings {
-  weekendDays: number[];
-  consultationDuration: number;
-  workStartTime: string;
-  workEndTime: string;
-  breakfastBreakStart?: string;
-  breakfastBreakEnd?: string;
-  hasBreakfastBreak: boolean;
+interface CalendarSetting {
+  calendar_role: string;
+  work_start_time: string;
+  work_end_time: string;
+  consultation_duration: number;
+  weekend_days: number[];
+  has_breakfast_break: boolean;
+  breakfast_break_start?: string;
+  breakfast_break_end?: string;
 }
 
 interface ActivityLogEntry {
   id: string;
   userId: string;
   userName: string;
+  userPseudo?: string;
   userEmail: string;
   action: string;
   resource: string;
@@ -73,13 +81,20 @@ interface ActivityLogEntry {
 
 const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
-const DEFAULT_SETTINGS: Settings = {
-  weekendDays: [5, 6],
-  consultationDuration: 60,
-  workStartTime: '08:00',
-  workEndTime: '18:00',
-  hasBreakfastBreak: false,
+const DEFAULT_CALENDAR_SETTING: CalendarSetting = {
+  calendar_role: '',
+  work_start_time: '08:00',
+  work_end_time: '18:00',
+  consultation_duration: 60,
+  weekend_days: [5, 6],
+  has_breakfast_break: false,
 };
+
+const CALENDAR_ROLES = [
+  { key: 'admin', label: 'Admin', color: 'brand' },
+  { key: 'psy', label: 'Psy', color: 'brand' },
+  { key: 'coach', label: 'Coach', color: 'brand' },
+];
 
 function getActionLabel(action: string): string {
   const labels: { [key: string]: string } = {
@@ -87,11 +102,12 @@ function getActionLabel(action: string): string {
     'READ': 'Consultation',
     'UPDATE': 'Modification',
     'DELETE': 'Suppression',
+    'INSERT': 'Création',
     'REGISTER': 'Inscription',
     'LOGIN': 'Connexion',
     'LOGOUT': 'Déconnexion',
     'CANCEL': 'Annulation',
-    'COMPLETE': 'Terminé',
+    'COMPLETE': 'Prise en charge',
     'USE_SESSION': 'Séance utilisée',
     'SETTINGS_CHANGED': 'Paramètres modifiés',
   };
@@ -112,7 +128,17 @@ function getResourceLabel(resource: string): string {
     'company': 'Société',
     'company-invoice': 'Facture société',
     'patient-pack': 'Pack',
+    'patient-pack-usage': 'Utilisation pack',
+    'patient-pack-share': 'Partage pack',
+    'patient-outcome': 'Évaluation patient',
+    'waiting-list': 'Liste d\'attente',
+    'profession': 'Profession',
+    'motif': 'Motif',
+    'patient-motif': 'Motif patient',
+    'practitioner-service': 'Service praticien',
     'auth': 'Authentification',
+    'appointment-patient': 'Patient RDV',
+    'activity-log': 'Journal d\'activité',
   };
   return labels[resource] || resource;
 }
@@ -127,29 +153,39 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [allServices, setAllServices] = useState<Service[]>([]);
+  const [serviceCreateOpen, setServiceCreateOpen] = useState(false);
+  const [serviceEditOpen, setServiceEditOpen] = useState(false);
+  const [serviceEditingId, setServiceEditingId] = useState<string | null>(null);
+  const [serviceEditData, setServiceEditData] = useState<ServiceFormData | null>(null);
+  const [serviceDeleteTarget, setServiceDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editFormData, setEditFormData] = useState<{
-    name: string;
-    email: string;
-    role: 'admin' | 'practitioner' | 'receptionist';
+    firstName: string;
+    lastName: string;
+    role: 'admin' | 'psy' | 'coach';
     phone: string;
-    isActive: boolean;
     serviceIds: string[];
-  }>({ name: '', email: '', role: 'practitioner', phone: '', isActive: true, serviceIds: [] });
+  }>({ firstName: '', lastName: '', role: 'psy', phone: '', serviceIds: [] });
 
   const [formData, setFormData] = useState<NewUserForm>({
-    name: '',
-    email: '',
-    password: '',
-    role: 'practitioner',
+    firstName: '',
+    lastName: '',
+    role: 'psy',
     phone: '',
     serviceIds: [],
   });
 
   // Settings state
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarSetting[]>([]);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [calendarIdx, setCalendarIdx] = useState(0);
+
+  // Patient lists state
+  const [patientLists, setPatientLists] = useState<PatientLists>(DEFAULT_LISTS);
+  const [newProfession, setNewProfession] = useState('');
+  const [newMotif, setNewMotif] = useState('');
+  const [listsSaving, setListsSaving] = useState(false);
 
   // Activity logs state
   const [activityLogsList, setActivityLogsList] = useState<ActivityLogEntry[]>([]);
@@ -159,6 +195,42 @@ export default function AdminPage() {
   const [logsLimit] = useState(50);
   const [logFilterAction, setLogFilterAction] = useState('all');
   const [logFilterResource, setLogFilterResource] = useState('all');
+  const [logFilterSearch, setLogFilterSearch] = useState('');
+
+  const usersSort = useSort(
+    users,
+    {
+      name: (u) => u.name,
+      pseudo: (u) => u.pseudo,
+      role: (u) => u.role,
+      patientCount: (u) => u.patientCount ?? 0,
+      createdAt: (u) => u.createdAt || '',
+    },
+    'name'
+  );
+
+  const filteredLogs = useMemo(() => {
+    if (!logFilterSearch.trim()) return activityLogsList;
+    const q = logFilterSearch.toLowerCase();
+    return activityLogsList.filter((l) =>
+      (l.userName || '').toLowerCase().includes(q) ||
+      (l.userPseudo || '').toLowerCase().includes(q) ||
+      (l.resourceName || '').toLowerCase().includes(q) ||
+      (l.resource || '').toLowerCase().includes(q) ||
+      (l.action || '').toLowerCase().includes(q)
+    );
+  }, [activityLogsList, logFilterSearch]);
+
+  const logsSort = useSort(
+    filteredLogs,
+    {
+      userPseudo: (l) => l.userPseudo || l.userName || '',
+      action: (l) => l.action || '',
+      resource: (l) => l.resource || '',
+      date: (l) => l.createdAt || '',
+    },
+    'date'
+  );
 
   // Navigation state
   const [activeTab, setActiveTab] = useState('users');
@@ -174,6 +246,7 @@ export default function AdminPage() {
       loadUsers();
       loadSettings();
       loadServices();
+      loadPatientLists();
     }
   }, [user]);
 
@@ -191,6 +264,41 @@ export default function AdminPage() {
       }
     } catch {
       // Services loading is optional
+    }
+  }
+
+  async function handleServiceCreate(data: ServiceFormData) {
+    const response = await servicesApi.create(data);
+    if (!response.success) throw new Error(response.message || 'Échec de la création');
+    setServiceCreateOpen(false);
+    loadServices();
+  }
+
+  async function handleServiceUpdate(data: ServiceFormData) {
+    if (!serviceEditingId) return;
+    const response = await servicesApi.update(serviceEditingId, data);
+    if (!response.success) throw new Error(response.message || 'Échec de la modification');
+    setServiceEditOpen(false);
+    setServiceEditingId(null);
+    setServiceEditData(null);
+    loadServices();
+  }
+
+  async function handleServiceDelete() {
+    if (!serviceDeleteTarget) return;
+    const response = await servicesApi.delete(serviceDeleteTarget.id);
+    if (response.success) {
+      setServiceDeleteTarget(null);
+      loadServices();
+    }
+  }
+
+  async function loadPatientLists() {
+    try {
+      const lists = await getPatientLists();
+      setPatientLists(lists);
+    } catch {
+      // Keep current state (defaults)
     }
   }
 
@@ -213,21 +321,12 @@ export default function AdminPage() {
 
   async function loadSettings() {
     try {
-      const saved = localStorage.getItem('practice-settings');
-      if (saved) {
-        const parsed = JSON.parse(saved) as Partial<Settings>;
-        setSettings({
-          weekendDays: parsed.weekendDays || DEFAULT_SETTINGS.weekendDays,
-          consultationDuration: parsed.consultationDuration || DEFAULT_SETTINGS.consultationDuration,
-          workStartTime: parsed.workStartTime || DEFAULT_SETTINGS.workStartTime,
-          workEndTime: parsed.workEndTime || DEFAULT_SETTINGS.workEndTime,
-          hasBreakfastBreak: !!parsed.hasBreakfastBreak,
-          breakfastBreakStart: parsed.breakfastBreakStart,
-          breakfastBreakEnd: parsed.breakfastBreakEnd,
-        });
+      const response = await calendarSettingsApi.getAll();
+      if (response.success && response.data) {
+        setCalendarSettings(response.data);
       }
     } catch {
-      setError('Erreur lors du chargement des paramètres');
+      // Use defaults
     }
   }
 
@@ -252,8 +351,17 @@ export default function AdminPage() {
   async function saveSettings() {
     try {
       setSettingsSaving(true);
-      setError('');
-      localStorage.setItem('practice-settings', JSON.stringify(settings));
+      for (const s of calendarSettings) {
+        await calendarSettingsApi.update(s.calendar_role, {
+          workStartTime: s.work_start_time,
+          workEndTime: s.work_end_time,
+          consultationDuration: s.consultation_duration,
+          weekendDays: s.weekend_days,
+          hasBreakfastBreak: s.has_breakfast_break,
+          breakfastBreakStart: s.breakfast_break_start || null,
+          breakfastBreakEnd: s.breakfast_break_end || null,
+        });
+      }
       setSuccess('Paramètres sauvegardés avec succès!');
       setTimeout(() => setSuccess(''), 3000);
     } catch {
@@ -263,38 +371,92 @@ export default function AdminPage() {
     }
   }
 
+  function addProfession() {
+    const value = newProfession.trim();
+    if (!value) return;
+    setPatientLists((prev) => ({
+      ...prev,
+      professions: prev.professions.includes(value) ? prev.professions : [...prev.professions, value],
+    }));
+    setNewProfession('');
+  }
+
+  function removeProfession(value: string) {
+    setPatientLists((prev) => ({
+      ...prev,
+      professions: prev.professions.filter((p) => p !== value),
+    }));
+  }
+
+  function addMotif() {
+    const value = newMotif.trim();
+    if (!value) return;
+    setPatientLists((prev) => ({
+      ...prev,
+      motifs: prev.motifs.includes(value) ? prev.motifs : [...prev.motifs, value],
+    }));
+    setNewMotif('');
+  }
+
+  function removeMotif(value: string) {
+    setPatientLists((prev) => ({
+      ...prev,
+      motifs: prev.motifs.filter((m) => m !== value),
+    }));
+  }
+
+  function saveLists() {
+    setListsSaving(true);
+    try {
+      savePatientLists(patientLists).then((ok) => {
+        if (ok) {
+          setSuccess('Listes sauvegardées avec succès!');
+          setTimeout(() => setSuccess(''), 3000);
+        } else {
+          setError('Erreur lors de la sauvegarde des listes');
+        }
+        setListsSaving(false);
+      });
+    } catch {
+      setError('Erreur lors de la sauvegarde des listes');
+      setListsSaving(false);
+    }
+  }
+
   const handleInputChange = (field: keyof NewUserForm, value: string) => {
     setError('');
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-      ...(field === 'role' && value !== 'practitioner' ? { serviceIds: [] } : {}),
+      ...(field === 'role' && value === 'admin' ? { serviceIds: [] } : {}),
     }));
   };
 
-  function toggleWeekendDay(day: number) {
-    setSettings((prev) => ({
-      ...prev,
-      weekendDays: prev.weekendDays.includes(day)
-        ? prev.weekendDays.filter((d) => d !== day)
-        : [...prev.weekendDays, day],
-    }));
+  function toggleWeekendDay(role: string, day: number) {
+    setCalendarSettings((prev) =>
+      prev.map((s) =>
+        s.calendar_role === role
+          ? {
+              ...s,
+              weekend_days: s.weekend_days.includes(day)
+                ? s.weekend_days.filter((d) => d !== day)
+                : [...s.weekend_days, day],
+            }
+          : s
+      )
+    );
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!formData.name.trim()) {
+    if (!formData.firstName.trim()) {
+      setError('Le prénom est requis');
+      return;
+    }
+    if (!formData.lastName.trim()) {
       setError('Le nom est requis');
-      return;
-    }
-    if (!formData.email.trim()) {
-      setError('L\'email est requis');
-      return;
-    }
-    if (!formData.password || formData.password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
     if (!formData.role) {
@@ -307,13 +469,13 @@ export default function AdminPage() {
       const response = await usersApi.create(formData);
       if (response.success) {
         await loadUsers();
-        activityLogs.create({ action: 'CREATE', resource: 'user', resourceName: formData.name, status: 'success' }).catch(() => {});
+        const resourceName = `${formData.firstName} ${formData.lastName}`;
+        activityLogs.create({ action: 'CREATE', resource: 'user', resourceName, status: 'success' }).catch(() => {});
         setIsCreateOpen(false);
         setFormData({
-          name: '',
-          email: '',
-          password: '',
-          role: 'practitioner',
+          firstName: '',
+          lastName: '',
+          role: 'psy',
           phone: '',
           serviceIds: [],
         });
@@ -347,14 +509,32 @@ export default function AdminPage() {
     }
   };
 
+  const handleResetPassword = async (id: string, name: string) => {
+    if (!confirm(`Réinitialiser le mot de passe de ${name} à "123456789" ?`)) {
+      return;
+    }
+
+    try {
+      const response = await usersApi.updatePassword(id, '123456789');
+      if (response.success) {
+        setSuccess(`Mot de passe de ${name} réinitialisé à "123456789"`);
+        setTimeout(() => setSuccess(''), 3000);
+        activityLogs.create({ action: 'UPDATE', resource: 'user-password', resourceName: name, status: 'success' }).catch(() => {});
+      } else {
+        setError('Erreur lors de la réinitialisation du mot de passe');
+      }
+    } catch (err) {
+      setError('Erreur lors de la réinitialisation du mot de passe');
+    }
+  };
+
   function handleEditUser(user: User) {
     setEditingUser(user);
     setEditFormData({
-      name: user.name,
-      email: user.email,
+      firstName: user.firstName || user.name.split(' ')[0] || '',
+      lastName: user.lastName || user.name.split(' ').slice(1).join(' ') || '',
       role: user.role,
       phone: user.phone || '',
-      isActive: user.isActive,
       serviceIds: (user as any).services?.map((s: any) => s.id) || [],
     });
   }
@@ -368,7 +548,8 @@ export default function AdminPage() {
       const response = await usersApi.update(editingUser.id, editFormData);
       if (response.success) {
         await loadUsers();
-        activityLogs.create({ action: 'UPDATE', resource: 'user', resourceName: editFormData.name, status: 'success' }).catch(() => {});
+        const resourceName = `${editFormData.firstName} ${editFormData.lastName}`;
+        activityLogs.create({ action: 'UPDATE', resource: 'user', resourceName, status: 'success' }).catch(() => {});
         setEditingUser(null);
         setSuccess('Utilisateur modifié avec succès!');
         setTimeout(() => setSuccess(''), 3000);
@@ -391,9 +572,9 @@ export default function AdminPage() {
 
   const getRoleLabel = (role: string) => {
     const labels: { [key: string]: string } = {
-      admin: 'Administrateur',
-      practitioner: 'Praticien',
-      receptionist: 'Réceptionniste',
+      admin: 'Admin',
+      psy: 'Psy',
+      coach: 'Coach',
     };
     return labels[role] || role;
   };
@@ -409,11 +590,7 @@ export default function AdminPage() {
   };
 
   if (authLoading || (user?.role === 'admin' && loading)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-700" />
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   if (user?.role !== 'admin') {
@@ -431,7 +608,7 @@ export default function AdminPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Administration</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Administration</h1>
       </div>
 
       {error && (
@@ -450,18 +627,18 @@ export default function AdminPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6 bg-brand-100">
+        <TabsList className="grid w-full grid-cols-3 mb-6 bg-brand-100 overflow-x-auto">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span>Utilisateurs</span>
           </TabsTrigger>
-          <TabsTrigger value="workHours" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span>Horaires de travail</span>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span>Paramètres</span>
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            <span>Journaux des logs</span>
+            <span>Journal d'activité</span>
           </TabsTrigger>
         </TabsList>
 
@@ -479,7 +656,7 @@ export default function AdminPage() {
             <div className="flex justify-end">
               <Button
                 onClick={() => {
-                  setFormData({ name: '', email: '', password: '', role: 'practitioner', phone: '', serviceIds: [] });
+                  setFormData({ firstName: '', lastName: '', role: 'psy', phone: '', serviceIds: [] });
                   setError('');
                   setIsCreateOpen(true);
                 }}
@@ -500,36 +677,26 @@ export default function AdminPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-brand-50">
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Rôle</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Date d'ajout</TableHead>
+                      <SortableHeader label="Prénom" sortKey="name" currentSortKey={usersSort.sortKey} direction={usersSort.direction} onSort={usersSort.toggleSort} />
+                      <SortableHeader label="Nom" sortKey="pseudo" currentSortKey={usersSort.sortKey} direction={usersSort.direction} onSort={usersSort.toggleSort} className="hidden md:table-cell" />
+                      <SortableHeader label="Pseudo" sortKey="pseudo" currentSortKey={usersSort.sortKey} direction={usersSort.direction} onSort={usersSort.toggleSort} className="hidden md:table-cell" />
+                      <SortableHeader label="Rôle" sortKey="role" currentSortKey={usersSort.sortKey} direction={usersSort.direction} onSort={usersSort.toggleSort} />
+                      <SortableHeader label="Date d'ajout" sortKey="createdAt" currentSortKey={usersSort.sortKey} direction={usersSort.direction} onSort={usersSort.toggleSort} className="hidden lg:table-cell" />
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((u) => (
+                    {usersSort.sortedItems.map((u) => (
                       <TableRow key={u.id} className="cursor-pointer" onClick={() => handleEditUser(u)}>
-                        <TableCell className="font-medium">{u.name}</TableCell>
-                        <TableCell className="text-sm">{u.email}</TableCell>
+                        <TableCell className="font-medium">{u.firstName || u.name.split(' ')[0]}</TableCell>
+                        <TableCell className="hidden md:table-cell">{u.lastName || u.name.split(' ').slice(1).join(' ')}</TableCell>
+                        <TableCell className="text-sm text-gray-600 hidden md:table-cell">{u.pseudo}</TableCell>
                         <TableCell>
                           <span className="inline-block px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
                             {getRoleLabel(u.role)}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
-                              u.isActive
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {u.isActive ? 'Actif' : 'Inactif'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">{formatDate(u.createdAt)}</TableCell>
+                        <TableCell className="text-sm text-gray-600 hidden lg:table-cell">{formatDate(u.createdAt)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Button
@@ -539,6 +706,15 @@ export default function AdminPage() {
                               className="text-brand-600 hover:text-brand-800 hover:bg-brand-50"
                             >
                               <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResetPassword(u.id, u.name)}
+                              title="Réinitialiser le mot de passe à 123456789"
+                              className="text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                            >
+                              <KeyRound className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -560,152 +736,157 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
-        {/* Tab Content - Work Hours and Settings */}
-        <TabsContent value="workHours" className="space-y-6">
+        {/* Tab Content - Calendar Settings per Role */}
+        <TabsContent value="settings" className="space-y-6">
           <div className="border border-brand-200 rounded-lg overflow-hidden">
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+            {/* Header with arrows */}
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setCalendarIdx((i) => Math.max(0, i - 1))}
+                disabled={calendarIdx === 0}
+                className="h-8 w-8 rounded-full bg-white border shadow-sm flex items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
               <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Jours et horaires de travail
+                Calendrier {CALENDAR_ROLES[calendarIdx].label}
               </h2>
+              <button
+                type="button"
+                onClick={() => setCalendarIdx((i) => Math.min(CALENDAR_ROLES.length - 1, i + 1))}
+                disabled={calendarIdx === CALENDAR_ROLES.length - 1}
+                className="h-8 w-8 rounded-full bg-white border shadow-sm flex items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-            <div className="p-6">
-              {/* Grid layout for main settings */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {/* Left Column */}
-                <div className="space-y-6">
-                  {/* Consultation Duration */}
-                  <div>
-                    <h3 className="font-medium mb-4 text-brand-900">Durée de consultation</h3>
-                    <div>
-                      <Label htmlFor="duration">Durée par défaut (minutes)</Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        min="15"
-                        step="15"
-                        value={settings.consultationDuration}
-                        onChange={(e) =>
-                          setSettings({ ...settings, consultationDuration: parseInt(e.target.value || '60', 10) })
-                        }
-                        className="mt-2 max-w-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-6">
-                    <h4 className="font-medium mb-4 text-brand-900">Horaires de travail</h4>
-                    <div className="space-y-4">
+            {/* Dots */}
+            <div className="flex justify-center gap-2 pt-3">
+              {CALENDAR_ROLES.map((r, i) => (
+                <button
+                  key={r.key}
+                  onClick={() => setCalendarIdx(i)}
+                  className={`w-2.5 h-2.5 rounded-full transition ${i === calendarIdx ? 'bg-brand-700' : 'bg-brand-300'}`}
+                />
+              ))}
+            </div>
+            {/* Content for current role */}
+            {(() => {
+              const key = CALENDAR_ROLES[calendarIdx].key;
+              const s = calendarSettings.find((c) => c.calendar_role === key) || { ...DEFAULT_CALENDAR_SETTING, calendar_role: key };
+              const updateSetting = (field: string, value: any) => {
+                setCalendarSettings((prev) => {
+                  const exists = prev.find((c) => c.calendar_role === key);
+                  if (exists) {
+                    return prev.map((c) => (c.calendar_role === key ? { ...c, [field]: value } : c));
+                  }
+                  return [...prev, { ...DEFAULT_CALENDAR_SETTING, calendar_role: key, [field]: value }];
+                });
+              };
+              return (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Left Column */}
+                    <div className="space-y-6">
                       <div>
-                        <Label htmlFor="work-start">Début de journée (24h)</Label>
+                        <h3 className="font-medium mb-3 text-brand-900">Durée de consultation</h3>
+                        <Label>Durée (minutes)</Label>
                         <Input
-                          id="work-start"
-                          type="time"
-                          value={settings.workStartTime}
-                          onChange={(e) => setSettings({ ...settings, workStartTime: e.target.value })}
+                          type="number"
+                          min="15"
+                          step="15"
+                          value={s.consultation_duration}
+                          onChange={(e) => updateSetting('consultation_duration', parseInt(e.target.value || '60', 10))}
                           className="mt-2 max-w-xs"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="work-end">Fin de journée (24h)</Label>
-                        <Input
-                          id="work-end"
-                          type="time"
-                          value={settings.workEndTime}
-                          onChange={(e) => setSettings({ ...settings, workEndTime: e.target.value })}
-                          className="mt-2 max-w-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column */}
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="font-medium mb-4 text-brand-900">Pause déjeuner</h4>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="has-break"
-                          checked={settings.hasBreakfastBreak}
-                          onCheckedChange={(checked) =>
-                            setSettings({ ...settings, hasBreakfastBreak: checked as boolean })
-                          }
-                        />
-                        <Label htmlFor="has-break" className="cursor-pointer font-medium text-sm">
-                          Ajouter une pause déjeuner
-                        </Label>
-                      </div>
-
-                      {settings.hasBreakfastBreak && (
-                        <div className="space-y-3 pl-6 border-l-2 border-brand-600">
+                      <div className="border-t pt-6">
+                        <h4 className="font-medium mb-3 text-brand-900">Horaires de travail</h4>
+                        <div className="space-y-4">
                           <div>
-                            <Label htmlFor="break-start">Début (24h)</Label>
+                            <Label>Début de journée</Label>
                             <Input
-                              id="break-start"
                               type="time"
-                              value={settings.breakfastBreakStart || '12:00'}
-                              onChange={(e) =>
-                                setSettings({ ...settings, breakfastBreakStart: e.target.value })
-                              }
+                              value={s.work_start_time}
+                              onChange={(e) => updateSetting('work_start_time', e.target.value)}
                               className="mt-2 max-w-xs"
                             />
                           </div>
                           <div>
-                            <Label htmlFor="break-end">Fin (24h)</Label>
+                            <Label>Fin de journée</Label>
                             <Input
-                              id="break-end"
                               type="time"
-                              value={settings.breakfastBreakEnd || '13:00'}
-                              onChange={(e) =>
-                                setSettings({ ...settings, breakfastBreakEnd: e.target.value })
-                              }
+                              value={s.work_end_time}
+                              onChange={(e) => updateSetting('work_end_time', e.target.value)}
                               className="mt-2 max-w-xs"
                             />
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setSettings({
-                                ...settings,
-                                hasBreakfastBreak: false,
-                                breakfastBreakStart: undefined,
-                                breakfastBreakEnd: undefined,
-                              })
-                            }
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Supprimer
-                          </Button>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="border-t pt-6">
-                    <h4 className="font-medium mb-4 text-brand-900">Jours de week-end</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      {DAYS.map((day, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`day-${index}`}
-                            checked={settings.weekendDays.includes(index)}
-                            onCheckedChange={() => toggleWeekendDay(index)}
-                          />
-                          <Label htmlFor={`day-${index}`} className="cursor-pointer text-sm">
-                            {day}
-                          </Label>
+                    {/* Right Column */}
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="font-medium mb-3 text-brand-900">Pause déjeuner</h4>
+                        <div className="space-y-4">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`has-break-${key}`}
+                              checked={s.has_breakfast_break}
+                              onCheckedChange={(checked) => updateSetting('has_breakfast_break', !!checked)}
+                            />
+                            <Label htmlFor={`has-break-${key}`} className="cursor-pointer font-medium text-sm">
+                              Pause déjeuner
+                            </Label>
+                          </div>
+                          {s.has_breakfast_break && (
+                            <div className="space-y-3 pl-6 border-l-2 border-brand-600">
+                              <div>
+                                <Label>Début</Label>
+                                <Input
+                                  type="time"
+                                  value={s.breakfast_break_start || '12:00'}
+                                  onChange={(e) => updateSetting('breakfast_break_start', e.target.value)}
+                                  className="mt-2 max-w-xs"
+                                />
+                              </div>
+                              <div>
+                                <Label>Fin</Label>
+                                <Input
+                                  type="time"
+                                  value={s.breakfast_break_end || '13:00'}
+                                  onChange={(e) => updateSetting('breakfast_break_end', e.target.value)}
+                                  className="mt-2 max-w-xs"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      </div>
+                      <div className="border-t pt-6">
+                        <h4 className="font-medium mb-3 text-brand-900">Jours de repos</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                          {DAYS.map((day, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`day-${key}-${index}`}
+                                checked={s.weekend_days.includes(index)}
+                                onCheckedChange={() => toggleWeekendDay(key, index)}
+                              />
+                              <Label htmlFor={`day-${key}-${index}`} className="cursor-pointer text-sm">
+                                {day}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-
-            </div>
+              );
+            })()}
           </div>
           <div className="flex justify-end mt-6">
             <Button
@@ -717,6 +898,175 @@ export default function AdminPage() {
               {settingsSaving ? 'Sauvegarde...' : 'Sauvegarder les paramètres'}
             </Button>
           </div>
+
+          {/* Listes du dossier patient */}
+          <div className="border border-brand-200 rounded-lg overflow-hidden">
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+              <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
+                <Stethoscope className="h-5 w-5" />
+                Listes du dossier patient
+              </h2>
+              <p className="text-sm text-brand-700 mt-1">
+                Ces listes sont utilisées dans le formulaire patient (profession et motifs de consultation).
+              </p>
+            </div>
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Professions */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-brand-900 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Professions
+                </h3>
+                <div className="flex gap-2">
+                  <Input
+                    value={newProfession}
+                    onChange={(e) => setNewProfession(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addProfession(); } }}
+                    placeholder="Ajouter une profession..."
+                    className="max-w-xs"
+                  />
+                  <Button onClick={addProfession} className="gap-1 bg-brand-700 hover:bg-brand-800">
+                    <Plus className="h-4 w-4" />
+                    Ajouter
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {patientLists.professions.map((profession) => (
+                    <div key={profession} className="flex items-center gap-2 bg-gray-50 border rounded-full px-3 py-1">
+                      <span className="text-sm">{profession}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeProfession(profession)}
+                        className="text-red-500 hover:text-red-700"
+                        aria-label={`Supprimer ${profession}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Motifs */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-brand-900 flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4" />
+                  Motifs de consultation
+                </h3>
+                <div className="flex gap-2">
+                  <Input
+                    value={newMotif}
+                    onChange={(e) => setNewMotif(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMotif(); } }}
+                    placeholder="Ajouter un motif..."
+                    className="max-w-xs"
+                  />
+                  <Button onClick={addMotif} className="gap-1 bg-brand-700 hover:bg-brand-800">
+                    <Plus className="h-4 w-4" />
+                    Ajouter
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {patientLists.motifs.map((motif) => (
+                    <div key={motif} className="flex items-center gap-2 bg-gray-50 border rounded-full px-3 py-1">
+                      <span className="text-sm">{motif}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeMotif(motif)}
+                        className="text-red-500 hover:text-red-700"
+                        aria-label={`Supprimer ${motif}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end mt-6">
+            <Button
+              onClick={saveLists}
+              disabled={listsSaving}
+              className="gap-2 bg-brand-700 hover:bg-brand-800"
+            >
+              <Save className="h-4 w-4" />
+              {listsSaving ? 'Sauvegarde...' : 'Sauvegarder les listes'}
+            </Button>
+          </div>
+
+          {/* Services / Packs */}
+          <div className="border border-brand-200 rounded-lg overflow-hidden">
+            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
+                  <Stethoscope className="h-5 w-5" />
+                  Services / Packs
+                </h2>
+                <p className="text-sm text-brand-700 mt-1">
+                  Gestion des services et packs proposés aux patients.
+                </p>
+              </div>
+              <Button onClick={() => setServiceCreateOpen(true)} className="gap-1 bg-brand-700 hover:bg-brand-800">
+                <Plus className="h-4 w-4" />
+                Nouveau
+              </Button>
+            </div>
+            <div className="p-6">
+              {allServices.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Aucun service pour le moment.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nom</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Séances</TableHead>
+                        <TableHead className="text-right">Prix</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allServices.map((service) => (
+                        <TableRow key={service.id}>
+                          <TableCell className="font-medium">{service.name}</TableCell>
+                          <TableCell>
+                            <Badge className={service.type === 'neurofeedback' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}>
+                              {service.type === 'neurofeedback' ? 'Neurofeedback' : 'Consultation'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}</TableCell>
+                          <TableCell className="text-right font-semibold">{Number(service.price).toLocaleString('fr-FR')} DZD</TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setServiceEditingId(service.id);
+                                setServiceEditData({ name: service.name, price: service.price, sessions: service.sessions || 1, type: service.type || 'consultation' });
+                                setServiceEditOpen(true);
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setServiceDeleteTarget({ id: service.id, name: service.name })}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         {/* Tab Content - Activity Logs */}
@@ -725,13 +1075,21 @@ export default function AdminPage() {
             <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
               <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Journaux d'activité
+                Journal d'activité
                 <span className="text-sm font-normal text-brand-700">({logsTotal})</span>
               </h2>
             </div>
             <div className="p-6 space-y-4">
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Rechercher..."
+                    value={logFilterSearch}
+                    onChange={(e) => { setLogFilterSearch(e.target.value); setLogsOffset(0); }}
+                    className="w-48"
+                  />
+                </div>
                 <div className="flex items-center gap-2">
                   <Label className="text-sm whitespace-nowrap">Action:</Label>
                   <Select value={logFilterAction} onValueChange={(v) => { setLogFilterAction(v); setLogsOffset(0); }}>
@@ -770,6 +1128,7 @@ export default function AdminPage() {
                       <SelectItem value="company">Société</SelectItem>
                       <SelectItem value="company-invoice">Facture société</SelectItem>
                       <SelectItem value="patient-pack">Pack</SelectItem>
+                      <SelectItem value="waiting-list">Liste d'attente</SelectItem>
                       <SelectItem value="auth">Authentification</SelectItem>
                     </SelectContent>
                   </Select>
@@ -782,7 +1141,7 @@ export default function AdminPage() {
 
             {loadingLogs ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-brand-700" />
+                <Spinner />
               </div>
             ) : activityLogsList.length === 0 ? (
               <div className="text-center py-8 border border-dashed border-brand-300 rounded-lg">
@@ -793,25 +1152,20 @@ export default function AdminPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-brand-50">
-                      <TableHead>Date & Heure</TableHead>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Resource</TableHead>
-                      <TableHead>Élément</TableHead>
-                      <TableHead>Statut</TableHead>
+                      <SortableHeader label="Utilisateur" sortKey="userPseudo" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
+                      <SortableHeader label="Action" sortKey="action" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
+                      <SortableHeader label="Entité" sortKey="resource" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
+                      <SortableHeader label="Date & Heure" sortKey="date" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {activityLogsList.map((log) => (
+                    {logsSort.sortedItems.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="text-sm whitespace-nowrap">{formatDate(log.createdAt)}</TableCell>
-                        <TableCell className="font-medium">{log.userName || 'Unknown'}</TableCell>
-                        <TableCell className="text-sm">{log.userEmail || 'N/A'}</TableCell>
+                        <TableCell className="font-medium">{log.userPseudo || log.userName || 'Unknown'}</TableCell>
                         <TableCell className="text-sm">
                           <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
                             log.action === 'CREATE' ? 'bg-green-100 text-green-800' :
-                            log.action === 'DELETE' ? 'bg-red-100 text-red-800' :
+                            log.action === 'DELETE' || log.action === 'CANCEL' ? 'bg-red-100 text-red-800' :
                             log.action === 'UPDATE' ? 'bg-blue-100 text-blue-800' :
                             log.action === 'LOGIN' || log.action === 'REGISTER' ? 'bg-purple-100 text-purple-800' :
                             'bg-gray-100 text-gray-800'
@@ -819,19 +1173,13 @@ export default function AdminPage() {
                             {getActionLabel(log.action)}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">{getResourceLabel(log.resource)}</TableCell>
-                        <TableCell className="text-sm text-gray-600 max-w-[200px] truncate">{log.resourceName || '-'}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-block px-2 py-1 text-xs font-medium rounded ${
-                              log.status === 'success'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {log.status === 'success' ? 'Réussi' : 'Erreur'}
-                          </span>
+                        <TableCell className="text-sm text-gray-600">
+                          {getResourceLabel(log.resource)}
+                          {log.resourceName && (
+                            <span className="text-gray-400 ml-1">— {log.resourceName}</span>
+                          )}
                         </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{formatDate(log.createdAt)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -882,42 +1230,38 @@ export default function AdminPage() {
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field>
-                <FieldLabel>Nom complet *</FieldLabel>
+                <FieldLabel>Prénom *</FieldLabel>
                 <Input
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  value={formData.firstName}
+                  onChange={(e) => handleInputChange('firstName', e.target.value)}
                   disabled={isSubmitting}
                   required
-                  placeholder="Jean Dupont"
+                  placeholder="Jean"
                 />
               </Field>
 
               <Field>
-                <FieldLabel>Email *</FieldLabel>
+                <FieldLabel>Nom *</FieldLabel>
                 <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => handleInputChange('lastName', e.target.value)}
                   disabled={isSubmitting}
                   required
-                  placeholder="jean@exemple.com"
+                  placeholder="Dupont"
                 />
               </Field>
+            </div>
 
-              <Field>
-                <FieldLabel>Mot de passe *</FieldLabel>
-                <Input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  disabled={isSubmitting}
-                  required
-                  minLength={6}
-                  placeholder="Minimum 6 caractères"
-                />
-              </Field>
+            {formData.firstName && formData.lastName && (
+              <div className="text-sm text-gray-500 bg-gray-50 border rounded px-3 py-2">
+                Pseudo généré : <span className="font-medium text-gray-700">{formData.firstName.toLowerCase()}_{formData.lastName.toLowerCase()}</span>
+                <span className="ml-2 text-gray-400">| Mot de passe par défaut : 123456789</span>
+              </div>
+            )}
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Rôle *</FieldLabel>
                 <Select
@@ -929,9 +1273,9 @@ export default function AdminPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Administrateur</SelectItem>
-                    <SelectItem value="practitioner">Praticien</SelectItem>
-                    <SelectItem value="receptionist">Réceptionniste</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="psy">Psy</SelectItem>
+                    <SelectItem value="coach">Coach</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -948,7 +1292,7 @@ export default function AdminPage() {
               </Field>
             </div>
 
-            {formData.role === 'practitioner' && allServices.length > 0 && (
+            {formData.role !== 'admin' && allServices.length > 0 && (
               <div className="border-t pt-4">
                 <FieldLabel>Services pris en charge</FieldLabel>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
@@ -980,9 +1324,7 @@ export default function AdminPage() {
                 Annuler
               </Button>
               <Button type="submit" disabled={isSubmitting} className="bg-brand-700 hover:bg-brand-800">
-                {isSubmitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Création...</>
-                ) : (
+                {isSubmitting ? <Spinner size="sm" /> : (
                   <><Plus className="h-4 w-4 mr-2" />Créer l'utilisateur</>
                 )}
               </Button>
@@ -1004,25 +1346,31 @@ export default function AdminPage() {
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field>
-                  <FieldLabel>Nom complet *</FieldLabel>
+                  <FieldLabel>Prénom *</FieldLabel>
                   <Input
                     type="text"
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    value={editFormData.firstName}
+                    onChange={(e) => setEditFormData((prev) => ({ ...prev, firstName: e.target.value }))}
                     required
                   />
                 </Field>
 
                 <Field>
-                  <FieldLabel>Email *</FieldLabel>
+                  <FieldLabel>Nom *</FieldLabel>
                   <Input
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData((prev) => ({ ...prev, email: e.target.value }))}
+                    type="text"
+                    value={editFormData.lastName}
+                    onChange={(e) => setEditFormData((prev) => ({ ...prev, lastName: e.target.value }))}
                     required
                   />
                 </Field>
+              </div>
 
+              <div className="text-sm text-gray-500 bg-gray-50 border rounded px-3 py-2">
+                Pseudo : <span className="font-medium text-gray-700">{editingUser.pseudo}</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field>
                   <FieldLabel>Rôle *</FieldLabel>
                   <Select
@@ -1031,7 +1379,7 @@ export default function AdminPage() {
                       setEditFormData((prev) => ({
                         ...prev,
                         role: value as any,
-                        serviceIds: value !== 'practitioner' ? [] : prev.serviceIds,
+                        serviceIds: value === 'admin' ? [] : prev.serviceIds,
                       }))
                     }
                   >
@@ -1039,9 +1387,9 @@ export default function AdminPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Administrateur</SelectItem>
-                      <SelectItem value="practitioner">Praticien</SelectItem>
-                      <SelectItem value="receptionist">Réceptionniste</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="psy">Psy</SelectItem>
+                      <SelectItem value="coach">Coach</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
@@ -1055,27 +1403,9 @@ export default function AdminPage() {
                     placeholder="+213 XX XX XX XX"
                   />
                 </Field>
-
-                <Field>
-                  <FieldLabel>Statut</FieldLabel>
-                  <Select
-                    value={editFormData.isActive ? 'active' : 'inactive'}
-                    onValueChange={(value) =>
-                      setEditFormData((prev) => ({ ...prev, isActive: value === 'active' }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Actif</SelectItem>
-                      <SelectItem value="inactive">Inactif</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
               </div>
 
-              {editFormData.role === 'practitioner' && allServices.length > 0 && (
+              {editFormData.role !== 'admin' && allServices.length > 0 && (
                 <div className="border-t pt-4">
                   <FieldLabel>Services pris en charge</FieldLabel>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
@@ -1108,6 +1438,45 @@ export default function AdminPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={serviceCreateOpen} onOpenChange={setServiceCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nouveau service</DialogTitle>
+            <DialogDescription>Créez un nouveau service avec son tarif.</DialogDescription>
+          </DialogHeader>
+          <ServiceForm onSubmit={handleServiceCreate} submitButtonText="Créer le service" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={serviceEditOpen} onOpenChange={setServiceEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifier le service</DialogTitle>
+            <DialogDescription>Modifiez les informations du service.</DialogDescription>
+          </DialogHeader>
+          {serviceEditData && (
+            <ServiceForm initialData={serviceEditData} onSubmit={handleServiceUpdate} submitButtonText="Enregistrer" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!serviceDeleteTarget} onOpenChange={(open) => !open && setServiceDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le service</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment supprimer le service "{serviceDeleteTarget?.name}" ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleServiceDelete} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

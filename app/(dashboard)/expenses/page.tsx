@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { expenses } from '@/lib/api';
@@ -11,8 +11,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { AlertCircle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FilterDialog, {
+  type FilterField,
+  type FilterValues,
+  resetFilters,
+} from '@/components/filter-dialog';
+import { useSort, SortableHeader } from '@/components/sortable-header';
 
 interface Expense {
   id: string;
@@ -31,9 +38,66 @@ export default function expensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState<FilterValues>({});
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(expensesList);
   const router = useRouter();
+
+  const filterFields: FilterField[] = [
+    { key: 'title', label: 'Libellé', type: 'text', placeholder: 'Libellé de la dépense' },
+    { key: 'category', label: 'Catégorie', type: 'text', placeholder: 'Catégorie' },
+    { key: 'createdByName', label: 'Créé par', type: 'text', placeholder: 'Nom de l\'utilisateur' },
+    { key: 'amount', label: 'Montant (DZD)', type: 'number-range' },
+    { key: 'dateRange', label: 'Date de la dépense', type: 'date-range' },
+  ];
+
+  const filteredExpensesList = useMemo(() => {
+    return expensesList.filter((expense) => {
+      for (const [key, rawValue] of Object.entries(filters)) {
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+
+        if (typeof rawValue === 'object') {
+          const range = rawValue as { from?: string; to?: string; min?: number; max?: number };
+
+          if (key === 'amount') {
+            const amount = Number(expense.amount) || 0;
+            if (range.min !== undefined && !Number.isNaN(range.min) && amount < range.min) return false;
+            if (range.max !== undefined && !Number.isNaN(range.max) && amount > range.max) return false;
+          }
+
+          if (key === 'dateRange') {
+            const time = new Date(expense.expenseDate).getTime();
+            const from = range.from ? new Date(`${range.from}T00:00:00`).getTime() : null;
+            const to = range.to ? new Date(`${range.to}T23:59:59`).getTime() : null;
+            if (from !== null && time < from) return false;
+            if (to !== null && time > to) return false;
+          }
+
+          continue;
+        }
+
+        const value = String(rawValue).toLowerCase();
+        if (key === 'title' && !(expense.title || '').toLowerCase().includes(value)) return false;
+        if (key === 'category' && !(expense.category || '').toLowerCase().includes(value)) return false;
+        if (key === 'createdByName' && !(expense.createdByName || '').toLowerCase().includes(value)) return false;
+      }
+
+      return true;
+    });
+  }, [expensesList, filters]);
+
+  const { sortKey, direction, toggleSort, sortedItems } = useSort(
+    filteredExpensesList,
+    {
+      title: (e) => e.title,
+      category: (e) => e.category || '',
+      amount: (e) => Number(e.amount) || 0,
+      date: (e) => e.expenseDate || '',
+      createdByName: (e) => e.createdByName || '',
+    },
+    'date'
+  );
+
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(sortedItems);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -122,26 +186,14 @@ export default function expensesPage() {
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
-  }
-
-  if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   if (user?.role !== 'admin') {
     return (
       <div className="space-y-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Charges et dépenses</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Charges et dépenses</h1>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -154,18 +206,29 @@ export default function expensesPage() {
   return (
     <div>
       <div className="mb-8">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Charges et dépenses</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Charges et dépenses</h1>
           </div>
-          <Button
-            onClick={openCreateDialog}
-            className="gap-2 bg-brand-700 hover:bg-brand-800"
-          >
-            <Plus className="h-4 w-4" />
-            Nouvelle dépense
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={openCreateDialog}
+              className="gap-2 bg-brand-700 hover:bg-brand-800"
+            >
+              <Plus className="h-4 w-4" />
+              Nouvelle dépense
+            </Button>
+          </div>
         </div>
+      </div>
+
+      <div className="mb-8 w-full">
+        <FilterDialog
+          fields={filterFields}
+          values={filters}
+          onChange={setFilters}
+          onReset={() => setFilters(resetFilters(filterFields))}
+        />
       </div>
 
       {error && (
@@ -175,7 +238,7 @@ export default function expensesPage() {
         </Alert>
       )}
 
-      {expensesList.length > 0 ? (
+      {filteredExpensesList.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Charges et dépenses ({totalItems})</CardTitle>
@@ -185,11 +248,11 @@ export default function expensesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Libellé</TableHead>
-                    <TableHead>Catégorie</TableHead>
-                    <TableHead>Montant</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Créé par</TableHead>
+                    <SortableHeader label="Libellé" sortKey="title" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Catégorie" sortKey="category" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
+                    <SortableHeader label="Montant" sortKey="amount" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Date" sortKey="date" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
+                    <SortableHeader label="Créé par" sortKey="createdByName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden lg:table-cell" />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -197,7 +260,7 @@ export default function expensesPage() {
                   {paginatedItems.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">{expense.title}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {expense.category ? (
                           <Badge variant="outline">{expense.category}</Badge>
                         ) : (
@@ -205,8 +268,8 @@ export default function expensesPage() {
                         )}
                       </TableCell>
                       <TableCell className="font-semibold">{Number(expense.amount).toFixed(2)} DZD</TableCell>
-                      <TableCell>{new Date(expense.expenseDate).toLocaleDateString('fr-FR')}</TableCell>
-                      <TableCell>{expense.createdByName || '—'}</TableCell>
+                      <TableCell className="hidden md:table-cell">{new Date(expense.expenseDate).toLocaleDateString('fr-FR')}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{expense.createdByName || '—'}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
@@ -230,10 +293,10 @@ export default function expensesPage() {
                 </TableBody>
               </Table>
               <div className="mt-4 p-4 bg-brand-50 rounded-lg border border-brand-200">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
                   <span className="text-lg font-semibold text-brand-800">Total des dépenses</span>
                   <span className="text-xl font-bold text-brand-700">
-                    {expensesList.reduce((sum, exp) => sum + Number(exp.amount), 0).toFixed(2)} DZD
+                    {filteredExpensesList.reduce((sum, exp) => sum + Number(exp.amount), 0).toFixed(2)} DZD
                   </span>
                 </div>
               </div>

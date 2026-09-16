@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth-context';
 import { companies, companyInvoices } from '@/lib/api';
 import CompanyInvoiceForm, { type CompanyInvoiceFormData } from '@/components/company-invoice-form';
@@ -18,12 +19,12 @@ interface CompanyOption {
 const SUPPLIER_INFO = {
   name: 'Brain Care',
   owner: 'Sabrina MOKRANE',
-  address: 'Adresse a renseigner',
-  rc: 'RC: A renseigner',
-  nif: 'NIF: A renseigner',
-  art: 'Art: A renseigner',
-  email: 'contact@braincare.dz',
-  web: 'www.braincare.dz',
+  address: 'BT 38 URBA 2000 El Achour Alger Algerie',
+  rc: 'R.C. N° : 16/00-4958914A19',
+  nif: 'NIF : 279421201996194',
+  art: 'Art : 16510 78 0966',
+  email: 'Sabrina@braincaredz.com',
+  tel: '+213 550 93 29 86',
 };
 
 export default function NewCompanyInvoicePage() {
@@ -32,6 +33,7 @@ export default function NewCompanyInvoicePage() {
   const [companyList, setCompanyList] = useState<CompanyOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [nextRef, setNextRef] = useState('');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -47,11 +49,17 @@ export default function NewCompanyInvoicePage() {
   async function loadCompanies() {
     try {
       setIsLoading(true);
-      const response = await companies.getAll();
-      if (response.success && response.data) {
-        setCompanyList(response.data.companies || []);
+      const [companiesRes, refRes] = await Promise.all([
+        companies.getAll(),
+        companyInvoices.getNextReference(),
+      ]);
+      if (companiesRes.success && companiesRes.data) {
+        setCompanyList(companiesRes.data.companies || []);
       } else {
-        setError(response.message || 'Impossible de charger les entreprises.');
+        setError(companiesRes.message || 'Impossible de charger les entreprises.');
+      }
+      if (refRes.success && refRes.data) {
+        setNextRef(refRes.data);
       }
     } catch (err) {
       setError('Une erreur est survenue lors du chargement.');
@@ -75,18 +83,14 @@ export default function NewCompanyInvoicePage() {
   );
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Nouvelle facture entreprise</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Nouvelle facture entreprise</h1>
         </div>
         <Button variant="outline" onClick={() => router.push('/company-invoices')} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -115,7 +119,7 @@ export default function NewCompanyInvoicePage() {
               <p className="text-gray-600">{SUPPLIER_INFO.nif}</p>
               <p className="text-gray-600">{SUPPLIER_INFO.art}</p>
               <p className="text-gray-600">Email: {SUPPLIER_INFO.email}</p>
-              <p className="text-gray-600">Web: {SUPPLIER_INFO.web}</p>
+              <p className="text-gray-600">Tel : {SUPPLIER_INFO.tel}</p>
             </div>
             <div className="space-y-2 rounded-lg border border-dashed border-brand-300 p-4">
               <p className="font-semibold text-brand-700">Zone client</p>
@@ -125,7 +129,11 @@ export default function NewCompanyInvoicePage() {
         </CardContent>
       </Card>
 
-      <CompanyInvoiceForm companies={companiesForForm} onSubmit={handleCreateInvoice} />
+      <CompanyInvoiceForm
+        companies={companiesForForm}
+        initialData={nextRef ? { companyId: '', reference: nextRef, invoiceDate: '', items: [{ description: '', sessionCount: 0, learnerCount: 0, unitPrice: 0, subtotal: 0 }], discount: 0, vatAmount: 0, subtotal: 0, discountedTotal: 0, grandTotal: 0 } : undefined}
+        onSubmit={handleCreateInvoice}
+      />
     </div>
   );
 }

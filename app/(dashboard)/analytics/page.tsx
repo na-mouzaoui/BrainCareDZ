@@ -7,6 +7,7 @@ import { appointments, expenses } from '../../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import {
   AreaChart,
   Area,
@@ -106,7 +107,6 @@ export default function AnalyticsPage() {
       });
     } catch (err) {
       setError('Une erreur s\'est produite lors du chargement des données d\'analytique');
-      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -155,18 +155,14 @@ export default function AnalyticsPage() {
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Analytique</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Analytique</h1>
       </div>
 
       {error && (

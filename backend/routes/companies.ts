@@ -2,12 +2,10 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
-import { logActivity } from '../utils/activity-logger.js';
-
 const router = express.Router();
 
 const companySelect = `
-  SELECT id, name, address, owner, rc, nif, nis,
+  SELECT id, name, address, owner, rc, nif, art,
          created_at AS "createdAt", updated_at AS "updatedAt"
   FROM companies
 `;
@@ -43,18 +41,19 @@ router.post(
     body('owner').optional({ checkFalsy: true }).trim(),
     body('rc').optional({ checkFalsy: true }).trim(),
     body('nif').optional({ checkFalsy: true }).trim(),
-    body('nis').optional({ checkFalsy: true }).trim(),
+    body('art').optional({ checkFalsy: true }).trim(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const msg = errors.array().map((e: any) => e.msg).join(', ');
+      return res.status(400).json({ success: false, message: msg, errors: errors.array() });
     }
 
     try {
-      const { name, address, owner, rc, nif, nis } = req.body;
+      const { name, address, owner, rc, nif, art } = req.body;
       const inserted = await query(
-        `INSERT INTO companies (name, address, owner, rc, nif, nis)
+        `INSERT INTO companies (name, address, owner, rc, nif, art)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id`,
         [
@@ -63,13 +62,11 @@ router.post(
           owner || null,
           rc || null,
           nif || null,
-          nis || null,
+          art || null,
         ]
       );
 
       const created = await query(`${companySelect} WHERE id = $1`, [inserted.rows[0].id]);
-
-      await logActivity({ req, action: 'CREATE', resource: 'company', resourceId: inserted.rows[0].id });
 
       return res.status(201).json({ success: true, company: created.rows[0] });
     } catch (error) {
@@ -87,12 +84,13 @@ router.put(
     body('owner').optional({ checkFalsy: true }).trim(),
     body('rc').optional({ checkFalsy: true }).trim(),
     body('nif').optional({ checkFalsy: true }).trim(),
-    body('nis').optional({ checkFalsy: true }).trim(),
+    body('art').optional({ checkFalsy: true }).trim(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const msg = errors.array().map((e: any) => e.msg).join(', ');
+      return res.status(400).json({ success: false, message: msg, errors: errors.array() });
     }
 
     try {
@@ -101,7 +99,7 @@ router.put(
         return res.status(404).json({ success: false, message: 'Company not found' });
       }
 
-      const { name, address, owner, rc, nif, nis } = req.body;
+      const { name, address, owner, rc, nif, art } = req.body;
       await query(
         `UPDATE companies
          SET name = COALESCE($2, name),
@@ -109,15 +107,13 @@ router.put(
              owner = COALESCE($4, owner),
              rc = COALESCE($5, rc),
              nif = COALESCE($6, nif),
-             nis = COALESCE($7, nis),
+             art = COALESCE($7, art),
              updated_at = NOW()
          WHERE id = $1`,
-        [req.params.id, name, address, owner, rc, nif, nis]
+        [req.params.id, name, address, owner, rc, nif, art]
       );
 
       const updated = await query(`${companySelect} WHERE id = $1`, [req.params.id]);
-
-      await logActivity({ req, action: 'UPDATE', resource: 'company', resourceId: req.params.id });
 
       return res.status(200).json({ success: true, company: updated.rows[0] });
     } catch (error) {
@@ -132,8 +128,6 @@ router.delete('/:id', protect, async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
-
-    await logActivity({ req, action: 'DELETE', resource: 'company', resourceId: req.params.id });
 
     return res.status(200).json({ success: true, message: 'Company deleted successfully' });
   } catch (error) {

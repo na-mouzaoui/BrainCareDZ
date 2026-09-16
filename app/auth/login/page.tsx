@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [pseudo, setPseudo] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,11 +25,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(pseudo, password);
       if (result.success) {
         router.push('/dashboard');
       } else {
-        setError(result.error || 'E-mail ou mot de passe invalide');
+        setError(result.error || 'Pseudo ou mot de passe invalide');
       }
     } catch (err) {
       setError('Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.');
@@ -41,7 +42,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Bienvenue</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl font-bold">Bienvenue</CardTitle>
           <CardDescription>
             Connectez-vous à votre compte de pratique psychologique
           </CardDescription>
@@ -56,12 +57,12 @@ export default function LoginPage() {
             )}
 
             <Field>
-              <FieldLabel>E-mail</FieldLabel>
+              <FieldLabel>Pseudo</FieldLabel>
               <Input
-                type="email"
-                placeholder="votre@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="prenom_nom"
+                value={pseudo}
+                onChange={(e) => setPseudo(e.target.value)}
                 required
                 disabled={isLoading}
               />
@@ -86,7 +87,7 @@ export default function LoginPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                   Connexion...
                 </>
               ) : (

@@ -2,8 +2,6 @@ import express from 'express';
 import bcryptjs from 'bcryptjs';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
-import { logActivity } from '../utils/activity-logger.js';
-
 const router = express.Router();
 
 const ensureAdmin = (req, res) => {
@@ -19,14 +17,19 @@ router.get('/', protect, async (req, res) => {
     if (!ensureAdmin(req, res)) return;
 
     const users = await query(
-      `SELECT u.id, u.name, u.email, u.role, u.phone, u.specializations, u.is_active AS "isActive", u.created_at AS "createdAt", u.updated_at AS "updatedAt",
+      `SELECT u.id, u.name, u.pseudo, u.first_name AS "firstName", u.last_name AS "lastName",
+        u.role, u.phone, u.created_at AS "createdAt", u.updated_at AS "updatedAt",
         COALESCE(
           (SELECT json_agg(json_build_object('id', s.id, 'name', s.name) ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL)
            FROM practitioner_services ps
            JOIN services s ON s.id = ps.service_id
            WHERE ps.practitioner_id = u.id),
           '[]'::json
-        ) AS services
+        ) AS services,
+        (SELECT COUNT(DISTINCT ap.patient_id)
+         FROM appointments a
+         JOIN appointment_patients ap ON ap.appointment_id = a.id
+         WHERE a.practitioner_id = u.id AND a.status <> 'cancelled') AS "patientCount"
        FROM users u
        ORDER BY u.created_at DESC`
     );
@@ -43,12 +46,32 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+router.get('/practitioners', protect, async (req, res) => {
+  try {
+    const users = await query(
+      `SELECT u.id, u.name, u.pseudo, u.phone, u.role
+       FROM users u
+       ORDER BY u.role, u.name`
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        practitioners: users.rows,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get('/:id', protect, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
     const user = await query(
-      `SELECT u.id, u.name, u.email, u.role, u.phone, u.specializations, u.is_active AS "isActive", u.created_at AS "createdAt", u.updated_at AS "updatedAt",
+      `SELECT u.id, u.name, u.pseudo, u.first_name AS "firstName", u.last_name AS "lastName",
+        u.role, u.phone, u.created_at AS "createdAt", u.updated_at AS "updatedAt",
         COALESCE(
           (SELECT json_agg(json_build_object('id', s.id, 'name', s.name) ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL)
            FROM practitioner_services ps
@@ -75,33 +98,35 @@ router.post('/', protect, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, email, password, role, phone, specializations, serviceIds } = req.body;
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ success: false, error: 'Name, email, password, and role are required' });
+    const { firstName, lastName, role, phone, serviceIds } = req.body;
+    if (!firstName || !lastName || !role) {
+      return res.status(400).json({ success: false, error: 'First name, last name, and role are required' });
     }
 
-    const exists = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    const name = `${firstName} ${lastName}`;
+    const pseudo = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
+
+    const exists = await query('SELECT id FROM users WHERE pseudo = $1', [pseudo]);
     if (exists.rowCount > 0) {
-      return res.status(400).json({ success: false, error: 'User with this email already exists' });
+      return res.status(400).json({ success: false, error: 'User with this pseudo already exists' });
     }
 
-    const passwordHash = await bcryptjs.hash(password, 10);
+    const passwordHash = await bcryptjs.hash('123456789', 10);
     const inserted = await query(
-      `INSERT INTO users (name, email, password_hash, role, phone, specializations, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-       RETURNING id, name, email, role, phone, specializations, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [name, email.toLowerCase(), passwordHash, role, phone || null, specializations || []]
+      `INSERT INTO users (name, pseudo, first_name, last_name, email, password_hash, role, phone)
+       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)
+       RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
+                 role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [name, pseudo, firstName, lastName, passwordHash, role, phone || null]
     );
 
-    if (role === 'practitioner' && serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
+    if (serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
       const values = serviceIds.map((_, i) => `($1, $${i + 2})`).join(', ');
       await query(
         `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ${values} ON CONFLICT DO NOTHING`,
         [inserted.rows[0].id, ...serviceIds]
       );
     }
-
-    await logActivity({ req, action: 'CREATE', resource: 'user', resourceId: inserted.rows[0].id, resourceName: name });
 
     return res.status(201).json({ success: true, data: inserted.rows[0] });
   } catch (error) {
@@ -113,27 +138,35 @@ router.put('/:id', protect, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, email, role, phone, specializations, isActive, serviceIds } = req.body;
+    const { firstName, lastName, role, phone, serviceIds } = req.body;
 
-    if (email) {
-      const dup = await query('SELECT id FROM users WHERE email = $1 AND id <> $2', [email.toLowerCase(), req.params.id]);
+    let pseudo = null;
+    let name = null;
+    if (firstName || lastName) {
+      const f = firstName || '';
+      const l = lastName || '';
+      name = `${f} ${l}`.trim();
+      pseudo = `${f.toLowerCase()}_${l.toLowerCase()}`;
+
+      const dup = await query('SELECT id FROM users WHERE pseudo = $1 AND id <> $2', [pseudo, req.params.id]);
       if (dup.rowCount > 0) {
-        return res.status(400).json({ success: false, error: 'Email already in use' });
+        return res.status(400).json({ success: false, error: 'Pseudo already in use' });
       }
     }
 
     const updated = await query(
       `UPDATE users
        SET name = COALESCE($2, name),
-           email = COALESCE($3, email),
-           role = COALESCE($4, role),
-           phone = COALESCE($5, phone),
-           specializations = COALESCE($6, specializations),
-           is_active = COALESCE($7, is_active),
+           pseudo = COALESCE($3, pseudo),
+           first_name = COALESCE($4, first_name),
+           last_name = COALESCE($5, last_name),
+           role = COALESCE($6, role),
+           phone = COALESCE($7, phone),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, email, role, phone, specializations, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, email?.toLowerCase(), role, phone, specializations, isActive]
+       RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
+                 role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [req.params.id, name, pseudo, firstName || null, lastName || null, role, phone]
     );
 
     if (updated.rowCount === 0) {
@@ -151,8 +184,6 @@ router.put('/:id', protect, async (req, res) => {
       }
     }
 
-    await logActivity({ req, action: 'UPDATE', resource: 'user', resourceId: req.params.id, resourceName: name || 'User' });
-
     return res.json({ success: true, data: updated.rows[0] });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
@@ -167,8 +198,6 @@ router.delete('/:id', protect, async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-
-    await logActivity({ req, action: 'DELETE', resource: 'user', resourceId: req.params.id });
 
     return res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
@@ -189,7 +218,8 @@ router.put('/:id/password', protect, async (req, res) => {
     const updated = await query(
       `UPDATE users SET password_hash = $2, updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, email, role, phone, specializations, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"`,
+       RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
+                 role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
       [req.params.id, passwordHash]
     );
 
@@ -197,9 +227,42 @@ router.put('/:id/password', protect, async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    await logActivity({ req, action: 'UPDATE', resource: 'user-password', resourceId: req.params.id });
-
     return res.json({ success: true, data: updated.rows[0], message: 'Password updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/me/password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'currentPassword and newPassword are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters' });
+    }
+
+    const userResult = await query(
+      `SELECT id, password_hash FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const isMatch = await bcryptjs.compare(currentPassword, userResult.rows[0].password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcryptjs.hash(newPassword, 10);
+    const updated = await query(
+      `UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1 RETURNING id`,
+      [req.user.id, passwordHash]
+    );
+
+    return res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

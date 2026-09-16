@@ -1,8 +1,20 @@
 import pg from 'pg';
+import { AsyncLocalStorage } from 'async_hooks';
 
 const { Pool } = pg;
 
 let pool = null;
+
+interface UserContext {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  userPseudo: string;
+  client?: pg.PoolClient;
+}
+
+export const userContextStore = new AsyncLocalStorage<UserContext>();
 
 const getPoolConfig = () => {
   const connectionString = process.env.DATABASE_URL;
@@ -33,19 +45,33 @@ const getPoolConfig = () => {
   };
 };
 
-const getPool = () => {
+export const getPool = () => {
   if (!pool) {
     pool = new Pool(getPoolConfig());
     pool.on('connect', (client) => {
       client.query('SET search_path TO public').catch((error) => {
-        console.error(`Failed to set search_path to public: ${error.message}`);
+        void error;
       });
     });
   }
   return pool;
 };
 
-export const query = (text, params = []) => getPool().query(text, params);
+export const query = async (text: string, params: any[] = []) => {
+  const ctx = userContextStore.getStore();
+  if (ctx?.client) {
+    return ctx.client.query(text, params);
+  }
+  return getPool().query(text, params);
+};
+
+export const getClient = async () => {
+  const ctx = userContextStore.getStore();
+  if (ctx?.client) {
+    return ctx.client;
+  }
+  return getPool().connect();
+};
 
 export const closePool = async () => {
   if (pool) {
@@ -57,9 +83,7 @@ export const closePool = async () => {
 export const connectDB = async () => {
   try {
     await query('SELECT 1');
-    console.log('PostgreSQL connected');
   } catch (error) {
-    console.error(`PostgreSQL connection error: ${error.message}`);
     process.exit(1);
   }
 };

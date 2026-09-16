@@ -1,35 +1,24 @@
 import express from 'express';
 import { query } from '../config/db.js';
 import { protect } from '../middleware/auth.js';
-import { logActivity } from '../utils/activity-logger.js';
-
 const router = express.Router();
 
 const paymentSelect = `
-  SELECT p.id, p.invoice_id AS "invoiceId", p.patient_id AS "patientId", p.amount,
+  SELECT p.id, p.patient_id AS "patientId", p.amount,
          p.payment_method AS "paymentMethod", p.status,
-         p.stripe_payment_intent_id AS "stripePaymentIntentId", p.transaction_id AS "transactionId",
-         p.receipt_url AS "receiptUrl", p.notes,
+         p.notes,
          p.processed_date AS "processedDate", p.created_at AS "createdAt", p.updated_at AS "updatedAt",
          c.first_name AS "patientFirstName", c.last_name AS "patientLastName",
-         i.invoice_number AS "invoiceNumber", i.total AS "invoiceTotal"
+         u.name AS "createdByName"
   FROM payments p
   JOIN patients c ON c.id = p.patient_id
-  LEFT JOIN invoices i ON i.id = p.invoice_id
+  LEFT JOIN users u ON u.id = p.created_by
 `;
 
 router.get('/', protect, async (req, res) => {
   try {
-    const params = [];
-    let where = '';
-
-    if (req.user.role !== 'admin') {
-      params.push(req.user.id);
-      where = `WHERE c.practitioner_id = $${params.length}`;
-    }
-
-    const payments = await query(`${paymentSelect} ${where} ORDER BY p.created_at DESC LIMIT 100`, params);
-    const total = await query(`SELECT COUNT(*)::int AS count FROM payments p JOIN patients c ON c.id = p.patient_id ${where}`, params);
+    const payments = await query(`${paymentSelect} ORDER BY p.created_at DESC LIMIT 100`);
+    const total = await query(`SELECT COUNT(*)::int AS count FROM payments`);
 
     return res.json({
       success: true,
@@ -59,47 +48,54 @@ router.get('/:id', protect, async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const { patientId, invoiceId, amount, paymentMethod, notes } = req.body;
+    const { patientId, amount, paymentMethod, notes, paymentDate } = req.body;
 
-    if (!patientId || !amount) {
+    if (!patientId || amount === undefined || amount === null) {
       return res.status(400).json({ success: false, error: 'Patient ID and amount are required' });
     }
 
     const safeAmount = Number(amount);
-    if (Number.isNaN(safeAmount) || safeAmount <= 0) {
-      return res.status(400).json({ success: false, error: 'Payment amount must be greater than 0' });
+    if (Number.isNaN(safeAmount) || safeAmount < 0) {
+      return res.status(400).json({ success: false, error: 'Payment amount must be 0 or greater' });
+    }
+    if (safeAmount <= 0 && !notes) {
+      return res.status(400).json({ success: false, error: 'A mount of 0 requires notes' });
     }
 
-    const patient = await query('SELECT id, practitioner_id AS "practitionerId" FROM patients WHERE id = $1', [patientId]);
+    const patient = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
     if (patient.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Patient not found' });
     }
 
-    if (req.user.role !== 'admin' && patient.rows[0].practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, error: 'Not authorized' });
+    if (safeAmount === 0) {
+      const packCheck = await query(
+        `SELECT pp.total_sessions, pp.remaining_sessions
+         FROM patient_packs pp
+         WHERE pp.patient_id = $1 AND pp.remaining_sessions > 0
+         ORDER BY pp.created_at DESC LIMIT 1`,
+        [patientId]
+      );
+      if (packCheck.rowCount > 0) {
+        const pack = packCheck.rows[0];
+        if (pack.remaining_sessions === pack.total_sessions - 1) {
+          return res.status(400).json({
+            success: false,
+            error: 'Un montant de 0 est interdit pour la première séance d\'un pack. Veuillez saisir un montant supérieur à 0.',
+          });
+        }
+      }
     }
 
-    if (invoiceId) {
-      const invoice = await query('SELECT id, patient_id AS "patientId" FROM expenses WHERE id = $1', [invoiceId]);
-      if (invoice.rowCount === 0) {
-        return res.status(404).json({ success: false, error: 'Invoice not found' });
-      }
-
-      if (invoice.rows[0].patientId !== patientId) {
-        return res.status(400).json({ success: false, error: 'Invoice does not belong to the selected patient' });
-      }
-    }
+    const processedDate = paymentDate || new Date().toISOString();
 
     const inserted = await query(
-      `INSERT INTO payments (patient_id, invoice_id, amount, payment_method, status, notes, processed_date)
-       VALUES ($1, $2, $3, $4, 'completed', $5, NOW())
+      `INSERT INTO payments (patient_id, amount, payment_method, status, notes, processed_date, created_by)
+       VALUES ($1, $2, $3, 'completed', $4, $5, $6)
        RETURNING id`,
-      [patientId, invoiceId || null, safeAmount, paymentMethod || 'cash', notes || null]
+      [patientId, safeAmount, paymentMethod || 'cash', notes || null, processedDate, req.user.id]
     );
 
     const created = await query(`${paymentSelect} WHERE p.id = $1`, [inserted.rows[0].id]);
-
-    await logActivity({ req, action: 'CREATE', resource: 'payment', resourceId: inserted.rows[0].id });
 
     return res.status(201).json({ success: true, data: created.rows[0] });
   } catch (error) {
@@ -112,8 +108,7 @@ router.put('/:id', protect, async (req, res) => {
     const { amount, paymentMethod, status, notes } = req.body;
 
     const existing = await query(
-      `SELECT p.id, c.practitioner_id AS "practitionerId"
-       FROM payments p
+      `SELECT p.id FROM payments p
        JOIN patients c ON c.id = p.patient_id
        WHERE p.id = $1`,
       [req.params.id]
@@ -122,14 +117,10 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Payment not found' });
     }
 
-    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, error: 'Not authorized' });
-    }
-
     if (amount !== undefined) {
       const safeAmount = Number(amount);
-      if (Number.isNaN(safeAmount) || safeAmount <= 0) {
-        return res.status(400).json({ success: false, error: 'Payment amount must be greater than 0' });
+      if (Number.isNaN(safeAmount) || safeAmount < 0) {
+        return res.status(400).json({ success: false, error: 'Payment amount must be 0 or greater' });
       }
     }
 
@@ -155,8 +146,7 @@ router.put('/:id', protect, async (req, res) => {
 router.delete('/:id', protect, async (req, res) => {
   try {
     const existing = await query(
-      `SELECT p.id, c.practitioner_id AS "practitionerId"
-       FROM payments p
+      `SELECT p.id FROM payments p
        JOIN patients c ON c.id = p.patient_id
        WHERE p.id = $1`,
       [req.params.id]
@@ -164,10 +154,6 @@ router.delete('/:id', protect, async (req, res) => {
 
     if (existing.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Payment not found' });
-    }
-
-    if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
-      return res.status(403).json({ success: false, error: 'Not authorized' });
     }
 
     const result = await query('DELETE FROM payments WHERE id = $1 RETURNING id', [req.params.id]);

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,7 @@ export interface CompanyFormData {
   owner?: string;
   rc?: string;
   nif?: string;
-  nis?: string;
+  art?: string;
 }
 
 interface CompanyFormProps {
@@ -37,7 +38,7 @@ export default function CompanyForm({
       owner: '',
       rc: '',
       nif: '',
-      nis: '',
+      art: '',
     }
   );
   const [error, setError] = useState('');
@@ -75,7 +76,7 @@ export default function CompanyForm({
         owner: formData.owner?.trim() || undefined,
         rc: formData.rc?.trim() || undefined,
         nif: formData.nif?.trim() || undefined,
-        nis: formData.nis?.trim() || undefined,
+        art: formData.art?.trim() || undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.');
@@ -145,10 +146,10 @@ export default function CompanyForm({
               />
             </Field>
             <Field>
-              <FieldLabel>NIS</FieldLabel>
+              <FieldLabel>Art (Num d'article)</FieldLabel>
               <Input
-                value={formData.nis || ''}
-                onChange={(e) => handleInputChange('nis', e.target.value)}
+                value={formData.art || ''}
+                onChange={(e) => handleInputChange('art', e.target.value)}
                 disabled={isFormLoading}
               />
             </Field>
@@ -159,8 +160,7 @@ export default function CompanyForm({
       <Button type="submit" className="w-full" disabled={isFormLoading}>
         {isFormLoading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Enregistrement...
+            <Spinner size="sm" />
           </>
         ) : (
           submitButtonText

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export interface CompanyInvoiceItemForm {
-  designation: string;
+  description: string;
   sessionCount: number;
   learnerCount: number;
   unitPrice: number;
-  totalHT: number;
+  subtotal: number;
 }
 
 export interface CompanyInvoiceFormData {
@@ -24,10 +25,10 @@ export interface CompanyInvoiceFormData {
   invoiceDate: string;
   items: CompanyInvoiceItemForm[];
   discount: number;
-  vat: number;
-  totalHT: number;
-  totalDiscountHT: number;
-  totalTTC: number;
+  vatAmount: number;
+  subtotal: number;
+  discountedTotal: number;
+  grandTotal: number;
 }
 
 interface CompanyOption {
@@ -43,11 +44,11 @@ interface CompanyInvoiceFormProps {
 }
 
 const EMPTY_ITEM: CompanyInvoiceItemForm = {
-  designation: '',
+  description: '',
   sessionCount: 0,
   learnerCount: 0,
   unitPrice: 0,
-  totalHT: 0,
+  subtotal: 0,
 };
 
 export default function CompanyInvoiceForm({
@@ -63,10 +64,10 @@ export default function CompanyInvoiceForm({
       invoiceDate: '',
       items: [{ ...EMPTY_ITEM }],
       discount: 0,
-      vat: 0,
-      totalHT: 0,
-      totalDiscountHT: 0,
-      totalTTC: 0,
+      vatAmount: 0,
+      subtotal: 0,
+      discountedTotal: 0,
+      grandTotal: 0,
     }
   );
   const [error, setError] = useState('');
@@ -79,13 +80,13 @@ export default function CompanyInvoiceForm({
   }, [initialData]);
 
   const totals = useMemo(() => {
-    const totalHT = formData.items.reduce((sum, item) => sum + (item.totalHT || 0), 0);
+    const subtotal = formData.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const discount = Number(formData.discount || 0);
-    const totalDiscountHT = Math.max(totalHT - discount, 0);
-    const vat = Number(formData.vat || 0);
-    const totalTTC = totalDiscountHT + vat;
-    return { totalHT, totalDiscountHT, totalTTC };
-  }, [formData.items, formData.discount, formData.vat]);
+    const discountedTotal = Math.max(subtotal - discount, 0);
+    const vatAmount = Number(formData.vatAmount || 0);
+    const grandTotal = discountedTotal + vatAmount;
+    return { subtotal, discountedTotal, grandTotal };
+  }, [formData.items, formData.discount, formData.vatAmount]);
 
   const handleItemChange = (index: number, field: keyof CompanyInvoiceItemForm, value: string) => {
     setError('');
@@ -93,14 +94,14 @@ export default function CompanyInvoiceForm({
       const items = prev.items.map((item, idx) => {
         if (idx !== index) return item;
         const next = { ...item } as CompanyInvoiceItemForm;
-        if (field === 'designation') {
-          next.designation = value;
+        if (field === 'description') {
+          next.description = value;
         } else {
           const numberValue = Number(value || 0);
           next[field] = numberValue as never;
         }
 
-        next.totalHT = Number(next.sessionCount || 0) * Number(next.learnerCount || 0) * Number(next.unitPrice || 0);
+        next.subtotal = Number(next.sessionCount || 0) * Number(next.learnerCount || 0) * Number(next.unitPrice || 0);
         return next;
       });
 
@@ -155,7 +156,7 @@ export default function CompanyInvoiceForm({
       return;
     }
 
-    const hasValidItem = formData.items.some((item) => item.designation.trim());
+    const hasValidItem = formData.items.some((item) => item.description.trim());
     if (!hasValidItem) {
       setError('Veuillez renseigner au moins une ligne.');
       return;
@@ -167,15 +168,15 @@ export default function CompanyInvoiceForm({
         ...formData,
         items: formData.items.map((item) => ({
           ...item,
-          designation: item.designation.trim(),
+          description: item.description.trim(),
           sessionCount: Number(item.sessionCount || 0),
           learnerCount: Number(item.learnerCount || 0),
           unitPrice: Number(item.unitPrice || 0),
-          totalHT: Number(item.totalHT || 0),
+          subtotal: Number(item.subtotal || 0),
         })),
-        totalHT: totals.totalHT,
-        totalDiscountHT: totals.totalDiscountHT,
-        totalTTC: totals.totalTTC,
+        subtotal: totals.subtotal,
+        discountedTotal: totals.discountedTotal,
+        grandTotal: totals.grandTotal,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.');
@@ -254,7 +255,7 @@ export default function CompanyInvoiceForm({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Designation</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Nombre de seances</TableHead>
                 <TableHead>Nb apprenants</TableHead>
                 <TableHead>P.U./heure (HT)</TableHead>
@@ -267,8 +268,8 @@ export default function CompanyInvoiceForm({
                 <TableRow key={`item-${index}`}>
                   <TableCell>
                     <Input
-                      value={item.designation}
-                      onChange={(e) => handleItemChange(index, 'designation', e.target.value)}
+                      value={item.description}
+                      onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                       disabled={isFormLoading}
                     />
                   </TableCell>
@@ -302,7 +303,7 @@ export default function CompanyInvoiceForm({
                   </TableCell>
                   <TableCell>
                     <Input
-                      value={item.totalHT.toFixed(2)}
+                      value={item.subtotal.toFixed(2)}
                       disabled
                       readOnly
                     />
@@ -339,7 +340,7 @@ export default function CompanyInvoiceForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field>
               <FieldLabel>Total HT</FieldLabel>
-              <Input value={totals.totalHT.toFixed(2)} readOnly disabled />
+              <Input value={totals.subtotal.toFixed(2)} readOnly disabled />
             </Field>
             <Field>
               <FieldLabel>Remise</FieldLabel>
@@ -354,7 +355,7 @@ export default function CompanyInvoiceForm({
             </Field>
             <Field>
               <FieldLabel>Total remise (HT)</FieldLabel>
-              <Input value={totals.totalDiscountHT.toFixed(2)} readOnly disabled />
+              <Input value={totals.discountedTotal.toFixed(2)} readOnly disabled />
             </Field>
             <Field>
               <FieldLabel>TVA</FieldLabel>
@@ -362,14 +363,14 @@ export default function CompanyInvoiceForm({
                 type="number"
                 min="0"
                 step="0.01"
-                value={formData.vat}
-                onChange={(e) => handleNumberChange('vat', e.target.value)}
+                value={formData.vatAmount}
+                onChange={(e) => handleNumberChange('vatAmount', e.target.value)}
                 disabled={isFormLoading}
               />
             </Field>
             <Field>
               <FieldLabel>Total (TTC)</FieldLabel>
-              <Input value={totals.totalTTC.toFixed(2)} readOnly disabled />
+              <Input value={totals.grandTotal.toFixed(2)} readOnly disabled />
             </Field>
           </div>
         </CardContent>
@@ -378,8 +379,7 @@ export default function CompanyInvoiceForm({
       <Button type="submit" className="w-full" disabled={isFormLoading}>
         {isFormLoading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Enregistrement...
+            <Spinner size="sm" />
           </>
         ) : (
           'Enregistrer la facture'

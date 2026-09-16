@@ -7,6 +7,7 @@ import { sessionNotes, patients } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, FileText } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Note {
@@ -15,9 +16,7 @@ interface Note {
   appointmentStartTime?: string;
   serviceName?: string;
   practitionerName?: string;
-  presentingConcerns?: string;
   progressNotes?: string;
-  observations?: string;
   createdAt: string;
 }
 
@@ -37,7 +36,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function getNoteBody(note: Note) {
-  return note.progressNotes || note.presentingConcerns || note.observations || '';
+  return note.progressNotes || '';
 }
 
 export default function PatientNotesPage() {
@@ -86,11 +85,7 @@ export default function PatientNotesPage() {
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   const sortedNotes = [...notes].sort((a, b) => {
@@ -107,7 +102,7 @@ export default function PatientNotesPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
               {patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
             </h1>
           </div>

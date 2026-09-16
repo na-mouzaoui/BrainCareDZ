@@ -6,13 +6,20 @@ import { useAuth } from '@/lib/auth-context';
 import { patients } from '@/lib/api';
 import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, Plus, Search, Edit2, Trash2, FileText, History } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, History } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FilterDialog, {
+  type FilterField,
+  type FilterValues,
+  resetFilters,
+} from '@/components/filter-dialog';
+import { useSort, SortableHeader } from '@/components/sortable-header';
 
 interface Patient {
   id: string;
@@ -20,12 +27,13 @@ interface Patient {
   lastName: string;
   email: string;
   phone: string;
-  status: string;
   sessionCount: number;
   balance: number;
+  practitionerName?: string;
   packServiceName?: string;
   packRemaining?: number;
   packTotal?: number;
+  packPricePerSession?: number;
   packList?: Array<{
     serviceName: string;
     packTotal: number;
@@ -33,57 +41,52 @@ interface Patient {
     nextAppointment?: string | null;
   }>;
   lastSessionDate?: string;
+  consecutiveNoShows?: number;
+  isProspect?: boolean;
+  createdAt?: string;
 }
 
 export default function PatientsPage() {
   const [patientsList, setPatientsList] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
-const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<FilterValues>({});
+  const filterFields: FilterField[] = [
+    { key: 'name', label: 'Nom / Email / Téléphone', type: 'text', placeholder: 'Rechercher un patient' },
+    { key: 'practitionerName', label: 'Praticien en charge', type: 'text', placeholder: 'Nom du praticien' },
+    { key: 'packServiceName', label: 'Pack', type: 'text', placeholder: 'Nom du pack' },
+    { key: 'sessionCount', label: 'Nombre de séances', type: 'number-range' },
+    { key: 'balance', label: 'Solde (DZD)', type: 'number-range' },
+    { key: 'isProspect', label: 'Prospects uniquement', type: 'checkbox' },
+  ];
   const [createOpen, setCreateOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
-  const [editPatientData, setEditPatientData] = useState<PatientFormData | undefined>(undefined);
-  const [editLoading, setEditLoading] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [viewPatientData, setViewPatientData] = useState<PatientFormData | undefined>(undefined);
-  const [viewLoading, setViewLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredPatients);
+  const { sortKey, direction, toggleSort, sortedItems } = useSort(
+    filteredPatients,
+    {
+      name: (p) => `${p.firstName} ${p.lastName}`,
+      email: (p) => p.email || '',
+      phone: (p) => p.phone,
+      practitionerName: (p) => p.practitionerName || '',
+      packServiceName: (p) => p.packServiceName || '',
+      balance: (p) => Number(p.balance) || 0,
+      isProspect: (p) => (p.isProspect ? 1 : 0),
+      createdAt: (p) => p.createdAt || '',
+    },
+    'name'
+  );
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(sortedItems);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
-  async function loadViewPatient(id: string) {
-    try {
-      setViewLoading(true);
-      const response = await patients.getById(id);
-      if (response.success && response.data) {
-        setViewPatientData(response.data as PatientFormData);
-      } else {
-        setError(response.message || 'Impossible de charger le patient');
-      }
-    } catch {
-      setError('Une erreur est survenue lors du chargement du patient');
-    } finally {
-      setViewLoading(false);
-    }
-  }
-
   function handleOpenView(patient: Patient) {
-    setSelectedPatient(patient);
-    setViewOpen(true);
-    loadViewPatient(patient.id);
-  }
-
-  function handleCloseView() {
-    setViewOpen(false);
-    setSelectedPatient(null);
-    setViewPatientData(undefined);
+    router.push(`/patients/${patient.id}`);
   }
 
   useEffect(() => {
@@ -98,18 +101,56 @@ const [searchTerm, setSearchTerm] = useState('');
   }, [isAuthenticated, authLoading, router]);
 
   useEffect(() => {
-    if (!searchTerm) {
-      setFilteredPatients(patientsList);
-    } else {
-      const filtered = patientsList.filter(
-        (patient) =>
-          `${patient.firstName} ${patient.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          patient.phone.includes(searchTerm)
-      );
-      setFilteredPatients(filtered);
-    }
-  }, [searchTerm, patientsList]);
+    const filtered = patientsList.filter((patient) => {
+      for (const [key, rawValue] of Object.entries(filters)) {
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+
+        if (typeof rawValue === 'object') {
+          const range = rawValue as { from?: string; to?: string; min?: number; max?: number };
+
+          if (key === 'sessionCount') {
+            const sessionValue = patient.sessionCount || 0;
+            if (range.min !== undefined && !Number.isNaN(range.min) && sessionValue < range.min) return false;
+            if (range.max !== undefined && !Number.isNaN(range.max) && sessionValue > range.max) return false;
+          }
+
+          if (key === 'balance') {
+            const balanceValue = Number(patient.balance) || 0;
+            if (range.min !== undefined && !Number.isNaN(range.min) && balanceValue < range.min) return false;
+            if (range.max !== undefined && !Number.isNaN(range.max) && balanceValue > range.max) return false;
+          }
+
+          continue;
+        }
+
+        const value = String(rawValue).toLowerCase();
+        switch (key) {
+          case 'practitionerName':
+            if (!(patient.practitionerName || '').toLowerCase().includes(value)) return false;
+            break;
+          case 'packServiceName':
+            if (!(patient.packServiceName || '').toLowerCase().includes(value)) return false;
+            break;
+          case 'name':
+            {
+              const haystack = `${patient.firstName} ${patient.lastName}`.toLowerCase() +
+                (patient.email || '').toLowerCase() +
+                patient.phone.toLowerCase();
+              if (!haystack.includes(value)) return false;
+            }
+            break;
+          case 'isProspect':
+            {
+              if (value === 'true' && !patient.isProspect) return false;
+            }
+            break;
+        }
+      }
+
+      return true;
+    });
+    setFilteredPatients(filtered);
+  }, [patientsList, filters]);
 
   async function loadPatients(): Promise<Patient[]> {
     try {
@@ -150,28 +191,6 @@ const [searchTerm, setSearchTerm] = useState('');
     }
   }
 
-  useEffect(() => {
-    if (!authLoading && isAuthenticated && editingPatientId) {
-      loadEditPatient(editingPatientId);
-    }
-  }, [authLoading, isAuthenticated, editingPatientId]);
-
-  async function loadEditPatient(id: string) {
-    try {
-      setEditLoading(true);
-      const response = await patients.getById(id);
-      if (response.success && response.data) {
-        setEditPatientData(response.data as PatientFormData);
-      } else {
-        setError(response.message || 'Impossible de charger le patient');
-      }
-    } catch {
-      setError('Une erreur est survenue lors du chargement du patient');
-    } finally {
-      setEditLoading(false);
-    }
-  }
-
   async function handleCreatePatient(data: PatientFormData) {
     const response = await patients.create(data);
     if (!response.success) {
@@ -187,41 +206,47 @@ const [searchTerm, setSearchTerm] = useState('');
     }
   }
 
-  async function handleUpdatePatient(data: PatientFormData) {
-    if (!editingPatientId) return;
-    const response = await patients.update(editingPatientId, data);
+  async function handleEditPatient(data: PatientFormData) {
+    if (!editingPatient) return;
+    const response = await patients.update(editingPatient.id, data);
     if (!response.success) {
-      throw new Error(response.message || response.error || 'Échec de la mise à jour du patient');
+      throw new Error(response.message || response.error || 'Échec de la modification du patient');
     }
     setEditOpen(false);
-    setEditingPatientId(null);
-    setEditPatientData(undefined);
+    setEditingPatient(null);
     await loadPatients();
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   return (
     <div>
       <div className="mb-8">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Patients</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Patients</h1>
           </div>
-          <Button
-            onClick={() => setCreateOpen(true)}
-            className="gap-2 bg-brand-700 hover:bg-brand-800"
-          >
-            <Plus className="h-4 w-4" />
-            Nouveau patient
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="gap-2 bg-brand-700 hover:bg-brand-800"
+            >
+              <Plus className="h-4 w-4" />
+              Nouveau patient
+            </Button>
+          </div>
         </div>
+      </div>
+
+      <div className="mb-8 w-full">
+        <FilterDialog
+          fields={filterFields}
+          values={filters}
+          onChange={setFilters}
+          onReset={() => setFilters(resetFilters(filterFields))}
+        />
       </div>
 
       {error && (
@@ -230,21 +255,6 @@ const [searchTerm, setSearchTerm] = useState('');
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex gap-2">
-            <Search className="h-5 w-5 text-gray-400 absolute ml-3 mt-2.5" />
-            <Input
-              placeholder="Rechercher par nom, e-mail ou téléphone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-            </div>
-            <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
-          </CardContent>
-        </Card>
 
       {filteredPatients.length > 0 ? (
         <Card>
@@ -258,11 +268,12 @@ const [searchTerm, setSearchTerm] = useState('');
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>E-mail</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>Pack</TableHead>
-                    <TableHead>Solde</TableHead>
+                    <SortableHeader label="Nom" sortKey="name" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Téléphone" sortKey="phone" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Praticien" sortKey="practitionerName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Pack" sortKey="packServiceName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Solde" sortKey="balance" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Créé le" sortKey="createdAt" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -275,21 +286,39 @@ const [searchTerm, setSearchTerm] = useState('');
                         onClick={() => handleOpenView(patient)}
                       >
                         <TableCell className="font-medium">
-                          {patient.firstName} {patient.lastName}
+                          <span className={
+                            (patient.consecutiveNoShows ?? 0) >= 3 ? 'text-red-600 font-bold' :
+                            (patient.consecutiveNoShows ?? 0) >= 2 ? 'text-orange-500 font-bold' : ''
+                          }>
+                            {patient.firstName} {patient.lastName}
+                          </span>
                         </TableCell>
-                        <TableCell>{patient.email || '—'}</TableCell>
                         <TableCell>{patient.phone}</TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {patient.practitionerName || '—'}
+                        </TableCell>
                         <TableCell>
                           {patient.packServiceName && (patient.packRemaining ?? 0) > 0 ? (
                             <span className="text-sm font-medium text-brand-700">
-                              {patient.packServiceName} ({patient.packRemaining || 0})
+                              {patient.packServiceName} ({patient.packRemaining || 0} / {patient.packTotal || 0})
                             </span>
                           ) : (
                             <span className="text-gray-400">—</span>
                           )}
                         </TableCell>
                         <TableCell className={patient.balance > 0 ? 'text-green-600 font-semibold' : patient.balance < 0 ? 'text-red-600 font-semibold' : ''}>
-                          {patient.balance > 0 ? '+' : ''}{patient.balance} DZD
+                          {patient.packServiceName && patient.balance < (patient.packPricePerSession ?? 0) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertCircle className="inline-block h-4 w-4 mr-1 text-red-500 cursor-help" aria-label="Solde insuffisant" />
+                              </TooltipTrigger>
+                              <TooltipContent>Solde insuffisant pour une séance</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {patient.balance > 0 ? '+' : ''}{Number(patient.balance).toLocaleString('fr-FR')} DZD
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString('fr-FR') : '—'}
                         </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
@@ -312,11 +341,11 @@ const [searchTerm, setSearchTerm] = useState('');
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingPatientId(patient.id);
-                            setEditOpen(true);
-                          }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPatient(patient);
+                              setEditOpen(true);
+                            }}
                           className="gap-2"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -339,6 +368,7 @@ const [searchTerm, setSearchTerm] = useState('');
               </TableBody>
               </Table>
             </div>
+            <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           </CardContent>
         </Card>
       ) : (
@@ -346,7 +376,7 @@ const [searchTerm, setSearchTerm] = useState('');
           <CardContent className="pt-12">
             <div className="text-center">
               <p className="text-gray-500 mb-4">
-                {searchTerm ? 'Aucun patient ne correspond à votre recherche' : 'Aucun patient pour le moment'}
+                Aucun patient pour le moment
               </p>
               <Button
                 onClick={() => setCreateOpen(true)}
@@ -372,62 +402,20 @@ const [searchTerm, setSearchTerm] = useState('');
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditingPatientId(null); setEditPatientData(undefined); } }}>
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditingPatient(null); }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>Modifier le patient</DialogTitle>
             <DialogDescription>
-              Mettez à jour les informations du patient.
+              Modifiez les informations du patient.
             </DialogDescription>
           </DialogHeader>
-          <PatientForm
-            initialData={editPatientData}
-            isLoading={editLoading}
-            onSubmit={handleUpdatePatient}
-            submitButtonText="Enregistrer les modifications"
-            key={editingPatientId}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={viewOpen} onOpenChange={(open) => { if (!open) handleCloseView(); }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader className="px-6 pt-6 pb-0">
-            <DialogTitle>
-              {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Détails du patient'}
-            </DialogTitle>
-            <DialogDescription>
-              Informations sur le patient (lecture seule)
-            </DialogDescription>
-          </DialogHeader>
-          {viewLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-            </div>
-          ) : selectedPatient ? (
-            <div className="px-6 pb-6">
-              <PatientForm
-                initialData={viewPatientData}
-                onSubmit={async () => {}}
-                readOnly
-                key={selectedPatient.id}
-              />
-              <div className="mt-4 flex justify-end border-t pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    handleCloseView();
-                    router.push(`/patients/${selectedPatient.id}/notes`);
-                  }}
-                >
-                  <FileText className="h-4 w-4" />
-                  Voir l'historique des comptes rendus
-                </Button>
-              </div>
-            </div>
-          ) : null}
+          {editingPatient && (
+            <PatientForm
+              initialData={editingPatient as unknown as PatientFormData}
+              onSubmit={handleEditPatient}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -442,9 +430,7 @@ const [searchTerm, setSearchTerm] = useState('');
             </DialogDescription>
           </DialogHeader>
           {historyLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-            </div>
+            <Spinner />
           ) : historyData.length === 0 ? (
             <p className="text-gray-500 text-center py-8">Aucune séance trouvée</p>
           ) : (

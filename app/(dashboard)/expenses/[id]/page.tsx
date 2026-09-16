@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { expenses } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ExpenseDetail {
@@ -61,18 +62,14 @@ export default function InvoiceDetailPage() {
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   if (error || !expense) {
     return (
       <div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Détails de la dépense</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Détails de la dépense</h1>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -85,14 +82,14 @@ export default function InvoiceDetailPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">{expense.title}</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{expense.title}</h1>
       </div>
       <Card>
         <CardHeader>
           <CardTitle>Détails de la dépense</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-medium text-gray-600">Catégorie</p>
               <p className="text-lg">{expense.category || '-'}</p>

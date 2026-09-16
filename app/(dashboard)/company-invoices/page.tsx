@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Edit2, Plus, Trash2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth-context';
 import { companies, companyInvoices } from '@/lib/api';
 import CompanyForm, { type CompanyFormData } from '@/components/company-form';
@@ -14,6 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
+import { useMemo } from 'react';
+import FilterDialog, {
+  type FilterField,
+  type FilterValues,
+  resetFilters,
+} from '@/components/filter-dialog';
+import { useSort, SortableHeader } from '@/components/sortable-header';
 
 interface CompanyOption {
   id: string;
@@ -25,7 +33,7 @@ interface CompanyRecord extends CompanyOption {
   owner?: string;
   rc?: string;
   nif?: string;
-  nis?: string;
+  art?: string;
 }
 
 interface CompanyInvoiceListItem {
@@ -34,7 +42,7 @@ interface CompanyInvoiceListItem {
   companyName: string;
   reference: string;
   invoiceDate: string;
-  totalTTC: number;
+  grandTotal: number;
 }
 
 export default function CompanyInvoicesPage() {
@@ -47,7 +55,96 @@ export default function CompanyInvoicesPage() {
   const [invoiceList, setInvoiceList] = useState<CompanyInvoiceListItem[]>([]);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invoices' | 'companies'>('invoices');
-  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(invoiceList);
+  const [invoiceFilters, setInvoiceFilters] = useState<FilterValues>({});
+  const [companyFilters, setCompanyFilters] = useState<FilterValues>({});
+
+  const invoiceFilterFields: FilterField[] = [
+    { key: 'reference', label: 'Référence', type: 'text', placeholder: 'Référence de la facture' },
+    { key: 'companyName', label: 'Entreprise', type: 'text', placeholder: 'Nom de l\'entreprise' },
+    { key: 'dateRange', label: 'Date de facture', type: 'date-range' },
+    { key: 'grandTotal', label: 'Total TTC (DZD)', type: 'number-range' },
+  ];
+
+  const companyFilterFields: FilterField[] = [
+    { key: 'name', label: 'Nom', type: 'text', placeholder: 'Nom de l\'entreprise' },
+    { key: 'owner', label: 'Propriétaire', type: 'text', placeholder: 'Nom du propriétaire' },
+    { key: 'address', label: 'Adresse', type: 'text', placeholder: 'Adresse' },
+    { key: 'rc', label: 'RC', type: 'text', placeholder: 'Registre de commerce' },
+    { key: 'nif', label: 'NIF', type: 'text', placeholder: 'NIF' },
+    { key: 'art', label: 'Art', type: 'text', placeholder: 'Art' },
+  ];
+
+  const filteredInvoiceList = useMemo(() => {
+    return invoiceList.filter((invoice) => {
+      for (const [key, rawValue] of Object.entries(invoiceFilters)) {
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+
+        if (typeof rawValue === 'object') {
+          const range = rawValue as { from?: string; to?: string; min?: number; max?: number };
+
+          if (key === 'grandTotal') {
+            const total = Number(invoice.grandTotal) || 0;
+            if (range.min !== undefined && !Number.isNaN(range.min) && total < range.min) return false;
+            if (range.max !== undefined && !Number.isNaN(range.max) && total > range.max) return false;
+          }
+
+          if (key === 'dateRange') {
+            const time = new Date(invoice.invoiceDate).getTime();
+            const from = range.from ? new Date(`${range.from}T00:00:00`).getTime() : null;
+            const to = range.to ? new Date(`${range.to}T23:59:59`).getTime() : null;
+            if (from !== null && time < from) return false;
+            if (to !== null && time > to) return false;
+          }
+
+          continue;
+        }
+
+        const value = String(rawValue).toLowerCase();
+        if (key === 'reference' && !(invoice.reference || '').toLowerCase().includes(value)) return false;
+        if (key === 'companyName' && !(invoice.companyName || '').toLowerCase().includes(value)) return false;
+      }
+
+      return true;
+    });
+  }, [invoiceList, invoiceFilters]);
+
+  const filteredCompanyList = useMemo(() => {
+    return companyList.filter((company) => {
+      for (const [key, rawValue] of Object.entries(companyFilters)) {
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+        const value = String(rawValue).toLowerCase();
+        const fieldValue = (company as Record<string, string | undefined>)[key];
+        if (!(fieldValue || '').toLowerCase().includes(value)) return false;
+      }
+      return true;
+    });
+  }, [companyList, companyFilters]);
+
+  const invoiceSort = useSort(
+    filteredInvoiceList,
+    {
+      reference: (i) => i.reference,
+      companyName: (i) => i.companyName || '',
+      date: (i) => i.invoiceDate || '',
+      grandTotal: (i) => Number(i.grandTotal) || 0,
+    },
+    'date'
+  );
+
+  const companySort = useSort(
+    filteredCompanyList,
+    {
+      name: (c) => c.name,
+      address: (c) => c.address || '',
+      owner: (c) => c.owner || '',
+      rc: (c) => c.rc || '',
+      nif: (c) => c.nif || '',
+      art: (c) => c.art || '',
+    },
+    'name'
+  );
+
+  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(invoiceSort.sortedItems);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -147,18 +244,14 @@ export default function CompanyInvoicesPage() {
   }
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   return (
     <div>
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Factures entreprises</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Factures entreprises</h1>
         </div>
         <div className="flex flex-wrap gap-3">
           {activeTab === 'companies' ? (
@@ -172,6 +265,19 @@ export default function CompanyInvoicesPage() {
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="mb-8 w-full">
+        <FilterDialog
+          fields={activeTab === 'invoices' ? invoiceFilterFields : companyFilterFields}
+          values={activeTab === 'invoices' ? invoiceFilters : companyFilters}
+          onChange={activeTab === 'invoices' ? setInvoiceFilters : setCompanyFilters}
+          onReset={() =>
+            activeTab === 'invoices'
+              ? setInvoiceFilters(resetFilters(invoiceFilterFields))
+              : setCompanyFilters(resetFilters(companyFilterFields))
+          }
+        />
       </div>
 
       {error && (
@@ -190,20 +296,20 @@ export default function CompanyInvoicesPage() {
         <TabsContent value="invoices">
           <Card>
             <CardHeader>
-              <CardTitle>Factures ({totalItems})</CardTitle>
+              <CardTitle>Factures ({filteredInvoiceList.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {invoiceList.length === 0 ? (
+              {filteredInvoiceList.length === 0 ? (
                 <p className="text-gray-500">Aucune facture entreprise disponible.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Reference</TableHead>
-                        <TableHead>Entreprise</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total TTC</TableHead>
+                        <SortableHeader label="Reference" sortKey="reference" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
+                        <SortableHeader label="Entreprise" sortKey="companyName" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
+                        <SortableHeader label="Date" sortKey="date" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
+                        <SortableHeader label="Total TTC" sortKey="grandTotal" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -213,7 +319,7 @@ export default function CompanyInvoicesPage() {
                           <TableCell className="font-medium">{invoice.reference}</TableCell>
                           <TableCell>{invoice.companyName}</TableCell>
                           <TableCell>{new Date(invoice.invoiceDate).toLocaleDateString('fr-FR')}</TableCell>
-                          <TableCell className="font-semibold">{Number(invoice.totalTTC).toFixed(2)} DZD</TableCell>
+                          <TableCell className="font-semibold">{Number(invoice.grandTotal).toFixed(2)} DZD</TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button
                               size="sm"
@@ -239,7 +345,7 @@ export default function CompanyInvoicesPage() {
                   </Table>
                 </div>
               )}
-              {invoiceList.length > 0 && (
+              {filteredInvoiceList.length > 0 && (
                 <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
               )}
             </CardContent>
@@ -249,34 +355,34 @@ export default function CompanyInvoicesPage() {
         <TabsContent value="companies">
           <Card>
             <CardHeader>
-              <CardTitle>Entreprises ({companyList.length})</CardTitle>
+              <CardTitle>Entreprises ({filteredCompanyList.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {companyList.length === 0 ? (
+              {filteredCompanyList.length === 0 ? (
                 <p className="text-gray-500">Aucune entreprise disponible.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Nom</TableHead>
-                        <TableHead>Adresse</TableHead>
-                        <TableHead>Proprietaire</TableHead>
-                        <TableHead>RC</TableHead>
-                        <TableHead>NIF</TableHead>
-                        <TableHead>NIS</TableHead>
+                        <SortableHeader label="Nom" sortKey="name" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="Adresse" sortKey="address" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="Proprietaire" sortKey="owner" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="RC" sortKey="rc" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="NIF" sortKey="nif" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="Art" sortKey="art" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {companyList.map((company) => (
+                      {companySort.sortedItems.map((company) => (
                         <TableRow key={company.id}>
                           <TableCell className="font-medium">{company.name}</TableCell>
                           <TableCell>{company.address || '—'}</TableCell>
                           <TableCell>{company.owner || '—'}</TableCell>
                           <TableCell>{company.rc || '—'}</TableCell>
                           <TableCell>{company.nif || '—'}</TableCell>
-                          <TableCell>{company.nis || '—'}</TableCell>
+                          <TableCell>{company.art || '—'}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
@@ -307,7 +413,7 @@ export default function CompanyInvoicesPage() {
       </Tabs>
 
       <Dialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
-        <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouvelle entreprise</DialogTitle>
           </DialogHeader>

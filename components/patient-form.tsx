@@ -7,7 +7,9 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ALGERIAN_WILAYAS } from '@/lib/communes';
-import { AlertCircle, Loader2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { getPatientLists, DEFAULT_LISTS, type PatientLists } from '@/lib/patient-lists';
+import { AlertCircle, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface PatientFormData {
@@ -23,33 +25,22 @@ export interface PatientFormData {
   hasChildren?: boolean;
   childrenCount?: number;
   profession?: string;
-  educationLevel?: string;
-  socioCategory?: string;
   patientType?: string;
-  showParentInfo?: boolean;
-  parentName?: string;
-  parentRelationship?: string;
   consultationReasons?: string[];
   difficultyDuration?: string;
   previousConsultation?: boolean;
   previousType?: string;
   previousNeurofeedback?: boolean;
   currentFollowUp?: boolean;
-  followUpDetails?: string;
   sourceOfAcquisition?: string;
   sourceDetails?: string;
   sourceSub?: string;
   sourceAccount?: string;
   firstContactDate?: string;
   firstAppointmentDate?: string;
-  appointmentFrequency?: string;
-  plannedSessions?: number;
-  completedSessions?: number;
-  status?: string;
   abandonReason?: string;
   perceivedImprovement?: number;
   observedChanges?: string;
-  improvementStartMonth?: number;
   globalSatisfaction?: number;
   wouldRecommend?: boolean;
 }
@@ -60,19 +51,37 @@ interface PatientFormProps {
   onSubmit?: (data: PatientFormData) => Promise<void>;
   submitButtonText?: string;
   readOnly?: boolean;
+  hideSteps?: boolean;
+  defaultStep?: number;
 }
 
 const STEPS = [
-  { id: 1, title: 'Identité', requiredFields: ['firstName', 'lastName', 'phone', 'dateOfBirth', 'gender'] },
-  { id: 2, title: 'Situation', requiredFields: ['maritalStatus', 'profession', 'educationLevel', 'socioCategory'] },
-  { id: 3, title: 'Motif', requiredFields: ['consultationReasons'] },
+  { id: 1, title: 'Identité', requiredFields: ['firstName', 'lastName', 'phone'] },
+  { id: 2, title: 'Situation', requiredFields: [] },
+  { id: 3, title: 'Motif', requiredFields: [] },
   { id: 4, title: 'Historique', requiredFields: [] },
-  { id: 5, title: 'Source', requiredFields: ['sourceOfAcquisition'] },
+  { id: 5, title: 'Source', requiredFields: [] },
 ];
 
 interface ValidationResult {
   isValid: boolean;
   errors: string[];
+}
+
+function toDateInputValue(value?: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeInitialData(data: PatientFormData): PatientFormData {
+  return {
+    ...data,
+    dateOfBirth: toDateInputValue(data.dateOfBirth),
+    firstContactDate: toDateInputValue(data.firstContactDate),
+    firstAppointmentDate: toDateInputValue(data.firstAppointmentDate),
+  };
 }
 
 function validateStep(stepId: number, formData: PatientFormData): ValidationResult {
@@ -84,28 +93,6 @@ function validateStep(stepId: number, formData: PatientFormData): ValidationResu
       if (!formData.lastName?.trim()) errors.push('Le nom est obligatoire');
       if (!formData.phone?.trim()) errors.push('Le téléphone est obligatoire');
       else if (!/^[\d\s\-\+\(\)]{8,}$/.test(formData.phone)) errors.push('Le numéro de téléphone n\'est pas valide');
-      if (!formData.dateOfBirth?.trim()) errors.push('La date de naissance est obligatoire');
-      if (!formData.gender?.trim()) errors.push('Le sexe est obligatoire');
-      break;
-      
-    case 2:
-      if (!formData.maritalStatus?.trim()) errors.push('La situation familiale est obligatoire');
-      if (!formData.profession?.trim()) errors.push('La profession est obligatoire');
-      if (!formData.educationLevel?.trim()) errors.push('Le niveau d\'étude est obligatoire');
-      if (!formData.socioCategory?.trim()) errors.push('La catégorie socio-professionnelle est obligatoire');
-      break;
-      
-    case 3:
-      if (!formData.consultationReasons || formData.consultationReasons.length === 0) {
-        errors.push('Veuillez sélectionner au moins un motif de consultation');
-      }
-      break;
-      
-    case 4:
-      break;
-      
-    case 5:
-      if (!formData.sourceOfAcquisition?.trim()) errors.push('La source d\'acquisition est obligatoire');
       break;
   }
   
@@ -118,31 +105,40 @@ export function PatientForm({
   onSubmit,
   submitButtonText = 'Enregistrer le patient',
   readOnly = false,
+  hideSteps = false,
+  defaultStep,
 }: PatientFormProps) {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(defaultStep || 1);
   const [completedUpToStep, setCompletedUpToStep] = useState(initialData ? STEPS.length : 0);
   const [formData, setFormData] = useState<PatientFormData>(
     initialData || {
       firstName: '', lastName: '', dateOfBirth: '', age: undefined, gender: '',
       phone: '', email: '', commune: '',
       maritalStatus: '', hasChildren: false, childrenCount: undefined,
-      profession: '', educationLevel: '', socioCategory: '', patientType: '',
-      showParentInfo: false, parentName: '', parentRelationship: '',
+      profession: '', patientType: '',
       consultationReasons: [], difficultyDuration: '',
-      previousConsultation: false, previousType: '', previousNeurofeedback: false, currentFollowUp: false, followUpDetails: '',
+      previousConsultation: false, previousType: '', previousNeurofeedback: false, currentFollowUp: false,
       sourceOfAcquisition: '', sourceDetails: '', sourceSub: '', sourceAccount: '', firstContactDate: '', firstAppointmentDate: '',
-      appointmentFrequency: '', plannedSessions: undefined, completedSessions: undefined,
       abandonReason: '',
-      perceivedImprovement: undefined, observedChanges: '', improvementStartMonth: undefined,
+      perceivedImprovement: undefined, observedChanges: '',
       globalSatisfaction: undefined, wouldRecommend: false,
     }
   );
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [lists, setLists] = useState<PatientLists>(DEFAULT_LISTS);
+
+  useEffect(() => {
+    let active = true;
+    getPatientLists().then((loaded) => {
+      if (active) setLists(loaded);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData(normalizeInitialData(initialData));
     }
   }, [initialData]);
 
@@ -216,6 +212,14 @@ export function PatientForm({
 
   const validation = useMemo(() => validateStep(currentStep, formData), [currentStep, formData]);
 
+  const isMinor =
+    formData.patientType === 'Enfant' ||
+    formData.patientType === 'Adolescent' ||
+    (formData.age !== undefined && formData.age < 18);
+
+  const visibleSteps = isMinor ? STEPS.filter((s) => s.id !== 2) : STEPS;
+  const currentStepIndex = visibleSteps.findIndex((s) => s.id === currentStep);
+
   const goToNextStep = () => {
     const currentValidation = validateStep(currentStep, formData);
     
@@ -226,15 +230,16 @@ export function PatientForm({
     
     setError('');
     setCompletedUpToStep(Math.max(completedUpToStep, currentStep));
-    if (currentStep < STEPS.length) {
-      setCurrentStep(currentStep + 1);
+    const next = visibleSteps[currentStepIndex + 1];
+    if (next) {
+      setCurrentStep(next.id);
     }
   };
 
   const goToPrevStep = () => {
     setError('');
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+    if (currentStepIndex > 0) {
+      setCurrentStep(visibleSteps[currentStepIndex - 1].id);
     }
   };
 
@@ -403,34 +408,44 @@ export function PatientForm({
                 )}
               </div>
             </Field>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Profession</FieldLabel>
+            <Field>
+              <FieldLabel>Profession</FieldLabel>
+              <Select
+                value={
+                  lists.professions.includes(formData.profession || '')
+                    ? formData.profession
+                    : formData.profession
+                      ? 'autre'
+                      : ''
+                }
+                onValueChange={(value) => {
+                  if (value === 'autre') {
+                    handleInputChange('profession', '');
+                  } else {
+                    handleInputChange('profession', value);
+                  }
+                }}
+                disabled={isFormLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionnez une profession" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lists.professions.map((profession) => (
+                    <SelectItem key={profession} value={profession}>{profession}</SelectItem>
+                  ))}
+                  <SelectItem value="autre">Autre...</SelectItem>
+                </SelectContent>
+              </Select>
+              {formData.profession && !lists.professions.includes(formData.profession) && (
                 <Input
                   type="text"
-                  value={formData.profession || ''}
+                  className="mt-2"
+                  value={formData.profession}
                   onChange={(e) => handleInputChange('profession', e.target.value)}
                   disabled={isFormLoading}
                 />
-              </Field>
-              <Field>
-                <FieldLabel>Niveau d'étude</FieldLabel>
-                <Input
-                  type="text"
-                  value={formData.educationLevel || ''}
-                  onChange={(e) => handleInputChange('educationLevel', e.target.value)}
-                  disabled={isFormLoading}
-                />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel>Catégorie socio-professionnelle</FieldLabel>
-              <Input
-                type="text"
-                value={formData.socioCategory || ''}
-                onChange={(e) => handleInputChange('socioCategory', e.target.value)}
-                disabled={isFormLoading}
-              />
+              )}
             </Field>
           </div>
         );
@@ -442,17 +457,7 @@ export function PatientForm({
             <Field>
               <FieldLabel>Motif principal (choix multiple possible) *</FieldLabel>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                {[
-                  'Anxiété',
-                  'Stress / burn-out',
-                  'Troubles du sommeil',
-                  'Troubles de l\'attention (TDAH)',
-                  'Difficultés émotionnelles',
-                  'Problèmes scolaires',
-                  'Troubles du comportement',
-                  'TSA / Autisme',
-                  'Troubles psychosomatiques',
-                ].map((reason) => (
+                {lists.motifs.map((reason) => (
                   <div key={reason} className="flex items-center gap-2">
                     <Checkbox
                       id={`reason-${reason}`}
@@ -533,46 +538,49 @@ export function PatientForm({
                     <label htmlFor={`consultation-${option}`} className="text-sm cursor-pointer">{option}</label>
                   </div>
                 ))}
-                {formData.previousConsultation && (
-                  <Input
-                    type="text"
-                    placeholder="Type : ..."
-                    value={formData.previousType || ''}
-                    onChange={(e) => handleInputChange('previousType', e.target.value)}
-                    disabled={isFormLoading}
-                    className="flex-1 max-w-xs"
-                  />
-                )}
               </div>
             </Field>
-            <Field>
-              <FieldLabel>Suivi en cours (psy, médecin…) ?</FieldLabel>
-              <div className="flex items-center gap-4">
-                {['Non', 'Oui'].map((option) => (
-                  <div key={option} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      id={`followup-${option}`}
-                      name="currentFollowUp"
-                      checked={formData.currentFollowUp === (option === 'Oui')}
-                      onChange={() => handleInputChange('currentFollowUp', option === 'Oui')}
-                      disabled={isFormLoading}
-                    />
-                    <label htmlFor={`followup-${option}`} className="text-sm cursor-pointer">{option}</label>
+            {formData.previousConsultation && (
+              <>
+                <Field>
+                  <FieldLabel>Suit-il toujours un professionnel ?</FieldLabel>
+                  <div className="flex items-center gap-4">
+                    {['Non', 'Oui'].map((option) => (
+                      <div key={option} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          id={`followup-${option}`}
+                          name="currentFollowUp"
+                          checked={formData.currentFollowUp === (option === 'Oui')}
+                          onChange={() => handleInputChange('currentFollowUp', option === 'Oui')}
+                          disabled={isFormLoading}
+                        />
+                        <label htmlFor={`followup-${option}`} className="text-sm cursor-pointer">{option}</label>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </Field>
                 {formData.currentFollowUp && (
-                  <Input
-                    type="text"
-                    placeholder="Préciser : ..."
-                    value={formData.followUpDetails || ''}
-                    onChange={(e) => handleInputChange('followUpDetails', e.target.value)}
-                    disabled={isFormLoading}
-                    className="flex-1 max-w-xs"
-                  />
+                  <Field>
+                    <FieldLabel>Chez qui ?</FieldLabel>
+                    <Select
+                      value={formData.previousType || ''}
+                      onValueChange={(value) => handleInputChange('previousType', value)}
+                      disabled={isFormLoading}
+                    >
+                      <SelectTrigger className="w-full sm:w-64">
+                        <SelectValue placeholder="Type de professionnel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="psy">Psy</SelectItem>
+                        <SelectItem value="psychiatre">Psychiatre</SelectItem>
+                        <SelectItem value="coach">Coach</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 )}
-              </div>
-            </Field>
+              </>
+            )}
           </div>
         );
 
@@ -693,9 +701,10 @@ export function PatientForm({
       )}
 
       {/* Progress steps */}
+      {!hideSteps && (
       <div className="px-6 pt-4 pb-2 border-b">
-        <div className="flex items-center justify-between">
-          {STEPS.map((step, idx) => (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          {visibleSteps.map((step, idx) => (
             <div key={step.id} className="flex items-center flex-1">
               <button
                 type="button"
@@ -714,27 +723,28 @@ export function PatientForm({
                 }}
                 className={`flex items-center gap-2 text-sm font-medium transition-colors ${
                   currentStep === step.id ? 'text-brand-700' :
-                  currentStep > step.id ? 'text-brand-600' : 'text-gray-400'
+                  currentStepIndex > idx ? 'text-brand-600' : 'text-gray-400'
                 }`}
               >
                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
                   currentStep === step.id ? 'border-brand-700 bg-brand-50 text-brand-700' :
-                  currentStep > step.id ? 'border-brand-600 bg-brand-600 text-white' :
+                  currentStepIndex > idx ? 'border-brand-600 bg-brand-600 text-white' :
                   'border-gray-300 text-gray-400'
                 }`}>
-                  {currentStep > step.id ? <Check className="h-3.5 w-3.5" /> : step.id}
+                  {currentStepIndex > idx ? <Check className="h-3.5 w-3.5" /> : idx + 1}
                 </span>
                 <span className="hidden sm:inline">{step.title}</span>
               </button>
-              {idx < STEPS.length - 1 && (
+              {idx < visibleSteps.length - 1 && (
                 <div className={`flex-1 h-0.5 mx-3 transition-colors ${
-                  currentStep > step.id ? 'bg-brand-600' : 'bg-gray-200'
+                  currentStepIndex > idx ? 'bg-brand-600' : 'bg-gray-200'
                 }`} />
               )}
             </div>
           ))}
         </div>
       </div>
+      )}
 
       <div className="px-6 py-4 min-h-[280px]">
         {renderStepContent()}
@@ -752,31 +762,41 @@ export function PatientForm({
             Précédent
           </Button>
 
-          {currentStep === STEPS.length ? (
+          {currentStepIndex === visibleSteps.length - 1 ? (
             <Button
               type="submit"
               disabled={isFormLoading}
               className="gap-2 bg-brand-700 hover:bg-brand-800"
             >
               {isFormLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Enregistrement...
-                </>
+                <Spinner size="sm" />
               ) : (
                 submitButtonText
               )}
             </Button>
           ) : (
-            <Button
-              type="button"
-              onClick={goToNextStep}
-              disabled={isFormLoading}
-              className="bg-brand-700 hover:bg-brand-800"
-            >
-              Suivant
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={isFormLoading}
+                className="gap-2 bg-brand-700 hover:bg-brand-800"
+              >
+                {isFormLoading ? (
+                  <Spinner size="sm" />
+                ) : (
+                  submitButtonText
+                )}
+              </Button>
+              <Button
+                type="button"
+                onClick={goToNextStep}
+                disabled={isFormLoading}
+                className="bg-brand-700 hover:bg-brand-800"
+              >
+                Suivant
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
           )}
         </div>
       )}

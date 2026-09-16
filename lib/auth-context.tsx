@@ -6,8 +6,10 @@ import { auth } from './api';
 export interface User {
   id: string;
   name: string;
-  email: string;
-  role: 'admin' | 'practitioner' | 'receptionist';
+  pseudo: string;
+  firstName?: string;
+  lastName?: string;
+  role: 'admin' | 'psy' | 'coach';
 }
 
 interface AuthResult {
@@ -20,8 +22,8 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<AuthResult>;
+  login: (pseudo: string, password: string) => Promise<AuthResult>;
+  register: (firstName: string, lastName: string, password?: string, role?: string) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -32,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token and user from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
 
@@ -58,19 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void hydrateUser();
   }, []);
 
-  const login = async (email: string, password: string): Promise<AuthResult> => {
+  const login = async (pseudo: string, password: string): Promise<AuthResult> => {
     try {
-      const response = await auth.login(email, password);
+      const response = await auth.login(pseudo, password);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
         setToken(response.token);
         setUser(response.data as User);
         return { success: true };
       }
-      const errorMessage = response.error || response.message || 'E-mail ou mot de passe invalide';
+      const errorMessage = response.error || response.message || 'Pseudo ou mot de passe invalide';
       return { success: false, error: errorMessage };
     } catch (error) {
-      console.error('Login failed:', error);
       return {
         success: false,
         error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',
@@ -78,9 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string, role?: string): Promise<AuthResult> => {
+  const register = async (firstName: string, lastName: string, password?: string, role?: string): Promise<AuthResult> => {
     try {
-      const response = await auth.register(name, email, password, role);
+      const response = await auth.register(firstName, lastName, password, role);
       if (response.success && response.token && response.data) {
         localStorage.setItem('token', response.token);
         setToken(response.token);
@@ -89,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { success: false, error: response.error || response.message || 'Échec de l\'inscription' };
     } catch (error) {
-      console.error('Registration failed:', error);
       return {
         success: false,
         error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',

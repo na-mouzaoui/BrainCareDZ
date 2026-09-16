@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,12 +19,5 @@ export default function Home() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Chargement...</p>
-      </div>
-    </div>
-  );
+  return <Spinner fullPage text="Chargement..." />;
 }

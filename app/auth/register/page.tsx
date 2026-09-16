@@ -9,15 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function RegisterPage() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('practitioner');
+  const [role, setRole] = useState('psy');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
@@ -27,12 +28,12 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
+    if (password && password !== confirmPassword) {
       setError('Les mots de passe ne correspondent pas');
       return;
     }
 
-    if (password.length < 6) {
+    if (password && password.length < 6) {
       setError('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
@@ -40,24 +41,28 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const success = await register(name, email, password, role);
+      const success = await register(firstName, lastName, password || undefined, role);
       if (success) {
         router.push('/dashboard');
       } else {
-        setError('L&apos;enregistrement a échoué. Cet e-mail est peut-être déjà utilisé.');
+        setError('L\'enregistrement a échoué. Ce pseudo est peut-être déjà utilisé.');
       }
     } catch (err) {
-      setError('Une erreur s&apos;est produite. Veuillez réessayer.');
+      setError('Une erreur s\'est produite. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
   }
 
+  const previewPseudo = (firstName && lastName)
+    ? `${firstName.toLowerCase()}_${lastName.toLowerCase()}`
+    : '';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-white p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Créer un compte</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl font-bold">Créer un compte</CardTitle>
           <CardDescription>
             Enregistrez votre compte de pratique psychologique
           </CardDescription>
@@ -72,28 +77,34 @@ export default function RegisterPage() {
             )}
 
             <Field>
-              <FieldLabel>Nom complet</FieldLabel>
+              <FieldLabel>Prénom</FieldLabel>
               <Input
                 type="text"
-                placeholder="Jean Dupont"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="Jean"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
                 required
                 disabled={isLoading}
               />
             </Field>
 
             <Field>
-              <FieldLabel>E-mail</FieldLabel>
+              <FieldLabel>Nom</FieldLabel>
               <Input
-                type="email"
-                placeholder="votre@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Dupont"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
                 required
                 disabled={isLoading}
               />
             </Field>
+
+            {previewPseudo && (
+              <div className="text-sm text-gray-500 bg-gray-50 border rounded px-3 py-2">
+                Pseudo généré : <span className="font-medium text-gray-700">{previewPseudo}</span>
+              </div>
+            )}
 
             <Field>
               <FieldLabel>Rôle</FieldLabel>
@@ -102,21 +113,20 @@ export default function RegisterPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="practitioner">Praticien</SelectItem>
-                  <SelectItem value="receptionist">Réceptionniste</SelectItem>
-                  <SelectItem value="admin">Administrateur</SelectItem>
+                  <SelectItem value="psy">Psy</SelectItem>
+                  <SelectItem value="coach">Coach</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
 
             <Field>
-              <FieldLabel>Mot de passe</FieldLabel>
+              <FieldLabel>Mot de passe (optionnel)</FieldLabel>
               <Input
                 type="password"
-                placeholder="••••••••"
+                placeholder="Laisser vide pour 123456789"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
                 disabled={isLoading}
               />
             </Field>
@@ -128,7 +138,6 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                required
                 disabled={isLoading}
               />
             </Field>
@@ -140,7 +149,7 @@ export default function RegisterPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                   Création du compte...
                 </>
               ) : (

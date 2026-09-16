@@ -45,10 +45,21 @@ export async function apiRequest<T = any>(
     const data = await response.json();
 
     if (!response.ok) {
+      console.error(`API ${response.status} ${endpoint}:`, data);
+      const errorMessages: Record<number, string> = {
+        401: 'Session expirée, reconnectez-vous',
+        403: 'Accès non autorisé',
+        404: 'Ressource introuvable',
+        500: 'Erreur serveur, réessayez plus tard',
+      };
+      let msg = data.message;
+      if (!msg && Array.isArray(data.errors) && data.errors.length > 0) {
+        msg = data.errors.map((e: any) => e.msg || e.message).join(', ');
+      }
       return {
         success: false,
-        message: data.message || 'An error occurred',
-        error: data.error,
+        message: msg || errorMessages[response.status] || `Erreur ${response.status}`,
+        error: msg,
       };
     }
 
@@ -59,25 +70,27 @@ export async function apiRequest<T = any>(
       message: data.message,
     };
   } catch (error) {
-    console.error('API request failed:', error);
+    console.error(`API request failed [${endpoint}]:`, error);
+    const msg = error instanceof Error ? error.message : 'Erreur réseau inconnue';
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An error occurred',
+      message: msg.includes('fetch') ? 'Impossible de contacter le serveur' : msg,
+      error: msg,
     };
   }
 }
 
 // Auth endpoints
 export const auth = {
-  register: (name: string, email: string, password: string, role?: string) =>
+  register: (firstName: string, lastName: string, password?: string, role?: string) =>
     apiRequest('/auth/register', {
       method: 'POST',
-      body: { name, email, password, role },
+      body: { firstName, lastName, password, role },
     }),
-  login: (email: string, password: string) =>
+  login: (pseudo: string, password: string) =>
     apiRequest('/auth/login', {
       method: 'POST',
-      body: { email, password },
+      body: { pseudo, password },
     }),
   getMe: () => apiRequest('/auth/me', { method: 'GET' }),
 };
@@ -104,6 +117,19 @@ export const patients = {
     apiRequest(`/patients/search/${query}`, { method: 'GET' }),
   getHistory: (id: string) =>
     apiRequest(`/patients/${id}/history`, { method: 'GET' }),
+};
+
+// Patient outcomes endpoints (history of evaluations)
+export const patientOutcomes = {
+  getByPatient: (patientId: string) =>
+    apiRequest(`/patient-outcomes/patient/${patientId}`, { method: 'GET' }),
+  create: (data: any) =>
+    apiRequest('/patient-outcomes', {
+      method: 'POST',
+      body: data,
+    }),
+  delete: (id: string) =>
+    apiRequest(`/patient-outcomes/${id}`, { method: 'DELETE' }),
 };
 
 // Services endpoints
@@ -156,6 +182,8 @@ export const appointments = {
     }),
   complete: (id: string) =>
     apiRequest(`/appointments/${id}/complete`, { method: 'PUT' }),
+  start: (id: string) =>
+    apiRequest(`/appointments/${id}/start`, { method: 'PUT' }),
   getAvailability: (date: string) =>
     apiRequest(`/appointments/availability/${date}`, { method: 'GET' }),
 };
@@ -240,6 +268,8 @@ export const companyInvoices = {
     }),
   delete: (id: string) =>
     apiRequest(`/company-invoices/${id}`, { method: 'DELETE' }),
+  getNextReference: () =>
+    apiRequest('/company-invoices/next-reference', { method: 'GET' }),
 };
 
 // Payments endpoints
@@ -266,6 +296,8 @@ export const payments = {
 export const users = {
   getAll: () =>
     apiRequest('/users', { method: 'GET' }),
+  getPractitioners: () =>
+    apiRequest('/users/practitioners', { method: 'GET' }),
   getById: (id: string) =>
     apiRequest(`/users/${id}`, { method: 'GET' }),
   create: (data: any) =>
@@ -284,6 +316,11 @@ export const users = {
     apiRequest(`/users/${id}/password`, {
       method: 'PUT',
       body: { password },
+    }),
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    apiRequest('/users/me/password', {
+      method: 'PUT',
+      body: { currentPassword, newPassword },
     }),
 };
 
@@ -325,13 +362,66 @@ export const patientPacks = {
     apiRequest('/patient-packs', { method: 'GET' }),
   getByPatient: (patientId: string) =>
     apiRequest(`/patient-packs/patient/${patientId}`, { method: 'GET' }),
-  create: (data: { patientId: string; serviceId: string; totalSessions: number }) =>
+  create: (data: { patientId: string; serviceId: string; totalSessions: number; price?: number }) =>
     apiRequest('/patient-packs', {
       method: 'POST',
       body: data,
     }),
-  useSession: (packId: string) =>
-    apiRequest(`/patient-packs/${packId}/use`, { method: 'POST' }),
+  selectForSession: (data: {
+    patientId: string;
+    serviceId: string;
+    totalSessions: number;
+    price?: number;
+    appointmentPatientId: string;
+  }) =>
+    apiRequest('/patient-packs/select', {
+      method: 'POST',
+      body: data,
+    }),
   delete: (id: string) =>
     apiRequest(`/patient-packs/${id}`, { method: 'DELETE' }),
+  getShares: (packId: string) =>
+    apiRequest(`/patient-packs/${packId}/shares`, { method: 'GET' }),
+  addShare: (packId: string, patientId: string) =>
+    apiRequest(`/patient-packs/${packId}/shares`, {
+      method: 'POST',
+      body: { patientId },
+    }),
+  removeShare: (packId: string, patientId: string) =>
+    apiRequest(`/patient-packs/${packId}/shares/${patientId}`, { method: 'DELETE' }),
+  switchPack: (packId: string, serviceId: string) =>
+    apiRequest(`/patient-packs/${packId}/switch`, {
+      method: 'PUT',
+      body: { serviceId },
+    }),
+};
+
+// Waiting list endpoints (per-practitioner, ordered)
+export const waitingList = {
+  getAll: (practitionerId?: string) => {
+    const params = practitionerId ? `?practitionerId=${encodeURIComponent(practitionerId)}` : '';
+    return apiRequest(`/waiting-list${params}`, { method: 'GET' });
+  },
+  add: (data: { practitionerId: string; patientId: string }) =>
+    apiRequest('/waiting-list', {
+      method: 'POST',
+      body: data,
+    }),
+  move: (id: string, direction: 'up' | 'down') =>
+    apiRequest(`/waiting-list/${id}/move`, {
+      method: 'PUT',
+      body: { direction },
+    }),
+  remove: (id: string) =>
+    apiRequest(`/waiting-list/${id}`, { method: 'DELETE' }),
+};
+
+export const calendarSettings = {
+  getAll: () => apiRequest('/settings/calendar-settings'),
+  getByRole: (role: string) => apiRequest(`/settings/calendar-settings/${role}`),
+  update: (role: string, data: any) =>
+    apiRequest(`/settings/calendar-settings/${role}`, {
+      method: 'PUT',
+      body: data,
+    }),
 };

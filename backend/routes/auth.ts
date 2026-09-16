@@ -10,7 +10,7 @@ const router = express.Router();
 
 const generateToken = (user) => {
   return jwt.sign(
-    { id: user.id, role: user.role, email: user.email, name: user.name },
+    { id: user.id, role: user.role, pseudo: user.pseudo, name: user.name },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -19,30 +19,32 @@ const generateToken = (user) => {
 router.post(
   '/register',
   [
-    body('name', 'Name is required').not().isEmpty(),
-    body('email', 'Please include a valid email').isEmail(),
-    body('password', 'Password must be at least 6 characters').isLength({ min: 6 }),
+    body('firstName', 'First name is required').not().isEmpty(),
+    body('lastName', 'Last name is required').not().isEmpty(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const msg = errors.array().map((e: any) => e.msg).join(', ');
+      return res.status(400).json({ success: false, message: msg, errors: errors.array() });
     }
 
-    const { name, email, password, role } = req.body;
+    const { firstName, lastName, password, role } = req.body;
+    const name = `${firstName} ${lastName}`;
+    const pseudo = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
+    const passwordHash = await bcryptjs.hash(password || '123456789', 10);
 
     try {
-      const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+      const existing = await query('SELECT id FROM users WHERE pseudo = $1', [pseudo]);
       if (existing.rowCount > 0) {
-        return res.status(400).json({ success: false, message: 'User already exists' });
+        return res.status(400).json({ success: false, message: 'User with this pseudo already exists' });
       }
 
-      const passwordHash = await bcryptjs.hash(password, 10);
       const inserted = await query(
-        `INSERT INTO users (name, email, password_hash, role)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, email, role`,
-        [name, email.toLowerCase(), passwordHash, role || 'practitioner']
+        `INSERT INTO users (name, pseudo, first_name, last_name, email, password_hash, role)
+         VALUES ($1, $2, $3, $4, NULL, $5, $6)
+         RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName", role`,
+        [name, pseudo, firstName, lastName, passwordHash, role || 'psy']
       );
 
       const user = inserted.rows[0];
@@ -64,39 +66,40 @@ router.post(
 router.post(
   '/login',
   [
-    body('email', 'Please include a valid email').isEmail(),
+    body('pseudo', 'Pseudo is required').not().isEmpty(),
     body('password', 'Password is required').exists(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const msg = errors.array().map((e: any) => e.msg).join(', ');
+      return res.status(400).json({ success: false, message: msg, errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+    const { pseudo, password } = req.body;
 
     try {
       const result = await query(
-        `SELECT id, name, email, role, password_hash
+        `SELECT id, name, pseudo, role, password_hash
          FROM users
-         WHERE email = $1 AND is_active = TRUE`,
-        [email.toLowerCase()]
+         WHERE pseudo = $1`,
+        [pseudo.toLowerCase()]
       );
 
       if (result.rowCount === 0) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        return res.status(401).json({ success: false, message: 'Invalid pseudo or password' });
       }
 
       const user = result.rows[0];
       const isMatch = await bcryptjs.compare(password, user.password_hash);
       if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        return res.status(401).json({ success: false, message: 'Invalid pseudo or password' });
       }
 
       const safeUser = {
         id: user.id,
         name: user.name,
-        email: user.email,
+        pseudo: user.pseudo,
         role: user.role,
       };
 
@@ -118,7 +121,7 @@ router.post(
 router.get('/me', protect, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, name, email, role, phone, specializations, is_active AS "isActive" FROM users WHERE id = $1',
+      'SELECT id, name, pseudo, first_name AS "firstName", last_name AS "lastName", role, phone FROM users WHERE id = $1',
       [req.user.id]
     );
 

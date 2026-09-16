@@ -21,21 +21,21 @@ export async function logActivity({
   status = 'success',
   errorMessage,
 }: LogParams) {
-  console.log(`[ActivityLogger] Logging ${action} ${resource}${resourceName ? ` (${resourceName})` : ''}`);
   try {
     await query(
       `INSERT INTO activity_logs (
-         user_id, user_name, user_email, user_role,
+         user_id, user_name, user_pseudo, user_email, user_role,
          action, resource, resource_id, resource_name,
          changes, status, error_message, ip_address, user_agent
        ) VALUES (
-         $1, $2, $3, $4,
-         $5, $6, $7, $8,
-         $9::jsonb, $10, $11, $12, $13
+         $1, $2, $3, $4, $5,
+         $6, $7, $8, $9,
+         $10::jsonb, $11, $12, $13, $14
        )`,
       [
         req.user?.id || null,
         req.user?.name || null,
+        req.user?.pseudo || null,
         req.user?.email || null,
         req.user?.role || null,
         action,
@@ -50,7 +50,6 @@ export async function logActivity({
       ]
     );
   } catch (error) {
-    console.error(`[ActivityLogger] Failed to log ${action} ${resource}:`, error.message);
-    console.error(error);
+    void error;
   }
 }

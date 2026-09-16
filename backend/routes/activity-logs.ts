@@ -29,7 +29,7 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
     params.push(offset);
 
     const logs = await query(
-      `SELECT id, user_id AS "userId", user_name AS "userName", user_email AS "userEmail", user_role AS "userRole",
+      `SELECT id, user_id AS "userId", user_name AS "userName", user_pseudo AS "userPseudo", user_email AS "userEmail", user_role AS "userRole",
               action, resource, resource_id AS "resourceId", resource_name AS "resourceName", changes,
               status, error_message AS "errorMessage", ip_address AS "ipAddress", user_agent AS "userAgent",
               created_at AS "createdAt"
@@ -62,7 +62,7 @@ router.get('/my-activity', authenticateToken, async (req, res) => {
     const { limit = 50, offset = 0 } = req.query;
 
     const logs = await query(
-      `SELECT id, user_id AS "userId", user_name AS "userName", user_email AS "userEmail", user_role AS "userRole",
+      `SELECT id, user_id AS "userId", user_name AS "userName", user_pseudo AS "userPseudo", user_email AS "userEmail", user_role AS "userRole",
               action, resource, resource_id AS "resourceId", resource_name AS "resourceName", changes,
               status, error_message AS "errorMessage", ip_address AS "ipAddress", user_agent AS "userAgent",
               created_at AS "createdAt"

@@ -6,19 +6,23 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Loader2, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { patients as patientsApi, services as servicesApi, appointments as appointmentsApi } from '@/lib/api';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+import { patients as patientsApi, services as servicesApi, appointments as appointmentsApi, users as usersApi, patientPacks } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { PatientSearchSelect } from '@/components/patient-search-select';
 
 export interface AppointmentFormData {
-  patientId: string;
   serviceId: string;
   startTime: string;
   endTime: string;
-  notes?: string;
-  patientIds?: string[];
+  patientIds: string[];
+  practitionerId?: string;
+  preferredRole?: 'admin' | 'psy' | 'coach';
+  packDeferred?: boolean;
+  title?: string;
 }
 
 interface Patient {
@@ -26,6 +30,14 @@ interface Patient {
   firstName: string;
   lastName: string;
   balance?: number;
+  sessionCount?: number;
+  consecutiveNoShows?: number;
+}
+
+interface Practitioner {
+  id: string;
+  name: string;
+  role?: string;
 }
 
 interface Service {
@@ -33,6 +45,7 @@ interface Service {
   name: string;
   duration: number;
   price: number;
+  sessions?: number;
   type?: string;
 }
 
@@ -52,6 +65,7 @@ interface AppointmentFormProps {
   isLoading?: boolean;
   onSubmit: (data: AppointmentFormData) => Promise<void>;
   submitButtonText?: string;
+  showSubmitButton?: boolean;
 }
 
 export default function AppointmentForm({
@@ -59,35 +73,71 @@ export default function AppointmentForm({
   isLoading = false,
   onSubmit,
   submitButtonText = 'Planifier le rendez-vous',
+  showSubmitButton = true,
 }: AppointmentFormProps) {
   const [formData, setFormData] = useState<AppointmentFormData>(
     initialData || {
-      patientId: '',
       serviceId: '',
       startTime: '',
       endTime: '',
-      notes: '',
       patientIds: [],
     }
   );
   const [patientsList, setPatientsList] = useState<Patient[]>([]);
   const [servicesList, setServicesList] = useState<Service[]>([]);
+  const [practitionersList, setPractitionersList] = useState<Practitioner[]>([]);
+  const [patientPacksList, setPatientPacksList] = useState<{ serviceId: string; serviceName: string; remainingSessions: number; totalSessions: number }[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [isPersonal, setIsPersonal] = useState(false);
+  const { user } = useAuth();
 
   const validPatients = useMemo(() => uniqueById(patientsList), [patientsList]);
   const validServices = useMemo(() => uniqueById(servicesList), [servicesList]);
+  const filteredServices = useMemo(() => {
+    if (formData.preferredRole === 'admin' || formData.preferredRole === 'psy') {
+      return validServices.filter((s) => s.type === 'psy');
+    }
+    return validServices;
+  }, [validServices, formData.preferredRole]);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     loadPatientsAndServices();
   }, []);
+
+  // Fetch patient packs when a patient is selected
+  useEffect(() => {
+    const selectedId = formData.patientIds?.[0];
+    if (!selectedId) {
+      setPatientPacksList([]);
+      return;
+    }
+    patientPacks.getByPatient(selectedId).then((res) => {
+      if (res.success && res.data) {
+        setPatientPacksList(res.data.packs || []);
+      } else {
+        setPatientPacksList([]);
+      }
+    }).catch(() => setPatientPacksList([]));
+  }, [formData.patientIds?.[0]]);
 
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
     }
   }, [initialData]);
+
+  // Default practitioner = current user (non-modifiable for psy/admin calendars)
+  useEffect(() => {
+    if (formData.preferredRole === 'coach') return;
+    if (!user) return;
+    setFormData((prev) => ({
+      ...prev,
+      practitionerId: user.id,
+    }));
+  }, [user, formData.preferredRole]);
 
   // Auto-calculate end time when start time and service change
   useEffect(() => {
@@ -108,9 +158,10 @@ export default function AppointmentForm({
 
   async function loadPatientsAndServices() {
     try {
-      const [patientsRes, servicesRes] = await Promise.all([
+      const [patientsRes, servicesRes, practitionersRes] = await Promise.all([
         patientsApi.getAll(),
         servicesApi.getAll(),
+        usersApi.getPractitioners(),
       ]);
 
       if (patientsRes.success && patientsRes.data) {
@@ -119,63 +170,49 @@ export default function AppointmentForm({
       if (servicesRes.success && servicesRes.data) {
         setServicesList(Array.isArray(servicesRes.data) ? servicesRes.data : servicesRes.data.services || []);
       }
+      if (practitionersRes.success && practitionersRes.data) {
+        setPractitionersList(
+          Array.isArray(practitionersRes.data)
+            ? practitionersRes.data
+            : practitionersRes.data.practitioners || []
+        );
+      }
     } catch (err) {
-      setError('Failed to load patients and services');
+      console.error('Failed to load form data:', err);
+      setError('Erreur lors du chargement des données. Vérifiez votre connexion.');
     } finally {
       setLoadingData(false);
     }
   }
 
-  const togglePatient = (patientId: string) => {
+  const selectSinglePatient = (value: string) => {
     setError('');
-    setFormData((prev) => {
-      const currentIds = prev.patientIds || [prev.patientId].filter(Boolean);
-      if (currentIds.includes(patientId)) {
-        const filtered = currentIds.filter(id => id !== patientId);
-        return {
-          ...prev,
-          patientIds: filtered,
-          patientId: filtered[0] || '',
-        };
-      }
-      if (currentIds.length >= 4) return prev;
-      const updated = [...currentIds, patientId];
-      return {
-        ...prev,
-        patientIds: updated,
-        patientId: updated[0],
-      };
-    });
+    setFormData((prev) => ({
+      ...prev,
+      patientIds: [value],
+    }));
   };
 
   const handleInputChange = (field: keyof AppointmentFormData, value: string) => {
     setError('');
-    if (field === 'serviceId') {
-      setFormData((prev) => ({
-        ...prev,
-        serviceId: value,
-        patientIds: [],
-        patientId: '',
-      }));
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const effectiveIds = formData.patientIds?.length ? formData.patientIds : (formData.patientId ? [formData.patientId] : []);
-    if (effectiveIds.length === 0) {
+    const effectiveIds = formData.patientIds || [];
+    if (!isPersonal && effectiveIds.length === 0) {
       setError('Veuillez sélectionner au moins un patient');
       return;
     }
-    if (!formData.serviceId) {
+    if (!isPersonal && !formData.packDeferred && !formData.serviceId) {
       setError('Veuillez sélectionner un service');
+      return;
+    }
+    if (isPersonal && !formData.title?.trim()) {
+      setError('Veuillez saisir un titre pour le RDV personnel');
       return;
     }
     if (!formData.startTime) {
@@ -204,14 +241,18 @@ export default function AppointmentForm({
     try {
       const submitData: AppointmentFormData = {
         ...formData,
-        patientId: effectiveIds[0],
         patientIds: effectiveIds,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
+        title: isPersonal ? formData.title?.trim() : undefined,
       };
+      if (formData.preferredRole) {
+        (submitData as any).role = formData.preferredRole;
+      }
       await onSubmit(submitData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Appointment submit error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur inconnue lors de la sauvegarde');
     } finally {
       setSubmitting(false);
     }
@@ -219,24 +260,15 @@ export default function AppointmentForm({
 
   const isFormLoading = isLoading || submitting || loadingData;
   const selectedService = validServices.find((s) => s.id === formData.serviceId);
-  const isNeurofeedback = selectedService?.type === 'neurofeedback';
-  const selectedPatient = validPatients.find((p) => p.id === formData.patientId);
+  const selectedPatient = validPatients.find((p) => p.id === formData.patientIds?.[0]);
   const patientBalance = Number(selectedPatient?.balance ?? 0);
-  const servicePrice = Number(selectedService?.price ?? 0);
-  const hasInsufficientBalance = !!selectedPatient && !!selectedService && patientBalance < servicePrice;
-
-  const effectivePatientIds = formData.patientIds?.length ? formData.patientIds : (formData.patientId ? [formData.patientId] : []);
-  const patientBalances = useMemo(() => {
-    return effectivePatientIds.map(pid => {
-      const p = validPatients.find(pat => pat.id === pid);
-      return { id: pid, patient: p, balance: Number(p?.balance ?? 0) };
-    });
-  }, [effectivePatientIds, validPatients]);
-  const insufficientPatientIds = new Set(patientBalances.filter(pb => pb.balance < servicePrice).map(pb => pb.id));
-  const hasAnyInsufficient = isNeurofeedback && insufficientPatientIds.size > 0;
+  const servicePricePerSession = selectedService
+    ? (Number(selectedService.price ?? 0) / (Number(selectedService.sessions ?? 1) || 1))
+    : 0;
+  const hasInsufficientBalance = !!selectedPatient && !!selectedService && patientBalance < servicePricePerSession;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="appointment-form" onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -250,110 +282,141 @@ export default function AppointmentForm({
           <CardTitle>Détails du rendez-vous</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isNeurofeedback ? (
-            <Field>
-              <FieldLabel>Patients * (max 4)</FieldLabel>
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {(formData.patientIds?.length ? formData.patientIds : formData.patientId ? [formData.patientId] : []).map((pid) => {
-                    const p = validPatients.find(pat => pat.id === pid);
-                    if (!p) return null;
-                    const isInsufficient = insufficientPatientIds.has(pid);
-                    return (
-                      <Badge key={pid} variant="secondary" className={`gap-1 pr-1 ${isInsufficient ? 'bg-red-100 text-red-700 border-red-300' : ''}`}>
-                        <span className={isInsufficient ? 'text-red-700' : ''}>{p.firstName} {p.lastName}</span>
-                        <button type="button" onClick={() => togglePatient(pid)} className="ml-1 hover:text-red-600">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    );
-                  })}
-                </div>
-                {(formData.patientIds?.length || (formData.patientId ? 1 : 0)) < 4 && (
-                  <Select
-                    value=""
-                    onValueChange={(value) => togglePatient(value)}
-                    disabled={isFormLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Ajouter un patient"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {validPatients
-                        .filter(p => !(formData.patientIds || [formData.patientId].filter(Boolean)).includes(p.id))
-                        .map((patient) => (
-                          <SelectItem key={patient.id} value={patient.id}>
-                            {patient.firstName} {patient.lastName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </Field>
-          ) : (
-            <Field>
-              <FieldLabel>Patient *</FieldLabel>
-              <Select
-                value={formData.patientId}
-                onValueChange={(value) => handleInputChange('patientId', value)}
+          {isAdmin && formData.preferredRole === 'admin' && (
+            <div className="flex items-start gap-2 rounded-lg border border-dashed border-brand-200 bg-brand-50/50 p-3">
+              <Checkbox
+                id="personal-appointment"
+                checked={isPersonal}
+                onCheckedChange={(checked) => {
+                  const val = checked === true;
+                  setIsPersonal(val);
+                  if (val) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      patientIds: [],
+                      serviceId: '',
+                    }));
+                  }
+                }}
                 disabled={isFormLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={validPatients.length === 0 ? "Aucun patient créé" : "Sélectionner un patient"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {validPatients.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">
-                      Aucun patient disponible. Créez d'abord un patient.
-                    </div>
-                  ) : (
-                    validPatients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        {patient.firstName} {patient.lastName}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </Field>
+              />
+              <label htmlFor="personal-appointment" className="text-sm text-gray-700 cursor-pointer leading-snug">
+                RDV personnel (sans patient)
+              </label>
+            </div>
           )}
 
+          {isPersonal ? (
+            <Field>
+              <FieldLabel>Titre du RDV *</FieldLabel>
+              <Input
+                value={formData.title || ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Ex: Réunion, Pause, RDV perso..."
+                disabled={isFormLoading}
+                required
+              />
+            </Field>
+          ) : (
+            <>
+            <Field>
+              <FieldLabel>Patient *</FieldLabel>
+              <PatientSearchSelect
+                patients={validPatients}
+                value={formData.patientIds[0]}
+                onSelect={(id) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    patientIds: [id],
+                  }));
+                }}
+                placeholder={validPatients.length === 0 ? 'Aucun patient créé' : 'Sélectionner un patient'}
+                disabled={isFormLoading}
+              />
+            </Field>
+
           <Field>
-            <FieldLabel>Service *</FieldLabel>
+            <FieldLabel>Service {formData.packDeferred ? '(optionnel — choisi après la séance)' : '*'}</FieldLabel>
             <Select
               value={formData.serviceId}
               onValueChange={(value) => handleInputChange('serviceId', value)}
-              disabled={isFormLoading}
+              disabled={isFormLoading || !!formData.packDeferred}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un service" />
+                <SelectValue placeholder={formData.packDeferred ? 'Service sélectionné après la séance' : 'Sélectionner un service'} />
               </SelectTrigger>
               <SelectContent>
-                {validServices.map((service) => (
-                  <SelectItem key={service.id} value={service.id}>
-                    {service.name} ({service.duration} min) - {Number(service.price).toFixed(2)} DZD
-                  </SelectItem>
-                ))}
+                {patientPacksList.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-brand-700 bg-brand-50">
+                      Packs en cours
+                    </div>
+                    {patientPacksList.map((pack) => (
+                      <SelectItem key={`active-${pack.serviceId}`} value={pack.serviceId}>
+                        {pack.serviceName} — {pack.remainingSessions}/{pack.totalSessions} séances restantes
+                      </SelectItem>
+                    ))}
+                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 mt-1">
+                      Autres services
+                    </div>
+                  </>
+                )}
+                {filteredServices
+                  .filter((service) => !patientPacksList.some((p) => p.serviceId === service.id))
+                  .map((service) => (
+                    <SelectItem key={service.id} value={service.id}>
+                      {service.name} — {Number(service.price).toLocaleString('fr-FR')} DZD
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </Field>
 
-          {hasAnyInsufficient && (
+          <div className="flex items-start gap-2 rounded-lg border border-dashed border-brand-200 bg-brand-50/50 p-3">
+            <Checkbox
+              id="pack-deferred"
+              checked={!!formData.packDeferred}
+              onCheckedChange={(checked) => {
+                const deferred = checked === true;
+                setFormData((prev) => ({
+                  ...prev,
+                  packDeferred: deferred,
+                  serviceId: deferred ? '' : prev.serviceId,
+                }));
+              }}
+              disabled={isFormLoading}
+            />
+            <label htmlFor="pack-deferred" className="text-sm text-gray-700 cursor-pointer leading-snug">
+              Sélectionner le pack après la séance (premier rendez-vous d'un nouveau patient)
+            </label>
+          </div>
+
+          {isAdmin && formData.preferredRole !== 'coach' && (
+            <Field>
+              <FieldLabel>Praticien</FieldLabel>
+              <Input
+                value={practitionersList.find((p) => p.id === formData.practitionerId)?.name || user?.name || ''}
+                disabled
+                className="bg-gray-50"
+              />
+            </Field>
+          )}
+
+          {formData.preferredRole === 'coach' && (
+            <p className="text-sm text-gray-500">
+              Aucun praticien n'est assigné : il sera défini à la rédaction du compte rendu.
+            </p>
+          )}
+
+          {hasInsufficientBalance && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Certains utilisateurs ont un solde insuffisant.
+                Solde insuffisant pour ce patient. Solde actuel: {patientBalance.toLocaleString('fr-FR')} DZD, coût de la séance: {servicePricePerSession.toLocaleString('fr-FR')} DZD.
               </AlertDescription>
             </Alert>
           )}
-          {!isNeurofeedback && hasInsufficientBalance && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Solde insuffisant pour ce patient. Solde actuel: {patientBalance.toFixed(2)} DZD, coût de la séance: {servicePrice.toFixed(2)} DZD.
-              </AlertDescription>
-            </Alert>
+          </>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -379,100 +442,27 @@ export default function AppointmentForm({
               />
             </Field>
           </div>
-
-          <Field>
-            <FieldLabel>Notes</FieldLabel>
-            <Textarea
-              value={formData.notes || ''}
-              onChange={(e) => handleInputChange('notes', e.target.value)}
-              disabled={isFormLoading}
-              rows={3}
-              placeholder="Toute instruction spéciale ou note pour ce rendez-vous..."
-            />
-          </Field>
         </CardContent>
       </Card>
 
-      {/* Résumé du rendez-vous */}
-      {selectedService && formData.startTime && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Résumé du rendez-vous</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Service :</span>
-              <span className="font-semibold">{selectedService.name}</span>
-            </div>
-            {isNeurofeedback && (
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">Patients :</span>
-                <div className="font-semibold text-right">
-                  {(formData.patientIds?.length ? formData.patientIds : formData.patientId ? [formData.patientId] : [])
-                    .map(pid => {
-                      const p = validPatients.find(pat => pat.id === pid);
-                      const isInsuf = insufficientPatientIds.has(pid);
-                      return p ? (
-                        <div key={pid} className={isInsuf ? 'text-red-600' : ''}>
-                          {p.firstName} {p.lastName} ({Number(p.balance ?? 0).toFixed(0)} DZD)
-                        </div>
-                      ) : '';
-                    })}
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Durée :</span>
-              <span className="font-semibold">{selectedService.duration} minutes</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-gray-600">Tarif :</span>
-              <span className="font-bold text-lg text-blue-600">
-                {Number(selectedService.price).toFixed(2)} DZD
-              </span>
-            </div>
-            {selectedPatient && !isNeurofeedback && (
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">Solde patient :</span>
-                <span className={`font-semibold ${hasInsufficientBalance ? 'text-red-600' : 'text-brand-700'}`}>
-                  {patientBalance.toFixed(2)} DZD
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Date et heure :</span>
-              <span className="font-semibold">
-                {new Date(formData.startTime).toLocaleString('fr-FR', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                })}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Submit Button */}
-      <div className="flex gap-2 justify-end">
-        <Button
-          type="submit"
-          disabled={isFormLoading}
-          className="gap-2"
-        >
-          {isFormLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Scheduling...
-            </>
-          ) : (
-            submitButtonText
-          )}
-        </Button>
-      </div>
+      {showSubmitButton && (
+        <div className="flex gap-2 justify-end">
+          <Button
+            type="submit"
+            disabled={isFormLoading}
+            className="gap-2"
+          >
+            {isFormLoading ? (
+              <>
+                <Spinner size="sm" />
+              </>
+            ) : (
+              submitButtonText
+            )}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

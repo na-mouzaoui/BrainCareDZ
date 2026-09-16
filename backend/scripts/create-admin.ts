@@ -24,7 +24,6 @@ async function createAdmin() {
          SET name = $2,
              password_hash = $3,
              role = 'admin',
-             is_active = TRUE,
              updated_at = NOW()
          WHERE email = $1`,
         [email, 'Admin User', passwordHash]
@@ -38,8 +37,8 @@ async function createAdmin() {
     }
 
     await query(
-      `INSERT INTO users (name, email, password_hash, role, is_active)
-       VALUES ($1, $2, $3, $4, TRUE)`,
+      `INSERT INTO users (name, email, password_hash, role)
+       VALUES ($1, $2, $3, $4)`,
       ['Admin User', email, passwordHash, 'admin']
     );
 

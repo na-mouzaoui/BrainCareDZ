@@ -8,6 +8,7 @@ import { sessionNotes } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, FileText, Search } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 
@@ -19,9 +20,7 @@ interface Note {
   appointmentId: string;
   serviceName?: string;
   practitionerName?: string;
-  presentingConcerns?: string;
   progressNotes?: string;
-  observations?: string;
   createdAt: string;
   appointmentStartTime?: string;
 }
@@ -36,7 +35,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function getNoteBody(note: Note) {
-  return note.progressNotes || note.presentingConcerns || note.observations || '';
+  return note.progressNotes || '';
 }
 
 export default function ReportsPage() {
@@ -88,11 +87,7 @@ export default function ReportsPage() {
   const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredNotes);
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <Spinner fullPage />;
   }
 
   return (
@@ -100,7 +95,7 @@ export default function ReportsPage() {
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Comptes rendus</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Comptes rendus</h1>
           </div>
         </div>
       </div>

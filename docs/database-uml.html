@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrainCareDZ — Schéma de la base de données (ER/UML)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      padding: 28px 32px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(56,189,248,.08), transparent);
+    }
+    header h1 { margin: 0 0 4px; font-size: 22px; }
+    header p { margin: 0; color: var(--muted); font-size: 14px; }
+    main { max-width: 1600px; margin: 0 auto; padding: 24px 32px 64px; }
+    section { margin-top: 32px; }
+    section h2 {
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--accent);
+      margin: 0 0 12px;
+    }
+    .diagram-wrap {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      overflow: auto;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 8px; }
+    .k { color: #fbbf24; font-weight: 600; }
+    .f { color: #86efac; }
+    .sq { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+    .sq.n { background: #38bdf8; }
+    .sq.j { background: #a78bfa; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: rgba(56,189,248,.1); color: var(--accent); font-weight: 600; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    td code {
+      background: rgba(148,163,184,.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #bae6fd;
+    }
+    .muted { color: var(--muted); }
+    .cols { columns: 2; column-gap: 28px; }
+    @media (max-width: 700px) { .cols { columns: 1; } }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>BrainCareDZ — Schéma de la base de données (PostgreSQL)</h1>
+    <p><strong>BrainCareDZ</strong> est une application de gestion de cabinet de psychologie et neurofeedback en Algérie. Elle gère patients, rendez-vous (Psy/Coach), packs de séances, comptes-rendus, paiements, factures B2B, dépenses et évaluations. Stack : Next.js 16 + TypeScript + Tailwind (frontend), Express.js + PostgreSQL (backend), auth JWT, rôles Admin/Psy/Coach.</p>
+    <p>Diagramme ER : 22 tables et 30 relations (lignes fléchées avec cardinalités). Généré en SVG, aucune dépendance externe.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Diagramme des tables et des relations</h2>
+      <div class="diagram-wrap" id="er">
+        <svg id="er-svg" viewBox="0 0 1960 1960" width="100%" role="img" aria-label="Diagramme entité-relation de la base BrainCare">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#7dd3fc" />
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><span class="sq n"></span> Table standard</span>
+        <span><span class="sq j"></span> Table de liaison (N&harr;N)</span>
+        <span><span class="k">&#9670; id</span> Clé primaire (PK)</span>
+        <span><span class="f">&rarr; col</span> Clé étrangère (FK)</span>
+        <span>&#8212;&#9654; relation avec cardinalités (1 / 0..* / 0..1)</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Description du schéma</h2>
+      <p class="muted" style="margin-top:0">
+        Base <code>BrainCare</code> (PostgreSQL). Chaque table possède un <code>id UUID</code> généré par
+        <code>gen_random_uuid()</code> sauf indication contraire. Les clés étrangères sont
+        <code>ON DELETE CASCADE</code> sauf cas particuliers : <code>invoices.created_by</code>,
+        <code>payments.created_by</code> et <code>expenses.created_by</code> en <code>SET NULL</code> pour préserver l'audit,
+        <code>payments.patient_id</code> en <code>RESTRICT</code>,
+        <code>invoices.company_id</code> et <code>waiting_list.practitioner_id</code> en <code>RESTRICT</code> pour empêcher les suppressions dangereuses.
+        Les tables de liaison
+        <code>practitioner_services</code>, <code>appointment_patients</code>,
+        <code>patient_motifs</code> et <code>patient_pack_shares</code>
+        matérialisent des relations Many-to-Many.
+        La table <code>patient_outcomes</code> conserve l'historique des évaluations
+        (amélioration perçue, satisfaction) — les colonnes d'évaluation dupliquées ont été supprimées de <code>patients</code>.
+        La colonne <code>patients.practitioner_id</code> est un cache maintenu par un trigger
+        (<code>trg_sync_patient_practitioner</code>) synchronisé avec le dernier RDV non annulé.
+        Le solde <code>patients.balance</code> est recalculé automatiquement par des triggers sur
+        <code>payments</code>, <code>patient_pack_usages</code> et <code>appointments</code>.
+        Les rôles utilisateurs sont <code>admin</code>, <code>psy</code> et <code>coach</code>.
+        La table <code>calendar_settings</code> a une contrainte CHECK sur <code>calendar_role</code>.
+        <code>session_notes</code> a une contrainte UNIQUE sur <code>appointment_patient_id</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Tables (clés et rôles)</h2>
+      <div class="cols">
+        <table>
+          <tr><th>Table</th><th>Clés</th><th>Rôle</th></tr>
+          <tr><td><code>users</code></td><td><span class="k">PK</span> <code>id</code></td><td>Comptes : admin, psy, coach.</td></tr>
+          <tr><td><code>patients</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>profession_id</code></td><td>Fiches patients + colonnes socio-démo. <code>practitioner_id</code> = cache synchronisé par trigger. <code>balance</code> = solde recalculé par triggers. Les évaluations sont dans <code>patient_outcomes</code>.</td></tr>
+          <tr><td><code>professions</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="k">UQ</span> <code>label</code> &middot; <code>is_active</code></td><td>Liste de référence des professions (suppression douce via <code>is_active</code>).</td></tr>
+          <tr><td><code>motifs</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="k">UQ</span> <code>label</code> &middot; <code>is_active</code></td><td>Liste de référence des motifs de consultation (suppression douce via <code>is_active</code>).</td></tr>
+          <tr><td><code>patient_motifs</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="k">UQ</span> <code>(patient_id, motif_id)</code></td><td>Liaison patients&harr;motifs (1 &agrave; N motifs par patient).</td></tr>
+          <tr><td><code>services</code></td><td><span class="k">PK</span> <code>id</code></td><td>Prestations (neurofeedback, thérapie&hellip;).</td></tr>
+          <tr><td><code>practitioner_services</code></td><td><span class="k">PK comp.</span> <code>(practitioner_id, service_id)</code></td><td>Liaison users&harr;services (qui fait quoi).</td></tr>
+          <tr><td><code>appointments</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>practitioner_id</code>, <code>service_id</code></td><td>Rendez-vous et planning (patients via la table de liaison).</td></tr>
+          <tr><td><code>appointment_patients</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>appointment_id</code>, <code>patient_id</code></td><td>Liaison patients&harr;rendez-vous (1 &agrave; N patients par s&eacute;ance).</td></tr>
+          <tr><td><code>session_notes</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>appointment_patient_id</code>, <code>practitioner_id</code> (RESTRICT) &middot; <span class="k">UQ</span> <code>appointment_patient_id</code></td><td>Notes cliniques (1 par patient et par RDV, contrainte d'unicité).</td></tr>
+          <tr><td><code>patient_packs</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>patient_id</code>, <code>service_id</code>, <code>practitioner_id</code></td><td>Packs de séances (total / restantes).</td></tr>
+          <tr><td><code>patient_pack_usages</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>pack_id</code>, <code>appointment_patient_id</code> &middot; <span class="k">UQ</span> <code>appointment_patient_id</code></td><td>Séances consommées (1 RDV = 1 usage, décrément auto via trigger).</td></tr>
+          <tr><td><code>patient_outcomes</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>patient_id</code>, <code>created_by</code></td><td>Historique des évaluations (amélioration perçue, satisfaction) — 1 ligne par évaluation datée.</td></tr>
+          <tr><td><code>payments</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>patient_id</code>, <code>created_by</code></td><td>Paiements (cash, carte&hellip;). Traçabilité via <code>created_by</code>.</td></tr>
+          <tr><td><code>expenses</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>created_by</code> (SET NULL)</td><td>Dépenses du cabinet.</td></tr>
+          <tr><td><code>companies</code></td><td><span class="k">PK</span> <code>id</code></td><td>Entreprises clientes B2B (RC, NIF, Art).</td></tr>
+          <tr><td><code>invoices</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>company_id</code>, <code>created_by</code></td><td>Factures B2B : HT, remise, TVA, TTC.</td></tr>
+          <tr><td><code>invoice_items</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>invoice_id</code></td><td>Lignes de détail des factures.</td></tr>
+          <tr><td><code>activity_logs</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>user_id</code></td><td>Journal d&rsquo;audit (CRUD, IP, diff JSONB).</td></tr>
+          <tr><td><code>patient_pack_shares</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>pack_id</code>, <code>patient_id</code> &middot; <span class="k">UQ</span> <code>(pack_id, patient_id)</code></td><td>Liaison patients&harr;packs (partage). Trigger <code>trg_check_pack_share_limit</code> : limite le nombre de bénéficiaires au <code>total_sessions</code> du pack (pas les restantes).</td></tr>
+          <tr><td><code>waiting_list</code></td><td><span class="k">PK</span> <code>id</code> &middot; <span class="f">FK</span> <code>practitioner_id</code> (RESTRICT), <code>patient_id</code> &middot; <span class="k">UQ</span> <code>(practitioner_id, position)</code> &middot; <span class="k">UQ</span> <code>(practitioner_id, patient_id)</code></td><td>File d'attente par praticien (position ordonnée).</td></tr>
+          <tr><td><code>calendar_settings</code></td><td><span class="k">PK</span> <code>calendar_role</code> &middot; <span class="k">CK</span> <code>IN ('admin','psy','coach')</code></td><td>Paramètres horaires par rôle (heures de travail, durée consultation, pauses, week-end). Contrainte CHECK alignée sur <code>users.role</code>.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Parcours de données (exemples)</h2>
+      <table>
+        <tr><th>Flux</th><th>Chaîne de tables</th></tr>
+        <tr><td>Suivi d&rsquo;un pack de séances</td><td><code>patient_packs</code> &rarr; <code>services</code> (forfait) consommées par <code>appointments</code></td></tr>
+        <tr><td>Praticien d&rsquo;un patient</td><td>dérivé du RDV le plus récent : <code>appointments</code> &rarr; <code>users</code> (praticien)</td></tr>
+        <tr><td>Qui gère</td><td><code>users</code> &rarr; <code>appointments</code>, <code>expenses</code>, <code>companies</code>, <code>invoices</code></td></tr>
+        <tr><td>Facturation entreprise</td><td><code>companies</code> &rarr; <code>invoices</code> &rarr; <code>invoice_items</code></td></tr>
+        <tr><td>Audit</td><td>toutes les mutations &rarr; <code>activity_logs</code></td></tr>
+        <tr><td>Suivi des évaluations</td><td><code>patients</code> &rarr; <code>patient_outcomes</code> (historique daté)</td></tr>
+        <tr><td>Partage de packs</td><td><code>patient_packs</code> &rarr; <code>patient_pack_shares</code> &rarr; <code>patients</code> (bénéficiaires multiples)</td></tr>
+        <tr><td>File d'attente</td><td><code>waiting_list</code> &rarr; <code>users</code> (praticien), <code>patients</code> (position ordonnée)</td></tr>
+        <tr><td>Paramètres calendrier</td><td><code>calendar_settings</code> (horaires par rôle Admin/Psy/Coach)</td></tr>
+      </table>
+    </section>
+  </main>
+
+  <footer>Généré depuis le schéma réel PostgreSQL de BrainCareDZ &middot; diagramme ER en SVG auto-dessiné (sans connexion)</footer>
+
+  <script>
+    (function () {
+      var SVGNS = 'http://www.w3.org/2000/svg';
+      var svg = document.getElementById('er-svg');
+
+      function el(name, attrs, parent) {
+        var e = document.createElementNS(SVGNS, name);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+
+      /* ---------- Définition des tables ---------- */
+      var tables = [
+        { id: 'users', x: 520, y: 80, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'name', t: 'TEXT' },
+          { n: 'pseudo', t: 'TEXT' },
+          { n: 'first_name', t: 'TEXT' },
+          { n: 'last_name', t: 'TEXT' },
+          { n: 'email', t: 'TEXT' },
+          { n: 'password_hash', t: 'TEXT' },
+          { n: 'role', t: 'TEXT' },
+          { n: 'phone', t: 'TEXT' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'services', x: 1260, y: 60, w: 280, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'name', t: 'TEXT' },
+          { n: 'description', t: 'TEXT' },
+          { n: 'category', t: 'TEXT' },
+          { n: 'duration', t: 'INT' },
+          { n: 'price', t: 'NUMERIC' },
+          { n: 'sessions', t: 'INT' },
+          { n: 'type', t: 'TEXT' },
+          { n: 'is_active', t: 'BOOL' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'practitioner_services', x: 980, y: 80, w: 240, junction: 1, fields: [
+          { n: 'practitioner_id', t: 'UUID', pk: 1, fk: 'users' },
+          { n: 'service_id', t: 'UUID', pk: 1, fk: 'services' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'patients', x: 60, y: 80, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'practitioner_id', t: 'UUID' },
+          { n: 'first_name', t: 'TEXT' },
+          { n: 'last_name', t: 'TEXT' },
+          { n: 'email', t: 'TEXT' },
+          { n: 'phone', t: 'TEXT' },
+          { n: 'date_of_birth', t: 'DATE' },
+          { n: 'gender', t: 'TEXT' },
+          { n: 'notes', t: 'TEXT' },
+          { n: 'session_count', t: 'INT' },
+          { n: 'last_session_date', t: 'TS' },
+          { n: 'balance', t: 'NUMERIC' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' },
+          { n: 'marital_status', t: 'TEXT' },
+          { n: 'has_children', t: 'BOOL' },
+          { n: 'children_count', t: 'INT' },
+          { n: 'patient_type', t: 'TEXT' },
+          { n: 'difficulty_duration', t: 'TEXT' },
+          { n: 'previous_consultation', t: 'BOOL' },
+          { n: 'previous_type', t: 'TEXT' },
+          { n: 'current_follow_up', t: 'BOOL' },
+          { n: 'source_of_acquisition', t: 'TEXT' },
+          { n: 'source_details', t: 'TEXT' },
+          { n: 'first_contact_date', t: 'DATE' },
+          { n: 'first_appointment_date', t: 'DATE' },
+          { n: 'abandon_reason', t: 'TEXT' },
+          { n: 'previous_neurofeedback', t: 'BOOL' },
+          { n: 'commune', t: 'TEXT' },
+          { n: 'source_sub', t: 'TEXT' },
+          { n: 'source_account', t: 'TEXT' },
+          { n: 'profession_id', t: 'UUID', fk: 'professions' }
+        ]},
+        { id: 'professions', x: 520, y: 420, w: 240, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'label', t: 'TEXT', uq: 1 },
+          { n: 'is_active', t: 'BOOL' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'motifs', x: 520, y: 640, w: 220, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'label', t: 'TEXT', uq: 1 },
+          { n: 'is_active', t: 'BOOL' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'patient_motifs', x: 820, y: 560, w: 260, junction: 1, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'motif_id', t: 'UUID', fk: 'motifs' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'appointments', x: 1240, y: 420, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'practitioner_id', t: 'UUID', fk: 'users' },
+          { n: 'role', t: 'TEXT' },
+          { n: 'service_id', t: 'UUID', fk: 'services' },
+          { n: 'start_time', t: 'TS' },
+          { n: 'end_time', t: 'TS' },
+          { n: 'status', t: 'TEXT' },
+          { n: 'pack_deferred', t: 'BOOL' },
+          { n: 'cancellation_reason', t: 'TEXT' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'patient_packs', x: 60, y: 940, w: 280, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'service_id', t: 'UUID', fk: 'services' },
+          { n: 'practitioner_id', t: 'UUID', fk: 'users' },
+          { n: 'total_sessions', t: 'INT' },
+          { n: 'remaining_sessions', t: 'INT' },
+          { n: 'price', t: 'NUMERIC' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'patient_pack_usages', x: 760, y: 920, w: 300, junction: 1, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'pack_id', t: 'UUID', fk: 'patient_packs' },
+          { n: 'appointment_patient_id', t: 'UUID', fk: 'appointment_patients', uq: 1 },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'patient_outcomes', x: 340, y: 1260, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'evaluated_at', t: 'TS' },
+          { n: 'perceived_improvement', t: 'INT' },
+          { n: 'observed_changes', t: 'TEXT' },
+          { n: 'global_satisfaction', t: 'INT' },
+          { n: 'would_recommend', t: 'BOOL' },
+          { n: 'created_by', t: 'UUID', fk: 'users' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'session_notes', x: 1240, y: 1000, w: 340, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'appointment_patient_id', t: 'UUID', fk: 'appointment_patients' },
+          { n: 'practitioner_id', t: 'UUID', fk: 'users' },
+          { n: 'progress_notes', t: 'TEXT' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'appointment_patients', x: 1240, y: 780, w: 260, junction: 1, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'appointment_id', t: 'UUID', fk: 'appointments' },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'payments', x: 1660, y: 420, w: 280, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'amount', t: 'NUMERIC' },
+          { n: 'payment_method', t: 'TEXT' },
+          { n: 'status', t: 'TEXT' },
+          { n: 'notes', t: 'TEXT' },
+          { n: 'processed_date', t: 'TS' },
+          { n: 'created_by', t: 'UUID', fk: 'users' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'expenses', x: 60, y: 1260, w: 260, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'title', t: 'TEXT' },
+          { n: 'category', t: 'TEXT' },
+          { n: 'amount', t: 'NUMERIC' },
+          { n: 'expense_date', t: 'DATE' },
+          { n: 'notes', t: 'TEXT' },
+          { n: 'created_by', t: 'UUID', fk: 'users' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'companies', x: 700, y: 1240, w: 260, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'name', t: 'TEXT' },
+          { n: 'address', t: 'TEXT' },
+          { n: 'owner', t: 'TEXT' },
+          { n: 'rc', t: 'TEXT' },
+          { n: 'nif', t: 'TEXT' },
+          { n: 'art', t: 'TEXT' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'invoices', x: 1040, y: 1260, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'company_id', t: 'UUID', fk: 'companies' },
+          { n: 'reference', t: 'TEXT' },
+          { n: 'invoice_date', t: 'DATE' },
+          { n: 'subtotal', t: 'NUMERIC' },
+          { n: 'discount', t: 'NUMERIC' },
+          { n: 'discounted_total', t: 'NUMERIC' },
+          { n: 'vat_amount', t: 'NUMERIC' },
+          { n: 'grand_total', t: 'NUMERIC' },
+          { n: 'payment_method', t: 'TEXT' },
+          { n: 'created_by', t: 'UUID', fk: 'users' },
+          { n: 'created_at', t: 'TS' },
+          { n: 'updated_at', t: 'TS' }
+        ]},
+        { id: 'invoice_items', x: 1040, y: 1620, w: 300, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'invoice_id', t: 'UUID', fk: 'invoices' },
+          { n: 'description', t: 'TEXT' },
+          { n: 'session_count', t: 'INT' },
+          { n: 'learner_count', t: 'INT' },
+          { n: 'unit_price', t: 'NUMERIC' },
+          { n: 'subtotal', t: 'NUMERIC' }
+        ]},
+        { id: 'activity_logs', x: 60, y: 1600, w: 340, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'user_id', t: 'UUID', fk: 'users' },
+          { n: 'user_name', t: 'TEXT' },
+          { n: 'user_email', t: 'TEXT' },
+          { n: 'user_role', t: 'TEXT' },
+          { n: 'action', t: 'TEXT' },
+          { n: 'resource', t: 'TEXT' },
+          { n: 'resource_id', t: 'TEXT' },
+          { n: 'resource_name', t: 'TEXT' },
+          { n: 'changes', t: 'JSON' },
+          { n: 'status', t: 'TEXT' },
+          { n: 'error_message', t: 'TEXT' },
+          { n: 'ip_address', t: 'TEXT' },
+          { n: 'user_agent', t: 'TEXT' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'patient_pack_shares', x: 440, y: 940, w: 280, junction: 1, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'pack_id', t: 'UUID', fk: 'patient_packs' },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'waiting_list', x: 1660, y: 780, w: 260, fields: [
+          { n: 'id', t: 'UUID', pk: 1 },
+          { n: 'practitioner_id', t: 'UUID', fk: 'users' },
+          { n: 'patient_id', t: 'UUID', fk: 'patients' },
+          { n: 'position', t: 'INT' },
+          { n: 'created_at', t: 'TS' }
+        ]},
+        { id: 'calendar_settings', x: 1660, y: 160, w: 280, fields: [
+          { n: 'calendar_role', t: 'TEXT', pk: 1 },
+          { n: 'work_start_time', t: 'TIME' },
+          { n: 'work_end_time', t: 'TIME' },
+          { n: 'consultation_duration', t: 'INT' },
+          { n: 'weekend_days', t: 'JSON' },
+          { n: 'has_breakfast_break', t: 'BOOL' },
+          { n: 'breakfast_break_start', t: 'TIME' },
+          { n: 'breakfast_break_end', t: 'TIME' }
+        ]}
+      ];
+
+      /* ---------- Définition des relations ---------- */
+      var edges = [
+        { from: 'users', to: 'practitioner_services', label: 'practitioner_id', src: '1', dst: '1..*', pts: [[820, 130], [980, 130]] },
+        { from: 'services', to: 'practitioner_services', label: 'service_id', src: '1', dst: '1..*', pts: [[1260, 130], [1220, 130]] },
+        { from: 'users', to: 'appointments', label: 'practitioner_id', src: '1', dst: '0..*', pts: [[820, 250], [1240, 250], [1240, 500]] },
+        { from: 'services', to: 'appointments', label: 'service_id', src: '1', dst: '0..*', pts: [[1400, 324], [1400, 420]] },
+        { from: 'services', to: 'patient_packs', label: 'service_id', src: '1', dst: '0..*', pts: [[1400, 60], [1400, 8], [8, 8], [8, 980], [60, 980]] },
+        { from: 'users', to: 'patient_packs', label: 'practitioner_id', src: '1', dst: '0..*', pts: [[600, 80], [600, 12], [20, 12], [20, 1020], [60, 1020]] },
+        { from: 'patients', to: 'patient_packs', label: 'patient_id', src: '1', dst: '0..*', pts: [[200, 844], [200, 940]] },
+        { from: 'patient_packs', to: 'patient_pack_usages', label: 'pack_id', src: '1', dst: '0..*', pts: [[340, 1000], [760, 1000]] },
+        { from: 'appointment_patients', to: 'patient_pack_usages', label: 'appointment_patient_id', src: '1', dst: '0..1', pts: [[1240, 900], [1060, 900], [1060, 920]] },
+        { from: 'appointment_patients', to: 'session_notes', label: 'appointment_patient_id', src: '1', dst: '0..1', pts: [[1260, 904], [1260, 1000]] },
+        { from: 'users', to: 'session_notes', label: 'practitioner_id', src: '1', dst: '0..*', pts: [[700, 80], [700, 25], [1600, 25], [1600, 1050], [1580, 1050]] },
+        { from: 'patients', to: 'payments', label: 'patient_id', src: '1', dst: '0..*', pts: [[260, 844], [260, 910], [1700, 910], [1700, 624]] },
+        { from: 'users', to: 'expenses', label: 'created_by', src: '1', dst: '0..*', pts: [[640, 80], [640, 24], [32, 24], [32, 1340], [60, 1340]] },
+        { from: 'users', to: 'invoices', label: 'created_by', src: '1', dst: '0..*', pts: [[760, 80], [760, 35], [1620, 35], [1620, 1320], [1340, 1320]] },
+        { from: 'users', to: 'activity_logs', label: 'user_id', src: '1', dst: '0..*', pts: [[720, 80], [720, 44], [44, 44], [44, 1700], [60, 1700]] },
+        { from: 'companies', to: 'invoices', label: 'company_id', src: '1', dst: '0..*', pts: [[960, 1320], [1040, 1320]] },
+        { from: 'invoices', to: 'invoice_items', label: 'invoice_id', src: '1', dst: '0..*', pts: [[1140, 1564], [1140, 1620]] },
+        { from: 'appointments', to: 'appointment_patients', label: 'appointment_id', src: '1', dst: '0..*', pts: [[1260, 664], [1260, 780]] },
+        { from: 'patients', to: 'appointment_patients', label: 'patient_id', src: '1', dst: '0..*', pts: [[360, 800], [1240, 800]] },
+        { from: 'professions', to: 'patients', label: 'profession_id', src: '1', dst: '0..*', pts: [[520, 480], [360, 480]] },
+        { from: 'patients', to: 'patient_motifs', label: 'patient_id', src: '1', dst: '0..*', pts: [[360, 600], [820, 600]] },
+        { from: 'patients', to: 'patient_outcomes', label: 'patient_id', src: '1', dst: '0..*', pts: [[440, 844], [440, 1220], [340, 1220], [340, 1260]] },
+        { from: 'users', to: 'patient_outcomes', label: 'created_by', src: '1', dst: '0..*', pts: [[520, 180], [430, 180], [430, 1260]] },
+        { from: 'motifs', to: 'patient_motifs', label: 'motif_id', src: '1', dst: '0..*', pts: [[740, 700], [820, 700], [820, 664]] },
+        { from: 'patient_packs', to: 'patient_pack_shares', label: 'pack_id', src: '1', dst: '0..*', pts: [[340, 980], [440, 980]] },
+        { from: 'patients', to: 'patient_pack_shares', label: 'patient_id', src: '1', dst: '0..*', pts: [[360, 800], [360, 960], [440, 960]] },
+        { from: 'users', to: 'waiting_list', label: 'practitioner_id', src: '1', dst: '0..*', pts: [[820, 300], [1580, 300], [1580, 820], [1660, 820]] },
+        { from: 'patients', to: 'waiting_list', label: 'patient_id', src: '1', dst: '0..*', pts: [[360, 800], [360, 870], [1720, 870], [1720, 820]] },
+        { from: 'users', to: 'payments', label: 'created_by', src: '1', dst: '0..*', pts: [[820, 300], [1580, 300], [1580, 460], [1660, 460]] },
+        { from: 'users', to: 'calendar_settings', label: 'calendar_role', src: '1', dst: '0..1', pts: [[820, 300], [1580, 300], [1580, 200], [1660, 200]] }
+      ];
+
+      var byId = {};
+      tables.forEach(function (t) { byId[t.id] = t; });
+
+      function boxHeight(t) {
+        return 34 + t.fields.length * 20 + 10;
+      }
+
+      /* ---------- Dessin des tables ---------- */
+      tables.forEach(function (t) {
+        var h = boxHeight(t);
+        var g = el('g', { transform: 'translate(' + t.x + ',' + t.y + ')' }, svg);
+        t._h = h;
+
+        el('rect', { x: 0, y: 0, width: t.w, height: h, rx: 8, fill: '#1e293b', stroke: t.junction ? '#7c3aed' : '#334155', 'stroke-width': t.junction ? 1.5 : 1 }, g);
+        el('rect', { x: 0, y: 0, width: t.w, height: 34, rx: 8, fill: t.junction ? '#312e81' : '#0c4a6e' }, g);
+        el('rect', { x: 0, y: 26, width: t.w, height: 8, fill: t.junction ? '#312e81' : '#0c4a6e' }, g);
+
+        el('text', { x: 12, y: 22, fill: '#e0f2fe', 'font-size': 14, 'font-weight': 700, 'font-family': 'Consolas, monospace' }, g).textContent = t.id;
+        if (t.junction) {
+          el('text', { x: t.w - 12, y: 22, fill: '#a78bfa', 'font-size': 10, 'font-style': 'italic', 'text-anchor': 'end', 'font-family': 'Segoe UI, sans-serif' }, g).textContent = 'liaison N..N';
+        }
+
+        t.fields.forEach(function (f, i) {
+          var y = 34 + 14 + i * 20;
+          if (f.note) {
+            el('text', { x: 12, y: y, fill: '#64748b', 'font-size': 11, 'font-style': 'italic', 'font-family': 'Segoe UI, sans-serif' }, g).textContent = '… +17 champs socio-démographiques';
+            return;
+          }
+          var col = '#e2e8f0', weight = 400;
+          var marker = '';
+          if (f.pk) { col = '#fbbf24'; weight = 600; marker = '\u25C6 '; }
+          else if (f.fk) { col = '#86efac'; marker = '\u2192 '; }
+          el('text', { x: 12, y: y, fill: col, 'font-weight': weight, 'font-size': 12, 'font-family': 'Consolas, monospace' }, g).textContent = marker + f.n;
+          el('text', { x: t.w - 12, y: y, fill: '#64748b', 'font-size': 10, 'text-anchor': 'end', 'font-family': 'Consolas, monospace' }, g).textContent = f.t;
+          if (f.fk) g.lastChild.setAttribute('title', 'FK \u2192 ' + f.fk + '.' + f.n);
+        });
+      });
+
+      /* ---------- Dessin des relations ---------- */
+      edges.forEach(function (e) {
+        var pts = e.pts;
+        var d = 'M' + pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' L ');
+        el('path', { d: d, fill: 'none', stroke: '#7dd3fc', 'stroke-width': 1.6, opacity: 0.9, 'marker-end': 'url(#arrow)' }, svg);
+      });
+    })();
+  </script>
+</body>
+</html>

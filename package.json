@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:all": "concurrently \"npm --prefix backend run dev\" \"npm run dev\"",
+    "dev": "next dev --turbopack",
+    "dev:all": "concurrently --prefix \"\" --prefix-colors reset \"npm --prefix backend run dev\" \"npm run dev\"",
     "dev:backend": "npm --prefix backend run dev",
     "build": "next build",
     "start": "next start",
