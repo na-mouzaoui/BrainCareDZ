@@ -252,7 +252,7 @@ export default function CompanyInvoiceForm({
           <CardTitle>Items factures</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Description</TableHead>

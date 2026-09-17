@@ -110,7 +110,7 @@ export default function ReportsPage() {
       <Card className="mb-6">
         <CardContent className="pt-6">
           <div className="flex gap-2 relative">
-            <Search className="h-5 w-5 text-gray-400 absolute ml-3 mt-2.5" />
+            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               placeholder="Rechercher par patient, service ou praticien..."
               value={searchTerm}
@@ -130,11 +130,11 @@ export default function ReportsPage() {
               onClick={() => router.push(`/patients/${note.patientId}/notes`)}
             >
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base text-brand-700">
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <CardTitle className="text-base text-brand-700 truncate">
                     {note.patientFirstName} {note.patientLastName}
                   </CardTitle>
-                  <span className="text-xs text-gray-500">{note.serviceName || 'Compte rendu'}</span>
+                  <span className="text-xs text-gray-500 shrink-0 max-w-[45%] truncate text-right">{note.serviceName || 'Compte rendu'}</span>
                 </div>
               </CardHeader>
               <CardContent>

@@ -185,7 +185,7 @@ export default function FilterDialog({ fields, values, onChange, onReset }: Filt
 
               if (field.type === 'checkbox') {
                 return (
-                  <div key={field.key} className="flex items-center gap-2 pt-6">
+                  <div key={field.key} className="flex items-center gap-2 pt-0 md:pt-6">
                     <Checkbox
                       id={field.key}
                       checked={value === 'true'}
@@ -211,12 +211,12 @@ export default function FilterDialog({ fields, values, onChange, onReset }: Filt
             })}
           </div>
 
-          <div className="flex justify-between items-center pt-4 mt-4 border-t">
-            <Button variant="ghost" onClick={handleReset} className="gap-2 text-red-600 hover:text-red-700">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between sm:items-center pt-4 mt-4 border-t">
+            <Button variant="ghost" onClick={handleReset} className="gap-2 w-full sm:w-auto text-red-600 hover:text-red-700">
               <X className="h-4 w-4" />
               Réinitialiser
             </Button>
-            <Button onClick={handleApply} className="gap-2">
+            <Button onClick={handleApply} className="gap-2 w-full sm:w-auto">
               Appliquer
             </Button>
           </div>

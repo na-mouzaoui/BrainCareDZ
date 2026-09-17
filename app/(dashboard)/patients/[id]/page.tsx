@@ -470,17 +470,20 @@ export default function PatientDetailPage() {
       )}
 
       <Tabs defaultValue="informations" className="w-full">
-        <TabsList className="w-full justify-start flex-wrap">
+        <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="informations">Informations</TabsTrigger>
           <TabsTrigger value="rendez-vous">Rendez-vous ({appointmentsList.length})</TabsTrigger>
           <TabsTrigger value="packs">Packs ({packs.length})</TabsTrigger>
-          <TabsTrigger value="seances">Historique des séances ({appointmentsList.filter((a) => a.status === 'completed').length})</TabsTrigger>
+          <TabsTrigger value="seances">
+            <span className="sm:hidden">Séances ({appointmentsList.filter((a) => a.status === 'completed').length})</span>
+            <span className="hidden sm:inline">Historique des séances ({appointmentsList.filter((a) => a.status === 'completed').length})</span>
+          </TabsTrigger>
           <TabsTrigger value="comptes-rendus">Comptes rendus ({notesList.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="informations" className="mt-4">
           <Tabs defaultValue="identite" className="w-full">
-            <TabsList className="w-full justify-start flex-wrap">
+            <TabsList className="w-full justify-start flex-wrap h-auto">
               <TabsTrigger value="identite">Identite</TabsTrigger>
               <TabsTrigger value="situation">Situation</TabsTrigger>
               <TabsTrigger value="motif">Motif</TabsTrigger>
@@ -643,14 +646,14 @@ export default function PatientDetailPage() {
         <TabsContent value="packs" className="mt-4">
           <div className="space-y-6">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
                   Historique des packs
                 </CardTitle>
                 <Button
                   size="sm"
-                  className="gap-1 bg-brand-700 hover:bg-brand-800"
+                  className="gap-1 w-full sm:w-auto bg-brand-700 hover:bg-brand-800"
                   onClick={() => setAddPackOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
@@ -666,23 +669,29 @@ export default function PatientDetailPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Service</TableHead>
-                          <TableHead>Séances</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Prix</TableHead>
-                          <TableHead>Créé le</TableHead>
+                          <TableHead className="hidden md:table-cell">Séances</TableHead>
+                          <TableHead className="hidden md:table-cell">Statut</TableHead>
+                          <TableHead className="hidden md:table-cell">Prix</TableHead>
+                          <TableHead className="hidden lg:table-cell">Créé le</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {packs.map((pack) => (
                           <TableRow key={pack.id}>
-                            <TableCell className="font-medium">{pack.serviceName}</TableCell>
-                            <TableCell>
+                            <TableCell className="font-medium">
+                              {pack.serviceName}
+                              <span className="md:hidden mt-1 block text-xs font-normal text-gray-500">
+                                <span className="block">{pack.remainingSessions}/{pack.totalSessions} séances · {pack.remainingSessions === 0 ? 'Consommé' : pack.remainingSessions === pack.totalSessions ? 'Nouveau' : 'En cours'}</span>
+                                <span className="block">{pack.price ? `${Number(pack.price).toLocaleString('fr-FR')} DZD` : '\u2014'}</span>
+                              </span>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
                               <span className={pack.remainingSessions === 0 ? 'text-gray-400' : ''}>
                                 {pack.remainingSessions}/{pack.totalSessions}
                               </span>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                               <Badge className={
                                 pack.remainingSessions === 0
                                   ? 'bg-red-100 text-red-700'
@@ -693,8 +702,8 @@ export default function PatientDetailPage() {
                                 {pack.remainingSessions === 0 ? 'Consommé' : pack.remainingSessions === pack.totalSessions ? 'Nouveau' : 'En cours'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{pack.price ? `${Number(pack.price).toLocaleString('fr-FR')} DZD` : '\u2014'}</TableCell>
-                            <TableCell>{formatDate(pack.createdAt)}</TableCell>
+                            <TableCell className="hidden md:table-cell">{pack.price ? `${Number(pack.price).toLocaleString('fr-FR')} DZD` : '\u2014'}</TableCell>
+                            <TableCell className="hidden lg:table-cell">{formatDate(pack.createdAt)}</TableCell>
                             <TableCell className="text-right">
                               {pack.remainingSessions > 0 && (
                                 <Button
@@ -832,14 +841,14 @@ export default function PatientDetailPage() {
                 <div className="space-y-3">
                   {notesList.map((note) => (
                     <div key={note.id} className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => router.push(`/appointments/${note.appointmentId}/report`)}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
                           <Badge variant="outline">{note.serviceName || '\u2014'}</Badge>
-                          <span className="text-sm text-gray-500">
+                          <span className="text-sm text-gray-500 truncate">
                             {note.practitionerName || '\u2014'}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 shrink-0">
                           {note.appointmentStartTime ? formatDateTime(note.appointmentStartTime) : formatDate(note.createdAt)}
                         </span>
                       </div>
@@ -897,9 +906,9 @@ export default function PatientDetailPage() {
                 <ul className="space-y-2">
                   {shares.map((s) => (
                     <li key={s.id} className="flex items-center justify-between px-3 py-2 border rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium">{s.firstName} {s.lastName}</p>
-                        <p className="text-xs text-gray-500">{s.email}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{s.firstName} {s.lastName}</p>
+                        <p className="text-xs text-gray-500 truncate">{s.email}</p>
                       </div>
                       <Button
                         variant="ghost"

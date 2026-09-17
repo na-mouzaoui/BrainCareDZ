@@ -764,12 +764,12 @@ export default function AppointmentsPage() {
                   {paginatedItems.map((apt) => (
                       <div
                         key={apt.id}
-                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
+                        className={`flex items-center justify-between gap-3 p-3 border rounded-lg cursor-pointer ${
                           apt.status === 'cancelled' ? 'bg-red-50 opacity-60' : 'bg-white hover:bg-brand-50'
                         }`}
                         onClick={() => editFromAppointment(apt)}
                       >
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="font-semibold">
                             {apt.title || (apt.patients?.length
                               ? apt.patients.map(p => `${p.firstName} ${p.lastName}`).join(', ')
@@ -948,7 +948,7 @@ export default function AppointmentsPage() {
                                     <button
                                       type="button"
                                       onClick={() => carouselPrev(day, slotStartMinutes, visibleAppointments.length)}
-                                      className="absolute left-0 top-0 flex h-full w-6 items-center justify-center text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                      className="absolute left-0 top-0 flex h-full w-6 items-center justify-center text-white opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100"
                                       aria-label="RDV précédent"
                                     >
                                       <ChevronLeft className="h-5 w-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
@@ -956,7 +956,7 @@ export default function AppointmentsPage() {
                                     <button
                                       type="button"
                                       onClick={() => carouselNext(day, slotStartMinutes, visibleAppointments.length)}
-                                      className="absolute right-0 top-0 flex h-full w-6 items-center justify-center text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                      className="absolute right-0 top-0 flex h-full w-6 items-center justify-center text-white opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100"
                                       aria-label="RDV suivant"
                                     >
                                       <ChevronRight className="h-5 w-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
@@ -968,7 +968,7 @@ export default function AppointmentsPage() {
                                   <button
                                     type="button"
                                     onClick={() => createFromSlot(day, slotStartMinutes)}
-                                    className="absolute right-0.5 bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-100 text-brand-600 opacity-0 transition-opacity hover:bg-brand-200 hover:text-brand-800 group-hover:opacity-100"
+                                    className="absolute right-0.5 bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-100 text-brand-600 opacity-100 sm:opacity-0 transition-opacity hover:bg-brand-200 hover:text-brand-800 sm:group-hover:opacity-100"
                                     aria-label="Ajouter un rendez-vous"
                                   >
                                     <Plus className="h-2.5 w-2.5" />
@@ -999,7 +999,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingAppointment
@@ -1169,11 +1169,11 @@ function WaitingListView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <Field>
             <FieldLabel>Praticien</FieldLabel>
             <Select value={selectedPsy} onValueChange={onSelectPsy}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue placeholder="Sélectionner un praticien" />
               </SelectTrigger>
               <SelectContent>
@@ -1186,7 +1186,7 @@ function WaitingListView({
             </Select>
           </Field>
         </div>
-        <Button type="button" onClick={onOpenAddDialog}>
+        <Button type="button" onClick={onOpenAddDialog} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Ajouter à la liste d'attente
         </Button>

@@ -408,7 +408,7 @@ function PaymentsContent() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -581,7 +581,7 @@ function PaymentsContent() {
                     <SortableHeader label="Mode de paiement" sortKey="paymentMethod" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
                     <SortableHeader label="Statut" sortKey="status" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
                     <SortableHeader label="Date" sortKey="date" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
-                    <SortableHeader label="Enregistré par" sortKey="createdByName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Enregistré par" sortKey="createdByName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden lg:table-cell" />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -590,6 +590,18 @@ function PaymentsContent() {
                     <TableRow key={payment.id || `payment-${index}`}>
                       <TableCell className="font-medium">
                         {payment.patientFirstName} {payment.patientLastName}
+                        <span className="md:hidden mt-1 block text-xs font-normal text-gray-500">
+                          <span className="block">
+                            {payment.paymentMethod === 'cash'
+                              ? 'Espèces'
+                              : payment.paymentMethod === 'check'
+                              ? 'Chèque'
+                              : payment.paymentMethod === 'bank-transfer'
+                              ? 'Virement'
+                              : 'Mobile Money'}
+                          </span>
+                          <span className="block">{formatDate(payment.processedDate || payment.createdAt)}</span>
+                        </span>
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatPrice(payment.amount)} DZD
@@ -615,7 +627,7 @@ function PaymentsContent() {
                       <TableCell className="text-sm text-gray-600">
                         {formatDate(payment.processedDate || payment.createdAt)}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-600">
+                      <TableCell className="hidden lg:table-cell text-sm text-gray-600">
                         {payment.createdByName || '—'}
                       </TableCell>
                       <TableCell>

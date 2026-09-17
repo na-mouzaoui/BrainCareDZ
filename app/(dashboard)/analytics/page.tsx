@@ -187,7 +187,7 @@ export default function AnalyticsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
                 <Area
@@ -224,7 +224,7 @@ export default function AnalyticsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
                 <Legend />
@@ -256,7 +256,7 @@ export default function AnalyticsPage() {
                   innerRadius={50}
                   outerRadius={80}
                   paddingAngle={3}
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -265,6 +265,7 @@ export default function AnalyticsPage() {
                   ))}
                 </Pie>
                 <Tooltip formatter={(value: number) => [`${value}`, '']} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <text x="50%" y="48%" textAnchor="middle" fill="#0E4D4B" fontSize={24} fontWeight="bold" dominantBaseline="middle">
                   {chartData.appointmentStatus.reduce((sum, s) => sum + s.value, 0)}
                 </text>

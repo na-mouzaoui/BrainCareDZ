@@ -249,17 +249,17 @@ export default function CompanyInvoicesPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="mb-4 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Factures entreprises</h1>
         </div>
         <div className="flex flex-wrap gap-3">
           {activeTab === 'companies' ? (
-            <Button variant="outline" onClick={() => setCompanyDialogOpen(true)}>
+            <Button variant="outline" onClick={() => setCompanyDialogOpen(true)} className="w-full sm:w-auto">
               Nouvelle entreprise
             </Button>
           ) : (
-            <Button onClick={() => router.push('/company-invoices/new')} className="gap-2 bg-brand-700 hover:bg-brand-800">
+            <Button onClick={() => router.push('/company-invoices/new')} className="gap-2 w-full sm:w-auto bg-brand-700 hover:bg-brand-800">
               <Plus className="h-4 w-4" />
               Nouvelle facture
             </Button>
@@ -307,8 +307,8 @@ export default function CompanyInvoicesPage() {
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Reference" sortKey="reference" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
-                        <SortableHeader label="Entreprise" sortKey="companyName" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
-                        <SortableHeader label="Date" sortKey="date" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
+                        <SortableHeader label="Entreprise" sortKey="companyName" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} className="hidden sm:table-cell" />
+                        <SortableHeader label="Date" sortKey="date" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} className="hidden md:table-cell" />
                         <SortableHeader label="Total TTC" sortKey="grandTotal" currentSortKey={invoiceSort.sortKey} direction={invoiceSort.direction} onSort={invoiceSort.toggleSort} />
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -316,9 +316,15 @@ export default function CompanyInvoicesPage() {
                     <TableBody>
                       {paginatedItems.map((invoice) => (
                         <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">{invoice.reference}</TableCell>
-                          <TableCell>{invoice.companyName}</TableCell>
-                          <TableCell>{new Date(invoice.invoiceDate).toLocaleDateString('fr-FR')}</TableCell>
+                          <TableCell className="font-medium">
+                            {invoice.reference}
+                            <span className="sm:hidden mt-1 block text-xs font-normal text-gray-500">
+                              {invoice.companyName && <span className="block">{invoice.companyName}</span>}
+                              <span className="block">{new Date(invoice.invoiceDate).toLocaleDateString('fr-FR')}</span>
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">{invoice.companyName}</TableCell>
+                          <TableCell className="hidden md:table-cell">{new Date(invoice.invoiceDate).toLocaleDateString('fr-FR')}</TableCell>
                           <TableCell className="font-semibold">{Number(invoice.grandTotal).toFixed(2)} DZD</TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button
@@ -366,23 +372,36 @@ export default function CompanyInvoicesPage() {
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Nom" sortKey="name" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
-                        <SortableHeader label="Adresse" sortKey="address" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
-                        <SortableHeader label="Proprietaire" sortKey="owner" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
-                        <SortableHeader label="RC" sortKey="rc" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
-                        <SortableHeader label="NIF" sortKey="nif" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
-                        <SortableHeader label="Art" sortKey="art" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} />
+                        <SortableHeader label="Adresse" sortKey="address" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} className="hidden lg:table-cell" />
+                        <SortableHeader label="Proprietaire" sortKey="owner" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} className="hidden md:table-cell" />
+                        <SortableHeader label="RC" sortKey="rc" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} className="hidden lg:table-cell" />
+                        <SortableHeader label="NIF" sortKey="nif" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} className="hidden lg:table-cell" />
+                        <SortableHeader label="Art" sortKey="art" currentSortKey={companySort.sortKey} direction={companySort.direction} onSort={companySort.toggleSort} className="hidden lg:table-cell" />
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {companySort.sortedItems.map((company) => (
                         <TableRow key={company.id}>
-                          <TableCell className="font-medium">{company.name}</TableCell>
-                          <TableCell>{company.address || '—'}</TableCell>
-                          <TableCell>{company.owner || '—'}</TableCell>
-                          <TableCell>{company.rc || '—'}</TableCell>
-                          <TableCell>{company.nif || '—'}</TableCell>
-                          <TableCell>{company.art || '—'}</TableCell>
+                          <TableCell className="font-medium">
+                            {company.name}
+                            <span className="lg:hidden mt-1 block text-xs font-normal text-gray-500">
+                              {company.owner && <span className="block">{company.owner}</span>}
+                              {company.address && <span className="block">{company.address}</span>}
+                              {(company.rc || company.nif || company.art) && (
+                                <span className="block">
+                                  {company.rc && `RC ${company.rc}`}
+                                  {company.nif && ` · NIF ${company.nif}`}
+                                  {company.art && ` · Art ${company.art}`}
+                                </span>
+                              )}
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">{company.address || '—'}</TableCell>
+                          <TableCell className="hidden md:table-cell">{company.owner || '—'}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{company.rc || '—'}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{company.nif || '—'}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{company.art || '—'}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
@@ -413,7 +432,7 @@ export default function CompanyInvoicesPage() {
       </Tabs>
 
       <Dialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
-        <DialogContent className="w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouvelle entreprise</DialogTitle>
           </DialogHeader>

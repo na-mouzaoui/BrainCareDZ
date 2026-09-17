@@ -62,13 +62,16 @@ export function PaginationControls({ page, totalPages, totalItems, onPageChange 
               className={page <= 1 ? 'pointer-events-none opacity-50' : ''}
             />
           </PaginationItem>
+          <PaginationItem className="flex sm:hidden">
+            <span className="px-2 text-sm text-gray-500">Page {page} / {totalPages}</span>
+          </PaginationItem>
           {pages.map((p, idx) =>
             p === 'ellipsis' ? (
-              <PaginationItem key={`e-${idx}`}>
+              <PaginationItem key={`e-${idx}`} className="hidden sm:flex">
                 <span className="flex size-9 items-center justify-center text-sm text-gray-400">...</span>
               </PaginationItem>
             ) : (
-              <PaginationItem key={p}>
+              <PaginationItem key={p} className="hidden sm:flex">
                 <PaginationLink
                   href="#"
                   isActive={p === page}

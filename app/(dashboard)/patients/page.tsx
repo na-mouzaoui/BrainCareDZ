@@ -269,11 +269,11 @@ export default function PatientsPage() {
                 <TableHeader>
                   <TableRow>
                     <SortableHeader label="Nom" sortKey="name" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
-                    <SortableHeader label="Téléphone" sortKey="phone" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
-                    <SortableHeader label="Praticien" sortKey="practitionerName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
-                    <SortableHeader label="Pack" sortKey="packServiceName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Téléphone" sortKey="phone" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
+                    <SortableHeader label="Praticien" sortKey="practitionerName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden md:table-cell" />
+                    <SortableHeader label="Pack" sortKey="packServiceName" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden lg:table-cell" />
                     <SortableHeader label="Solde" sortKey="balance" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
-                    <SortableHeader label="Créé le" sortKey="createdAt" currentSortKey={sortKey} direction={direction} onSort={toggleSort} />
+                    <SortableHeader label="Créé le" sortKey="createdAt" currentSortKey={sortKey} direction={direction} onSort={toggleSort} className="hidden lg:table-cell" />
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -292,12 +292,21 @@ export default function PatientsPage() {
                           }>
                             {patient.firstName} {patient.lastName}
                           </span>
+                          <span className="md:hidden mt-1 block text-xs font-normal text-gray-500">
+                            {patient.phone && <span className="block">{patient.phone}</span>}
+                            {patient.practitionerName && <span className="block">{patient.practitionerName}</span>}
+                            {patient.packServiceName && (patient.packRemaining ?? 0) > 0 && (
+                              <span className="block text-brand-700">
+                                {patient.packServiceName} ({patient.packRemaining || 0} / {patient.packTotal || 0})
+                              </span>
+                            )}
+                          </span>
                         </TableCell>
-                        <TableCell>{patient.phone}</TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="hidden md:table-cell">{patient.phone}</TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-gray-600">
                           {patient.practitionerName || '—'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           {patient.packServiceName && (patient.packRemaining ?? 0) > 0 ? (
                             <span className="text-sm font-medium text-brand-700">
                               {patient.packServiceName} ({patient.packRemaining || 0} / {patient.packTotal || 0})
@@ -317,7 +326,7 @@ export default function PatientsPage() {
                           )}
                           {patient.balance > 0 ? '+' : ''}{Number(patient.balance).toLocaleString('fr-FR')} DZD
                         </TableCell>
-                        <TableCell className="text-sm text-gray-500">
+                        <TableCell className="hidden lg:table-cell text-sm text-gray-500">
                           {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString('fr-FR') : '—'}
                         </TableCell>
                       <TableCell className="text-right space-x-2">
@@ -391,8 +400,8 @@ export default function PatientsPage() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader className="px-6 pt-6 pb-0">
+        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
             <DialogTitle>Nouveau patient</DialogTitle>
             <DialogDescription>
               Remplissez le formulaire pour créer un nouveau patient.
@@ -403,8 +412,8 @@ export default function PatientsPage() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditingPatient(null); }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader className="px-6 pt-6 pb-0">
+        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto p-0 gap-0" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
             <DialogTitle>Modifier le patient</DialogTitle>
             <DialogDescription>
               Modifiez les informations du patient.
@@ -420,7 +429,7 @@ export default function PatientsPage() {
       </Dialog>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
               {historyPatient ? `${historyPatient.firstName} ${historyPatient.lastName}` : 'Patient'} — Historique des séances

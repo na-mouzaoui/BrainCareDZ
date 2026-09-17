@@ -22,7 +22,7 @@ export default function DashboardGroupLayout({
       <style>{`
         .app-main {
           margin-left: 0;
-          padding-top: 4rem;
+          padding-top: calc(4rem + env(safe-area-inset-top));
           transition: margin-left 0.2s ease-in-out;
         }
         @media (min-width: 768px) {

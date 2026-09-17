@@ -136,3 +136,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile : échelle réduite pour un rendu plus compact */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}

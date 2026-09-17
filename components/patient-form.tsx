@@ -376,7 +376,7 @@ export function PatientForm({
             </Field>
             <Field>
               <FieldLabel>Enfants</FieldLabel>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 {['Non', 'Oui'].map((option) => (
                   <div key={option} className="flex items-center gap-2">
                     <input
@@ -694,7 +694,7 @@ export function PatientForm({
   return (
     <Container onSubmit={readOnly ? undefined : handleSubmit}>
       {error && (
-        <Alert variant="destructive" className="m-6 mb-0">
+        <Alert variant="destructive" className="m-4 sm:m-6 mb-0">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -702,7 +702,7 @@ export function PatientForm({
 
       {/* Progress steps */}
       {!hideSteps && (
-      <div className="px-6 pt-4 pb-2 border-b">
+      <div className="px-4 sm:px-6 pt-4 pb-2 border-b">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
           {visibleSteps.map((step, idx) => (
             <div key={step.id} className="flex items-center flex-1">
@@ -746,17 +746,18 @@ export function PatientForm({
       </div>
       )}
 
-      <div className="px-6 py-4 min-h-[280px]">
+      <div className="px-4 sm:px-6 py-4 min-h-[280px]">
         {renderStepContent()}
       </div>
 
       {showNavigation && (
-        <div className="px-6 pb-6 flex gap-2 justify-between border-t pt-4">
+        <div className="px-4 sm:px-6 pb-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between border-t pt-4">
           <Button
             type="button"
             variant="outline"
             onClick={goToPrevStep}
             disabled={currentStep === 1 || isFormLoading}
+            className="w-full sm:w-auto"
           >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Précédent
@@ -766,7 +767,7 @@ export function PatientForm({
             <Button
               type="submit"
               disabled={isFormLoading}
-              className="gap-2 bg-brand-700 hover:bg-brand-800"
+              className="gap-2 w-full sm:w-auto bg-brand-700 hover:bg-brand-800"
             >
               {isFormLoading ? (
                 <Spinner size="sm" />
@@ -775,11 +776,11 @@ export function PatientForm({
               )}
             </Button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button
                 type="submit"
                 disabled={isFormLoading}
-                className="gap-2 bg-brand-700 hover:bg-brand-800"
+                className="gap-2 w-full sm:w-auto bg-brand-700 hover:bg-brand-800"
               >
                 {isFormLoading ? (
                   <Spinner size="sm" />
@@ -791,7 +792,7 @@ export function PatientForm({
                 type="button"
                 onClick={goToNextStep}
                 disabled={isFormLoading}
-                className="bg-brand-700 hover:bg-brand-800"
+                className="w-full sm:w-auto bg-brand-700 hover:bg-brand-800"
               >
                 Suivant
                 <ChevronRight className="h-4 w-4 ml-2" />

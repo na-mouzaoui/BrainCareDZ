@@ -101,8 +101,8 @@ export default function PatientNotesPage() {
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 break-words">
               {patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
             </h1>
           </div>
@@ -126,7 +126,7 @@ export default function PatientNotesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-800 whitespace-pre-wrap mb-3">
+                <p className="text-gray-800 whitespace-pre-wrap break-words mb-3">
                   {getNoteBody(note) || 'Aucun contenu disponible.'}
                 </p>
                 <div className="text-xs text-gray-500 flex flex-wrap gap-2">

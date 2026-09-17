@@ -107,9 +107,9 @@ export default function InvoiceDetailPage() {
               <p className="text-lg">{expense.createdByName || '-'}</p>
             </div>
             {expense.notes && (
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <p className="text-sm font-medium text-gray-600">Notes</p>
-                <p className="text-lg whitespace-pre-wrap">{expense.notes}</p>
+                <p className="text-lg whitespace-pre-wrap break-words">{expense.notes}</p>
               </div>
             )}
           </div>

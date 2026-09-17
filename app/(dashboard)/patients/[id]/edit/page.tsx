@@ -57,7 +57,7 @@ export default function PatientEditPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Modifier le patient</h1>
       </div>

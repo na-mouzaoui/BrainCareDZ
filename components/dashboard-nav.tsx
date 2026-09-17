@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -57,6 +57,15 @@ export function DashboardNav() {
   };
 
   const closeSidebar = () => setIsOpen(false);
+
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (isOpen && isMobile) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [isOpen]);
 
   const [pwdOpen, setPwdOpen] = useState(false);
   const [pwdCurrent, setPwdCurrent] = useState('');
@@ -160,7 +169,7 @@ export function DashboardNav() {
       </nav>
 
       {/* User Menu */}
-      <div className="border-t border-brand-900/20 p-4">
+      <div className="border-t border-brand-900/20 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {showLabels ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -242,10 +251,6 @@ export function DashboardNav() {
    * so Tailwind JIT is never involved.
    */
 
-  const sidebarStyle: React.CSSProperties = isOpen
-    ? { transform: 'translateX(0)', width: undefined }
-    : { transform: undefined, width: undefined };
-
   return (
     <>
       {/* Global CSS for sidebar responsive behavior */}
@@ -277,7 +282,7 @@ export function DashboardNav() {
       {/* Mobile logo toggle — always visible on mobile, hidden on desktop */}
       <button
         onClick={toggleSidebar}
-        className="md:hidden fixed top-3 left-3 z-[70] bg-white border border-gray-200 rounded-lg shadow-lg active:scale-95 transition-transform p-1"
+        className="md:hidden fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 bg-white border border-gray-200 rounded-lg shadow-lg active:scale-95 transition-transform p-1"
         style={{ width: 48, height: 48 }}
         aria-label={isOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
       >
@@ -286,7 +291,7 @@ export function DashboardNav() {
 
       {/* Mobile backdrop */}
       <div
-        className="md:hidden fixed inset-0 bg-black/40 z-[55]"
+        className="md:hidden fixed inset-0 bg-black/40 z-40"
         style={{
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none',
@@ -297,7 +302,7 @@ export function DashboardNav() {
 
       {/* Sidebar — pure CSS, no dynamic Tailwind classes */}
       <aside
-        className="fixed left-0 top-0 h-screen bg-white border-r border-brand-900/20 text-gray-900 z-50 shadow-lg flex flex-col app-sidebar"
+        className="fixed left-0 top-0 h-dvh max-w-[85vw] bg-white border-r border-brand-900/20 text-gray-900 z-50 shadow-lg flex flex-col app-sidebar"
         data-open={isOpen ? 'true' : 'false'}
       >
         {sidebarContent}

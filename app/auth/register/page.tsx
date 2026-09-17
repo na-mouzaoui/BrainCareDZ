@@ -59,7 +59,7 @@ export default function RegisterPage() {
     : '';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-white p-4">
+    <div className="min-h-dvh flex items-start sm:items-center justify-center bg-gradient-to-br from-brand-50 to-white p-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-xl sm:text-2xl font-bold">Créer un compte</CardTitle>

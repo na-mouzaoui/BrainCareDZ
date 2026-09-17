@@ -57,7 +57,7 @@ export function SortableHeader({ label, sortKey, currentSortKey, direction, onSo
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 font-semibold select-none ${
+        className={`inline-flex items-center gap-1 font-semibold select-none whitespace-nowrap ${
           align === 'right' ? 'w-full justify-end text-right' : ''
         } ${isActive ? 'underline decoration-2 underline-offset-4' : ''}`}
       >

@@ -68,13 +68,14 @@ export function PatientSearchSelect({
           className={cn('w-full justify-between font-normal', className)}
         >
           {selected ? (
-            <span className={
+            <span className={cn(
+              'truncate min-w-0 text-left',
               (selected.consecutiveNoShows ?? 0) >= 3 ? 'text-red-600 font-bold' :
               (selected.consecutiveNoShows ?? 0) >= 2 ? 'text-orange-500 font-bold' : ''
-            }>
+            )}>
               {selected.firstName} {selected.lastName}
             </span>
-          ) : placeholder}
+          ) : <span className="truncate min-w-0 text-left text-muted-foreground">{placeholder}</span>}
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

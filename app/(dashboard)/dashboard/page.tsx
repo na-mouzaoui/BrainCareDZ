@@ -207,7 +207,7 @@ const emptyData: DashboardData = {
 };
 
 export default function DashboardPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [carouselPage, setCarouselPage] = useState(0);
@@ -410,6 +410,10 @@ export default function DashboardPage() {
 
   async function loadDashboardStats() {
     try {
+      const expensesPromise = user?.role === 'admin'
+        ? expensesApi.getAll()
+        : Promise.resolve({ success: true, data: [] } as any);
+
       const [patientsResponse, appointmentsResponse, paymentsResponse, packsResponse, notesResponse, waitingResponse, expensesResponse] = await Promise.all([
         patients.getAll(),
         appointments.getAll(),
@@ -417,7 +421,7 @@ export default function DashboardPage() {
         patientPacks.getAll(),
         sessionNotesApi.getAll(),
         waitingListApi.getAll(),
-        expensesApi.getAll(),
+        expensesPromise,
       ]);
 
       let patientItems: any[] = [];
@@ -985,7 +989,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="pt-6">
+      <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Tableau de bord</h1>
       </div>
 
@@ -996,7 +1000,7 @@ export default function DashboardPage() {
             <button
               onClick={() => setCarouselPage((p) => Math.max(0, p - 1))}
               disabled={carouselPage === 0}
-              className="shrink-0 h-8 w-8 rounded-full bg-white border shadow-md flex items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
+              className="hidden sm:flex shrink-0 h-8 w-8 rounded-full bg-white border shadow-md items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -1019,7 +1023,7 @@ export default function DashboardPage() {
             <button
               onClick={() => setCarouselPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={carouselPage >= totalPages - 1}
-              className="shrink-0 h-8 w-8 rounded-full bg-white border shadow-md flex items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
+              className="hidden sm:flex shrink-0 h-8 w-8 rounded-full bg-white border shadow-md items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -1074,6 +1078,7 @@ export default function DashboardPage() {
                   <LabelList
                     dataKey="value"
                     position="inside"
+                    className="hidden sm:block"
                     formatter={(value: number) => {
                       const total = referralSources.reduce((s, v) => s + v.value, 0);
                       return total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '0%';
@@ -1098,8 +1103,8 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setChartBarPage((p) => Math.max(0, p - 1))}
                 disabled={chartBarPage === 0}
@@ -1128,7 +1133,7 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }} />
                   <Area
@@ -1148,7 +1153,7 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={monthlyAppointmentsTrend} barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <RechartsTooltip
                     contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb' }}
@@ -1189,7 +1194,7 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <RechartsTooltip
                     formatter={(value: number) => [value + ' séance' + (value > 1 ? 's' : ''), 'Séances effectuées']}
@@ -1217,7 +1222,7 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} minTickGap={16} interval="preserveStartEnd" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <RechartsTooltip
                     formatter={(value: number) => [value + ' patient' + (value > 1 ? 's' : ''), 'Patients actifs']}
@@ -1357,7 +1362,7 @@ export default function DashboardPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Patient</TableHead>
-                      <TableHead>Date et heure du RDV</TableHead>
+                      <TableHead className="hidden sm:table-cell">Date et heure du RDV</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1371,8 +1376,13 @@ export default function DashboardPage() {
                         <TableRow key={i}>
                           <TableCell className={`font-medium ${isOvercrowded ? 'text-amber-600' : ''}`}>
                             {p.lastName} {p.firstName}
+                            <span className="block sm:hidden text-xs font-normal text-gray-500">
+                              {new Date(p.startTime).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              {' '}
+                              {new Date(p.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell className="hidden sm:table-cell whitespace-nowrap">
                             {new Date(p.startTime).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                             {' '}
                             {new Date(p.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

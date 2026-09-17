@@ -605,7 +605,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Administration</h1>
@@ -627,32 +627,32 @@ export default function AdminPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6 bg-brand-100 overflow-x-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto min-h-9 py-1 mb-4 sm:mb-6 bg-brand-100">
           <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span>Utilisateurs</span>
+            <Users className="h-4 w-4 shrink-0" />
+            <span className="truncate">Utilisateurs</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <span>Paramètres</span>
+            <Settings className="h-4 w-4 shrink-0" />
+            <span className="truncate">Paramètres</span>
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            <span>Journal d'activité</span>
+            <History className="h-4 w-4 shrink-0" />
+            <span className="truncate"><span className="sm:hidden">Journal</span><span className="hidden sm:inline">Journal d'activité</span></span>
           </TabsTrigger>
         </TabsList>
 
         {/* Tab Content - Users */}
         <TabsContent value="users" className="space-y-6">
           <div className="border border-brand-200 rounded-lg overflow-hidden">
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+            <div className="bg-brand-50 px-4 py-3 sm:px-6 sm:py-4 border-b border-brand-200">
               <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <Shield className="h-5 w-5" />
                 Gestion des utilisateurs
                 <span className="text-sm font-normal text-brand-700">({users.length})</span>
               </h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             <div className="flex justify-end">
               <Button
                 onClick={() => {
@@ -740,7 +740,7 @@ export default function AdminPage() {
         <TabsContent value="settings" className="space-y-6">
           <div className="border border-brand-200 rounded-lg overflow-hidden">
             {/* Header with arrows */}
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200 flex items-center justify-between">
+            <div className="bg-brand-50 px-4 py-3 sm:px-6 sm:py-4 border-b border-brand-200 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setCalendarIdx((i) => Math.max(0, i - 1))}
@@ -786,8 +786,8 @@ export default function AdminPage() {
                 });
               };
               return (
-                <div className="p-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="p-4 sm:p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                     {/* Left Column */}
                     <div className="space-y-6">
                       <div>
@@ -901,7 +901,7 @@ export default function AdminPage() {
 
           {/* Listes du dossier patient */}
           <div className="border border-brand-200 rounded-lg overflow-hidden">
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+            <div className="bg-brand-50 px-4 py-3 sm:px-6 sm:py-4 border-b border-brand-200">
               <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <Stethoscope className="h-5 w-5" />
                 Listes du dossier patient
@@ -910,22 +910,22 @@ export default function AdminPage() {
                 Ces listes sont utilisées dans le formulaire patient (profession et motifs de consultation).
               </p>
             </div>
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
               {/* Professions */}
               <div className="space-y-4">
                 <h3 className="font-medium text-brand-900 flex items-center gap-2">
                   <Briefcase className="h-4 w-4" />
                   Professions
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={newProfession}
                     onChange={(e) => setNewProfession(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addProfession(); } }}
                     placeholder="Ajouter une profession..."
-                    className="max-w-xs"
+                    className="w-full sm:max-w-xs"
                   />
-                  <Button onClick={addProfession} className="gap-1 bg-brand-700 hover:bg-brand-800">
+                  <Button onClick={addProfession} className="gap-1 w-full sm:w-auto shrink-0 bg-brand-700 hover:bg-brand-800">
                     <Plus className="h-4 w-4" />
                     Ajouter
                   </Button>
@@ -953,15 +953,15 @@ export default function AdminPage() {
                   <Stethoscope className="h-4 w-4" />
                   Motifs de consultation
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={newMotif}
                     onChange={(e) => setNewMotif(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMotif(); } }}
                     placeholder="Ajouter un motif..."
-                    className="max-w-xs"
+                    className="w-full sm:max-w-xs"
                   />
-                  <Button onClick={addMotif} className="gap-1 bg-brand-700 hover:bg-brand-800">
+                  <Button onClick={addMotif} className="gap-1 w-full sm:w-auto shrink-0 bg-brand-700 hover:bg-brand-800">
                     <Plus className="h-4 w-4" />
                     Ajouter
                   </Button>
@@ -997,7 +997,7 @@ export default function AdminPage() {
 
           {/* Services / Packs */}
           <div className="border border-brand-200 rounded-lg overflow-hidden">
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200 flex items-center justify-between">
+            <div className="bg-brand-50 px-4 py-3 sm:px-6 sm:py-4 border-b border-brand-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                   <Stethoscope className="h-5 w-5" />
@@ -1007,12 +1007,12 @@ export default function AdminPage() {
                   Gestion des services et packs proposés aux patients.
                 </p>
               </div>
-              <Button onClick={() => setServiceCreateOpen(true)} className="gap-1 bg-brand-700 hover:bg-brand-800">
+              <Button onClick={() => setServiceCreateOpen(true)} className="gap-1 w-full sm:w-auto bg-brand-700 hover:bg-brand-800">
                 <Plus className="h-4 w-4" />
                 Nouveau
               </Button>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {allServices.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">Aucun service pour le moment.</p>
               ) : (
@@ -1021,8 +1021,8 @@ export default function AdminPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Nom</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Séances</TableHead>
+                        <TableHead className="hidden sm:table-cell">Type</TableHead>
+                        <TableHead className="hidden sm:table-cell">Séances</TableHead>
                         <TableHead className="text-right">Prix</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -1030,13 +1030,18 @@ export default function AdminPage() {
                     <TableBody>
                       {allServices.map((service) => (
                         <TableRow key={service.id}>
-                          <TableCell className="font-medium">{service.name}</TableCell>
-                          <TableCell>
+                          <TableCell className="font-medium">
+                            {service.name}
+                            <span className="block sm:hidden text-xs font-normal text-gray-500">
+                              {service.type === 'neurofeedback' ? 'Neurofeedback' : 'Consultation'} · {service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             <Badge className={service.type === 'neurofeedback' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}>
                               {service.type === 'neurofeedback' ? 'Neurofeedback' : 'Consultation'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{service.sessions || 1} séance{(service.sessions || 1) > 1 ? 's' : ''}</TableCell>
                           <TableCell className="text-right font-semibold">{Number(service.price).toLocaleString('fr-FR')} DZD</TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button
@@ -1072,28 +1077,28 @@ export default function AdminPage() {
         {/* Tab Content - Activity Logs */}
         <TabsContent value="logs" className="space-y-6">
           <div className="border border-brand-200 rounded-lg overflow-hidden">
-            <div className="bg-brand-50 px-6 py-4 border-b border-brand-200">
+            <div className="bg-brand-50 px-4 py-3 sm:px-6 sm:py-4 border-b border-brand-200">
               <h2 className="text-lg font-semibold text-brand-900 flex items-center gap-2">
                 <History className="h-5 w-5" />
                 Journal d'activité
                 <span className="text-sm font-normal text-brand-700">({logsTotal})</span>
               </h2>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Input
                     placeholder="Rechercher..."
                     value={logFilterSearch}
                     onChange={(e) => { setLogFilterSearch(e.target.value); setLogsOffset(0); }}
-                    className="w-48"
+                    className="w-full sm:w-48"
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Label className="text-sm whitespace-nowrap">Action:</Label>
                   <Select value={logFilterAction} onValueChange={(v) => { setLogFilterAction(v); setLogsOffset(0); }}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="flex-1 sm:w-40">
                       <SelectValue placeholder="Toutes" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1109,10 +1114,10 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Label className="text-sm whitespace-nowrap">Resource:</Label>
                   <Select value={logFilterResource} onValueChange={(v) => { setLogFilterResource(v); setLogsOffset(0); }}>
-                    <SelectTrigger className="w-44">
+                    <SelectTrigger className="flex-1 sm:w-44">
                       <SelectValue placeholder="Toutes" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1133,7 +1138,7 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => loadActivityLogs()} className="gap-1 ml-auto">
+                <Button variant="outline" size="sm" onClick={() => loadActivityLogs()} className="gap-1 w-full sm:w-auto sm:ml-auto">
                   <RefreshCw className="h-3 w-3" />
                   Actualiser
                 </Button>
@@ -1152,7 +1157,7 @@ export default function AdminPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-brand-50">
-                      <SortableHeader label="Utilisateur" sortKey="userPseudo" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
+                      <SortableHeader label="Utilisateur" sortKey="userPseudo" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} className="hidden sm:table-cell" />
                       <SortableHeader label="Action" sortKey="action" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
                       <SortableHeader label="Entité" sortKey="resource" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
                       <SortableHeader label="Date & Heure" sortKey="date" currentSortKey={logsSort.sortKey} direction={logsSort.direction} onSort={logsSort.toggleSort} />
@@ -1161,7 +1166,7 @@ export default function AdminPage() {
                   <TableBody>
                     {logsSort.sortedItems.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="font-medium">{log.userPseudo || log.userName || 'Unknown'}</TableCell>
+                        <TableCell className="hidden sm:table-cell font-medium">{log.userPseudo || log.userName || 'Unknown'}</TableCell>
                         <TableCell className="text-sm">
                           <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
                             log.action === 'CREATE' ? 'bg-green-100 text-green-800' :

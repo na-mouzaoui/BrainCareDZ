@@ -259,7 +259,13 @@ export default function expensesPage() {
                 <TableBody>
                   {paginatedItems.map((expense) => (
                     <TableRow key={expense.id}>
-                      <TableCell className="font-medium">{expense.title}</TableCell>
+                      <TableCell className="font-medium">
+                        {expense.title}
+                        <span className="md:hidden mt-1 block text-xs font-normal text-gray-500">
+                          {expense.category && <span className="block">{expense.category}</span>}
+                          <span className="block">{new Date(expense.expenseDate).toLocaleDateString('fr-FR')}</span>
+                        </span>
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {expense.category ? (
                           <Badge variant="outline">{expense.category}</Badge>

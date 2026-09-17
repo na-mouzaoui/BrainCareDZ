@@ -467,7 +467,7 @@ export default function AppointmentReportPage() {
 
       {isMultiPatient && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-gray-50 rounded-lg p-3 border">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {allPatients.map((p, idx) => {
               const done = completedPatientIds.has(p.patientId);
               return (
@@ -538,7 +538,7 @@ export default function AppointmentReportPage() {
 
       <Card className="border-brand-100">
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-brand-700 text-base">Compte rendu et évolution</CardTitle>
             {isViewing && sortedCurrentNotes.length > 0 && (
               <Button type="button" variant="ghost" size="sm" onClick={() => handleEditNote(sortedCurrentNotes[0])} className="gap-1">
@@ -560,7 +560,7 @@ export default function AppointmentReportPage() {
                 {evoStatus === 'Abandon' && <span><span className="font-medium">Raison de l'abandon :</span> {evoAbandonReason || '—'}</span>}
               </div>
               {sortedCurrentNotes.length > 0 && (
-                <p className="text-sm text-gray-800 whitespace-pre-wrap border-t pt-2">{getNoteBody(sortedCurrentNotes[0]) || 'Aucun contenu.'}</p>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words border-t pt-2">{getNoteBody(sortedCurrentNotes[0]) || 'Aucun contenu.'}</p>
               )}
             </>
           ) : (
