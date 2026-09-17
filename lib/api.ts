@@ -1,7 +1,17 @@
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-const API_BASE_URL = rawApiUrl.endsWith('/api')
-  ? rawApiUrl
-  : `${rawApiUrl.replace(/\/$/, '')}/api`;
+const API_PORT = process.env.NEXT_PUBLIC_API_PORT || '5001';
+
+function resolveApiBaseUrl(): string {
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (rawApiUrl) {
+    return rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`;
+  }
+  return `http://localhost:${API_PORT}/api`;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 interface ApiRequestOptions extends RequestInit {
   body?: any;
