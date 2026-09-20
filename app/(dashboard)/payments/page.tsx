@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/table';
 import { AlertCircle, Edit2, Plus, Trash2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -404,7 +405,7 @@ function PaymentsContent() {
   const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(sortedItems);
 
   if (authLoading || loading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   return (

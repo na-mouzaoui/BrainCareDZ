@@ -7,7 +7,7 @@ import { appointments, expenses } from '../../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import {
   AreaChart,
   Area,
@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   return (

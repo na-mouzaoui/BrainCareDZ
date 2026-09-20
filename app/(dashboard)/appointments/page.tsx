@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, List, Clock, Plus, Trash2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -642,7 +643,7 @@ export default function AppointmentsPage() {
   const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredAppointments);
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   return (

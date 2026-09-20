@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Trash2, Users, Share2, Search, FileText, Plus, Calendar, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { DetailPageSkeleton } from '@/components/page-skeletons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PatientSearchSelect } from '@/components/patient-search-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -422,7 +423,7 @@ export default function PatientDetailPage() {
   };
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <DetailPageSkeleton />;
   }
 
   if (error && !patient) {

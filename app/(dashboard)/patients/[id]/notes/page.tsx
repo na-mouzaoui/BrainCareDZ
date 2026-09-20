@@ -7,7 +7,7 @@ import { sessionNotes, patients } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, FileText } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { FormPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Note {
@@ -85,7 +85,7 @@ export default function PatientNotesPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <FormPageSkeleton />;
   }
 
   const sortedNotes = [...notes].sort((a, b) => {

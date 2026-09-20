@@ -8,7 +8,7 @@ import { sessionNotes } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, FileText, Search } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 
@@ -87,7 +87,7 @@ export default function ReportsPage() {
   const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(filteredNotes);
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   return (

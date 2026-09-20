@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { payments } from '@/lib/api';
 import { AlertCircle } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { FormPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,7 +104,7 @@ export default function PaymentEditPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <FormPageSkeleton />;
   }
 
   return (

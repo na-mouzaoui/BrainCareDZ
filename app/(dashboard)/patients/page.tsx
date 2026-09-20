@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertCircle, Plus, Edit2, Trash2, History } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
@@ -218,7 +219,7 @@ export default function PatientsPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   return (

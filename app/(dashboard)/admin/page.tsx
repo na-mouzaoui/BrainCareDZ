@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { AlertCircle, Plus, Trash2, Edit2, Shield, Save, Users, Clock, History, RefreshCw, Briefcase, Stethoscope, KeyRound, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -590,7 +591,7 @@ export default function AdminPage() {
   };
 
   if (authLoading || (user?.role === 'admin' && loading)) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   if (user?.role !== 'admin') {

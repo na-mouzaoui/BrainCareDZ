@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { FormPageSkeleton } from '@/components/page-skeletons';
 import { useAuth } from '@/lib/auth-context';
 import { companies, companyInvoices } from '@/lib/api';
 import CompanyInvoiceForm, { type CompanyInvoiceFormData } from '@/components/company-invoice-form';
@@ -83,7 +83,7 @@ export default function NewCompanyInvoicePage() {
   );
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <FormPageSkeleton />;
   }
 
   return (

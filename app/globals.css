@@ -75,10 +75,10 @@
 }
 
 @theme inline {
-  --font-primary: 'Rozha One', serif;
-  --font-secondary: 'Gilroy', sans-serif;
-  --font-sans: 'Gilroy', 'Geist', 'Geist Fallback', sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-primary: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-secondary: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-brand: #167D79;
   --color-brand-50: #E8F4F4;
   --color-brand-100: #C8E8E6;
@@ -141,5 +141,15 @@
 @media (max-width: 640px) {
   html {
     font-size: 14px;
+  }
+  /*
+   * Empêche le zoom automatique d'iOS au focus : les champs de saisie
+   * doivent rester à 16px minimum sur mobile malgré l'échelle réduite.
+   */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  [role='combobox'] {
+    font-size: 16px;
   }
 }

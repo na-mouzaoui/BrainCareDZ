@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Edit2, FileText, Eye, Save } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { DetailPageSkeleton } from '@/components/page-skeletons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -426,7 +427,7 @@ export default function AppointmentReportPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <DetailPageSkeleton />;
   }
 
   if (error || !appointment) {

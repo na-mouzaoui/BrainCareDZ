@@ -1,14 +1,11 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono, Rozha_One } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { SidebarProvider } from '@/lib/sidebar-context'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
-
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
-const _rozhaOne = Rozha_One({ subsets: ["latin"], weight: "400", variable: "--font-primary" });
 
 export const metadata: Metadata = {
   title: 'Psychology Practice Manager',
@@ -26,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`${_rozhaOne.variable} font-secondary antialiased`}>
+    <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className="font-secondary antialiased">
         <AuthProvider>
           <SidebarProvider>
             {children}

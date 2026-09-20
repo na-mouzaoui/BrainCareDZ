@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { usePagination, PaginationControls } from '@/components/pagination-controls';
 import { AlertCircle, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FilterDialog, {
@@ -186,7 +186,7 @@ export default function expensesPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <ListPageSkeleton />;
   }
 
   if (user?.role !== 'admin') {

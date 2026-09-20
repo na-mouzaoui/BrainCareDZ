@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DollarSign, Calendar as CalendarIcon, Users, TrendingUp, Wallet, AlertCircle, Clock, UserPlus, UserMinus, Baby, Brain, ChevronRight, ChevronLeft } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { DashboardSkeleton } from '@/components/page-skeletons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -982,7 +982,7 @@ export default function DashboardPage() {
   ], [data, tileToggles, neuroDate, psyDate, neuroDayCount, psyDayCount, neuroDayDetail, psyDayDetail]);
 
   if (isLoading) {
-    return <Spinner fullPage />;
+    return <DashboardSkeleton />;
   }
 
   const totalPages = Math.ceil(kpiTiles.length / 4);

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { expenses } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { DetailPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ExpenseDetail {
@@ -62,7 +62,7 @@ export default function InvoiceDetailPage() {
   }
 
   if (authLoading || isLoading) {
-    return <Spinner fullPage />;
+    return <DetailPageSkeleton />;
   }
 
   if (error || !expense) {
