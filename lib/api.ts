@@ -92,11 +92,6 @@ export async function apiRequest<T = any>(
 
 // Auth endpoints
 export const auth = {
-  register: (firstName: string, lastName: string, password?: string, role?: string) =>
-    apiRequest('/auth/register', {
-      method: 'POST',
-      body: { firstName, lastName, password, role },
-    }),
   login: (pseudo: string, password: string) =>
     apiRequest('/auth/login', {
       method: 'POST',
@@ -123,8 +118,6 @@ export const patients = {
     }),
   delete: (id: string) =>
     apiRequest(`/patients/${id}`, { method: 'DELETE' }),
-  search: (query: string) =>
-    apiRequest(`/patients/search/${query}`, { method: 'GET' }),
   getHistory: (id: string) =>
     apiRequest(`/patients/${id}/history`, { method: 'GET' }),
 };
@@ -160,8 +153,6 @@ export const services = {
     }),
   delete: (id: string) =>
     apiRequest(`/services/${id}`, { method: 'DELETE' }),
-  getByCategory: (category: string) =>
-    apiRequest(`/services/category/${category}`, { method: 'GET' }),
 };
 
 // Appointments endpoints
@@ -192,8 +183,6 @@ export const appointments = {
     }),
   complete: (id: string) =>
     apiRequest(`/appointments/${id}/complete`, { method: 'PUT' }),
-  start: (id: string) =>
-    apiRequest(`/appointments/${id}/start`, { method: 'PUT' }),
   getAvailability: (date: string) =>
     apiRequest(`/appointments/availability/${date}`, { method: 'GET' }),
 };
@@ -350,20 +339,6 @@ export const activityLogs = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiRequest(`/activity-logs${query}`, { method: 'GET' });
   },
-  getMyActivity: (limit = 50, offset = 0) => {
-    const params = new URLSearchParams();
-    params.append('limit', String(limit));
-    params.append('offset', String(offset));
-    const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest(`/activity-logs/my-activity${query}`, { method: 'GET' });
-  },
-  create: (data: any) =>
-    apiRequest('/activity-logs', {
-      method: 'POST',
-      body: data,
-    }),
-  getStats: () =>
-    apiRequest('/activity-logs/stats/summary', { method: 'GET' }),
 };
 
 // Patient Packs endpoints

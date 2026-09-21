@@ -200,7 +200,7 @@ export function PatientForm({
 
     setSubmitting(true);
     try {
-      await onSubmit(formData);
+      await onSubmit?.(formData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
     } finally {
@@ -383,9 +383,9 @@ export function PatientForm({
                       type="radio"
                       id={`children-${option}`}
                       name="hasChildren"
-                      value={option === 'Oui'}
+                      value={option}
                       checked={formData.hasChildren === (option === 'Oui')}
-                      onChange={(e) => handleInputChange('hasChildren', e.target.value === 'true')}
+                      onChange={() => handleInputChange('hasChildren', option === 'Oui')}
                       disabled={isFormLoading || (formData.age !== undefined && formData.age < 18)}
                     />
                     <label htmlFor={`children-${option}`} className="text-sm cursor-pointer">{option}</label>

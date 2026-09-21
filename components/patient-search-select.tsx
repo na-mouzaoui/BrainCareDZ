@@ -22,6 +22,7 @@ interface PatientSearchSelectProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  resetKey?: string | number;
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
@@ -40,9 +41,17 @@ export function PatientSearchSelect({
   placeholder = 'Sélectionner un patient',
   disabled = false,
   className,
+  resetKey,
 }: PatientSearchSelectProps) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
+
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
+    setSearch('');
+    setOpen(false);
+  }
 
   const validPatients = useMemo(() => uniqueById(patients), [patients]);
 

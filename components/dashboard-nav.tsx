@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -37,7 +37,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Tableau de bord', href: '/', icon: LayoutDashboard },
   { label: 'Patients', href: '/patients', icon: Users },
   { label: 'Rendez-vous', href: '/appointments', icon: Calendar },
   { label: 'Paiements', href: '/payments', icon: CreditCard },
@@ -53,7 +53,7 @@ export function DashboardNav() {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/auth/login');
+    router.push('/login');
   };
 
   const closeSidebar = () => setIsOpen(false);
@@ -331,15 +331,15 @@ export function DashboardNav() {
             )}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Mot de passe actuel</label>
-              <Input type="password" value={pwdCurrent} onChange={(e) => setPwdCurrent(e.target.value)} placeholder="••••••••" />
+              <PasswordInput value={pwdCurrent} onChange={(e) => setPwdCurrent(e.target.value)} placeholder="••••••••" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Nouveau mot de passe</label>
-              <Input type="password" value={pwdNew} onChange={(e) => setPwdNew(e.target.value)} placeholder="••••••••" />
+              <PasswordInput value={pwdNew} onChange={(e) => setPwdNew(e.target.value)} placeholder="••••••••" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Confirmer le mot de passe</label>
-              <Input type="password" value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} placeholder="••••••••" />
+              <PasswordInput value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} placeholder="••••••••" />
             </div>
             <Button onClick={handleChangePassword} disabled={pwdLoading} className="w-full bg-brand-700 hover:bg-brand-800">
               {pwdLoading ? 'Enregistrement...' : 'Modifier le mot de passe'}

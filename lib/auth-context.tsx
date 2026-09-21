@@ -23,7 +23,6 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (pseudo: string, password: string) => Promise<AuthResult>;
-  register: (firstName: string, lastName: string, password?: string, role?: string) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -78,24 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (firstName: string, lastName: string, password?: string, role?: string): Promise<AuthResult> => {
-    try {
-      const response = await auth.register(firstName, lastName, password, role);
-      if (response.success && response.token && response.data) {
-        localStorage.setItem('token', response.token);
-        setToken(response.token);
-        setUser(response.data as User);
-        return { success: true };
-      }
-      return { success: false, error: response.error || response.message || 'Échec de l\'inscription' };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',
-      };
-    }
-  };
-
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -110,7 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!token,
         login,
-        register,
         logout,
       }}
     >

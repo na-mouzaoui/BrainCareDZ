@@ -3,15 +3,14 @@
   "version": "1.0.0",
   "description": "Express backend for psychology practice management system",
   "type": "module",
-  "main": "server.ts",
+  "main": "src/index.ts",
   "scripts": {
-    "dev": "tsx watch server.ts",
-    "start": "tsx server.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "db:init": "psql -U postgres -d BrainCare -f sql/init_postgres.sql",
-    "seed": "tsx scripts/seed.ts",
-    "create-admin": "tsx scripts/create-admin.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "tsx src/scripts/seed.ts",
+    "create-admin": "tsx src/scripts/create-admin.ts"
   },
   "keywords": [],
   "author": "",
@@ -23,16 +22,13 @@
     "express": "^4.18.2",
     "express-validator": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
-    "my-project": "file:..",
-    "pg": "^8.13.1",
-    "stripe": "^14.0.0"
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.15.17",
-    "nodemon": "^3.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3"
   }

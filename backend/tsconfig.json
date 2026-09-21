@@ -15,13 +15,6 @@
     "resolveJsonModule": true,
     "outDir": "dist"
   },
-  "include": [
-    "server.ts",
-    "config/**/*.ts",
-    "middleware/**/*.ts",
-    "routes/**/*.ts",
-    "scripts/**/*.ts",
-    "types/**/*.d.ts"
-  ],
-  "exclude": ["node_modules", "dist", "models"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { SidebarProvider } from '@/lib/sidebar-context'
+import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -27,7 +28,7 @@ export default function RootLayout({
       <body className="font-secondary antialiased">
         <AuthProvider>
           <SidebarProvider>
-            {children}
+            <AppShell>{children}</AppShell>
           </SidebarProvider>
         </AuthProvider>
         <Toaster />
