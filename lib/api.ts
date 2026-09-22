@@ -1,4 +1,4 @@
-const API_PORT = process.env.NEXT_PUBLIC_API_PORT || '5001';
+/*const API_PORT = process.env.NEXT_PUBLIC_API_PORT || '5001';
 
 function resolveApiBaseUrl(): string {
   const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -9,6 +9,17 @@ function resolveApiBaseUrl(): string {
     return `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`;
   }
   return `http://localhost:${API_PORT}/api`;
+}*/
+function resolveApiBaseUrl(): string {
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!rawApiUrl) {
+    throw new Error('NEXT_PUBLIC_API_URL is not configured');
+  }
+
+  return rawApiUrl.endsWith('/api')
+    ? rawApiUrl
+    : `${rawApiUrl.replace(/\/$/, '')}/api`;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
