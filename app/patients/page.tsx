@@ -13,14 +13,14 @@ import { Spinner } from '@/components/ui/spinner';
 import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { usePagination, PaginationControls } from '@/components/pagination-controls';
+import { PaginationControls } from '@/components/pagination-controls';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FilterDialog, {
   type FilterField,
   type FilterValues,
   resetFilters,
 } from '@/components/filter-dialog';
-import { useSort, SortableHeader } from '@/components/sortable-header';
+import { SortableHeader, type SortDirection } from '@/components/sortable-header';
 
 interface Patient {
   id: string;
@@ -47,10 +47,50 @@ interface Patient {
   createdAt?: string;
 }
 
+const PAGE_SIZE = 25;
+
+function buildPatientQuery(
+  filters: FilterValues,
+  page: number,
+  pageSize: number,
+  sortKey: string | null,
+  direction: SortDirection
+): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = { page, pageSize };
+  if (sortKey) {
+    params.sort = sortKey;
+    params.order = direction;
+  }
+
+  const name = filters.name;
+  if (typeof name === 'string' && name.trim()) params.search = name.trim();
+
+  const practitioner = filters.practitionerName;
+  if (typeof practitioner === 'string' && practitioner.trim()) params.practitionerName = practitioner.trim();
+
+  const pack = filters.packServiceName;
+  if (typeof pack === 'string' && pack.trim()) params.packServiceName = pack.trim();
+
+  const sessionRange = filters.sessionCount as { min?: number; max?: number } | undefined;
+  if (sessionRange?.min !== undefined && sessionRange.min !== null && !Number.isNaN(Number(sessionRange.min))) params.minSessions = Number(sessionRange.min);
+  if (sessionRange?.max !== undefined && sessionRange.max !== null && !Number.isNaN(Number(sessionRange.max))) params.maxSessions = Number(sessionRange.max);
+
+  const balanceRange = filters.balance as { min?: number; max?: number } | undefined;
+  if (balanceRange?.min !== undefined && balanceRange.min !== null && !Number.isNaN(Number(balanceRange.min))) params.minBalance = Number(balanceRange.min);
+  if (balanceRange?.max !== undefined && balanceRange.max !== null && !Number.isNaN(Number(balanceRange.max))) params.maxBalance = Number(balanceRange.max);
+
+  if (filters.isProspect === 'true') params.isProspect = true;
+
+  return params;
+}
+
 export default function PatientsPage() {
   const [patientsList, setPatientsList] = useState<Patient[]>([]);
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState<FilterValues>({});
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [sortKey, setSortKey] = useState<string | null>('name');
+  const [direction, setDirection] = useState<SortDirection>('asc');
   const filterFields: FilterField[] = [
     { key: 'name', label: 'Nom / Email / Téléphone', type: 'text', placeholder: 'Rechercher un patient' },
     { key: 'practitionerName', label: 'Praticien en charge', type: 'text', placeholder: 'Nom du praticien' },
@@ -68,21 +108,16 @@ export default function PatientsPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const { sortKey, direction, toggleSort, sortedItems } = useSort(
-    filteredPatients,
-    {
-      name: (p) => `${p.firstName} ${p.lastName}`,
-      email: (p) => p.email || '',
-      phone: (p) => p.phone,
-      practitionerName: (p) => p.practitionerName || '',
-      packServiceName: (p) => p.packServiceName || '',
-      balance: (p) => Number(p.balance) || 0,
-      isProspect: (p) => (p.isProspect ? 1 : 0),
-      createdAt: (p) => p.createdAt || '',
-    },
-    'name'
-  );
-  const { page, setPage, totalPages, totalItems, paginatedItems } = usePagination(sortedItems);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setDirection('asc');
+    }
+    setPage(1);
+  }
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -91,76 +126,26 @@ export default function PatientsPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (authLoading) return;
+    if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-
-    if (!authLoading && isAuthenticated) {
-      loadPatients();
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  useEffect(() => {
-    const filtered = patientsList.filter((patient) => {
-      for (const [key, rawValue] of Object.entries(filters)) {
-        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
-
-        if (typeof rawValue === 'object') {
-          const range = rawValue as { from?: string; to?: string; min?: number; max?: number };
-
-          if (key === 'sessionCount') {
-            const sessionValue = patient.sessionCount || 0;
-            if (range.min !== undefined && !Number.isNaN(range.min) && sessionValue < range.min) return false;
-            if (range.max !== undefined && !Number.isNaN(range.max) && sessionValue > range.max) return false;
-          }
-
-          if (key === 'balance') {
-            const balanceValue = Number(patient.balance) || 0;
-            if (range.min !== undefined && !Number.isNaN(range.min) && balanceValue < range.min) return false;
-            if (range.max !== undefined && !Number.isNaN(range.max) && balanceValue > range.max) return false;
-          }
-
-          continue;
-        }
-
-        const value = String(rawValue).toLowerCase();
-        switch (key) {
-          case 'practitionerName':
-            if (!(patient.practitionerName || '').toLowerCase().includes(value)) return false;
-            break;
-          case 'packServiceName':
-            if (!(patient.packServiceName || '').toLowerCase().includes(value)) return false;
-            break;
-          case 'name':
-            {
-              const haystack = `${patient.firstName} ${patient.lastName}`.toLowerCase() +
-                (patient.email || '').toLowerCase() +
-                patient.phone.toLowerCase();
-              if (!haystack.includes(value)) return false;
-            }
-            break;
-          case 'isProspect':
-            {
-              if (value === 'true' && !patient.isProspect) return false;
-            }
-            break;
-        }
-      }
-
-      return true;
-    });
-    setFilteredPatients(filtered);
-  }, [patientsList, filters]);
+    void loadPatients();
+  }, [isAuthenticated, authLoading, page, filters, sortKey, direction, router]);
 
   async function loadPatients(): Promise<Patient[]> {
     try {
       setIsLoading(true);
-      const response = await patients.getAll();
-      
+      const response = await patients.getPaged(
+        buildPatientQuery(filters, page, PAGE_SIZE, sortKey, direction)
+      );
+
       if (response.success && response.data) {
-        const rows = Array.isArray(response.data) ? response.data : response.data.patients || [];
+        const payload = response.data as { patients?: Patient[]; total?: number };
+        const rows = payload.patients || [];
         setPatientsList(rows);
+        setTotalItems(payload.total ?? rows.length);
         return rows;
       } else {
         setError(response.message || 'Échec du chargement des patients');
@@ -200,10 +185,9 @@ export default function PatientsPage() {
 
     const createdPatient = response.data as Patient | undefined;
     setCreateOpen(false);
-    const latestPatients = await loadPatients();
-
-    if (createdPatient?.id && !latestPatients.some((patient) => patient.id === createdPatient.id)) {
-      throw new Error('Patient non persisté en base de données. Vérifiez la connexion backend PostgreSQL.');
+    if (createdPatient?.id) {
+      setPage(1);
+      await loadPatients();
     }
   }
 
@@ -245,8 +229,8 @@ export default function PatientsPage() {
         <FilterDialog
           fields={filterFields}
           values={filters}
-          onChange={setFilters}
-          onReset={() => setFilters(resetFilters(filterFields))}
+          onChange={(values) => { setFilters(values); setPage(1); }}
+          onReset={() => { setFilters(resetFilters(filterFields)); setPage(1); }}
         />
       </div>
 
@@ -257,7 +241,7 @@ export default function PatientsPage() {
         </Alert>
       )}
 
-      {filteredPatients.length > 0 ? (
+      {patientsList.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -279,7 +263,7 @@ export default function PatientsPage() {
                   </TableRow>
                 </TableHeader>
 <TableBody>
-                  {paginatedItems.map((patient) => {
+                  {patientsList.map((patient) => {
                     return (
                       <TableRow
                         key={patient.id}

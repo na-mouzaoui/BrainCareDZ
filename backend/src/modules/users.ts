@@ -31,7 +31,8 @@ router.get('/', protect, async (req, res) => {
          JOIN appointment_patients ap ON ap.appointment_id = a.id
          WHERE a.practitioner_id = u.id AND a.status <> 'cancelled') AS "patientCount"
        FROM users u
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC
+       LIMIT 500`
     );
 
     return res.json({
@@ -42,7 +43,7 @@ router.get('/', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -61,7 +62,7 @@ router.get('/practitioners', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -90,7 +91,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: user.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -130,7 +131,7 @@ router.post('/', protect, async (req, res) => {
 
     return res.status(201).json({ success: true, data: inserted.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -186,7 +187,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: updated.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -201,7 +202,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -236,7 +237,7 @@ router.put('/me/password', protect, async (req, res) => {
 
     return res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -264,7 +265,7 @@ router.put('/:id/password', protect, async (req, res) => {
 
     return res.json({ success: true, data: updated.rows[0], message: 'Password updated successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 

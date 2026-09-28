@@ -21,7 +21,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
   try {
     const where = 'WHERE o.patient_id = $1';
 
-    const result = await query(`${outcomeSelect} ${where} ORDER BY o.evaluated_at DESC`, [req.params.patientId]);
+    const result = await query(`${outcomeSelect} ${where} ORDER BY o.evaluated_at DESC LIMIT 1000`, [req.params.patientId]);
 
     return res.status(200).json({
       success: true,
@@ -29,7 +29,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
       outcomes: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -77,7 +77,7 @@ router.post(
         outcome: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
 );
@@ -97,7 +97,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Evaluation deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 

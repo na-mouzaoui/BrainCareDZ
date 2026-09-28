@@ -26,7 +26,7 @@ router.get('/patient-lists', protect, async (req, res) => {
     const lists = await getStoredLists();
     return res.json({ success: true, data: lists });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -83,7 +83,7 @@ router.put('/patient-lists', protect, async (req, res) => {
 
     return res.json({ success: true, data: { professions, motifs } });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -92,7 +92,7 @@ router.get('/calendar-settings', protect, async (req, res) => {
     const result = await query('SELECT * FROM calendar_settings ORDER BY calendar_role');
     return res.json({ success: true, data: result.rows });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -104,7 +104,7 @@ router.get('/calendar-settings/:role', protect, async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 
@@ -149,7 +149,7 @@ router.put('/calendar-settings/:role', protect, async (req, res) => {
 
     return res.json({ success: true, data: result.rows[0] });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
   }
 });
 

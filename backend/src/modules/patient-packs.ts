@@ -17,10 +17,10 @@ const packSelect = `
 
 router.get('/', protect, async (req, res) => {
   try {
-    const result = await query(`${packSelect} ORDER BY pp.created_at DESC`);
+    const result = await query(`${packSelect} ORDER BY pp.created_at DESC LIMIT 1000`);
     return res.json({ success: true, data: { packs: result.rows } });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -43,7 +43,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
       data: { packs: result.rows, sharedPacks: sharedResult.rows },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -66,7 +66,7 @@ router.post('/', protect, async (req, res) => {
     );
     return res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -154,7 +154,7 @@ router.post('/select', protect, async (req, res) => {
       success: true, message: 'Pack sélectionné et séance débitée', data: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -177,7 +177,7 @@ router.get('/:id/shares', protect, async (req, res) => {
       data: { shares: shares.rows, principalPatientId: pack.rows[0].patient_id },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -216,7 +216,7 @@ router.post('/:id/shares', protect, async (req, res) => {
     );
     return res.status(201).json({ success: true, message: 'Bénéficiaire ajouté' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -245,7 +245,7 @@ router.delete('/:id/shares/:patientId', protect, async (req, res) => {
     await query('DELETE FROM patient_pack_shares WHERE pack_id = $1 AND patient_id = $2', [id, patientId]);
     return res.status(200).json({ success: true, message: 'Bénéficiaire retiré' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -258,7 +258,7 @@ router.delete('/:id', protect, async (req, res) => {
     await query('DELETE FROM patient_packs WHERE id = $1', [req.params.id]);
     return res.status(200).json({ success: true, message: 'Pack deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -335,7 +335,7 @@ router.put('/:id/switch', protect, async (req, res) => {
       data: { ...updated.rows[0], balanceDelta },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 

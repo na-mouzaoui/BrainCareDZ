@@ -27,7 +27,7 @@ router.get('/', protect, async (req, res) => {
       where = `WHERE wl.practitioner_id = $1`;
     }
     const result = await query(
-      `${entrySelect} ${where} ORDER BY wl.practitioner_id, wl.position ASC, wl.created_at ASC`,
+      `${entrySelect} ${where} ORDER BY wl.practitioner_id, wl.position ASC, wl.created_at ASC LIMIT 1000`,
       params
     );
 
@@ -37,7 +37,7 @@ router.get('/', protect, async (req, res) => {
       entries: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -104,7 +104,7 @@ router.post(
         entry: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
 );
@@ -142,7 +142,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Entrée retirée de la liste d\'attente' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -200,7 +200,7 @@ router.put(
         entries: result.rows,
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
 );

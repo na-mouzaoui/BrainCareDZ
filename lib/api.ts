@@ -41,9 +41,7 @@ export async function apiRequest<T = any>(
   options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
   const { body, ...fetchOptions } = options;
-  
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -52,14 +50,11 @@ export async function apiRequest<T = any>(
     Object.assign(headers, fetchOptions.headers as Record<string, string>);
   }
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...fetchOptions,
       headers,
+      credentials: 'include',
       body: body ? JSON.stringify(body) : undefined,
     });
 
@@ -109,12 +104,23 @@ export const auth = {
       body: { pseudo, password },
     }),
   getMe: () => apiRequest('/auth/me', { method: 'GET' }),
+  logout: () => apiRequest('/auth/logout', { method: 'POST' }),
 };
 
 // Patient endpoints
 export const patients = {
   getAll: () =>
     apiRequest('/patients', { method: 'GET' }),
+  getPaged: (params: Record<string, string | number | boolean>) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(key, String(value));
+      }
+    });
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`/patients/paged${suffix}`, { method: 'GET' });
+  },
   getById: (id: string) =>
     apiRequest(`/patients/${id}`, { method: 'GET' }),
   create: (data: any) =>

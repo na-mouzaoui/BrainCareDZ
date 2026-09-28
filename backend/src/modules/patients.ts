@@ -245,9 +245,13 @@ c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children
   ) consec_nulls ON true
 `;
 
+// Cap de sécurité pour les appels internes (menus déroulants, tableaux de bord) :
+// évite qu'une seule requête n'extraie l'intégralité du fichier patients.
+const PATIENTS_LIST_CAP = 2000;
+
 router.get('/', protect, async (req, res) => {
   try {
-    const result = await query(`${baseSelect} ORDER BY c.created_at DESC`);
+    const result = await query(`${baseSelect} ORDER BY c.created_at DESC LIMIT ${PATIENTS_LIST_CAP}`);
 
     return res.status(200).json({
       success: true,
@@ -255,7 +259,7 @@ router.get('/', protect, async (req, res) => {
       patients: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -272,7 +276,91 @@ router.get('/search/:query', protect, async (req, res) => {
       patients: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+  }
+});
+
+// Pagination + tri + recherche côté serveur : le front ne reçoit qu'une page.
+const PATIENT_SORTS = {
+  name: 'sub."firstName"',
+  phone: 'sub.phone',
+  practitionerName: 'sub."practitionerName"',
+  packServiceName: 'sub."packServiceName"',
+  balance: 'sub.balance',
+  sessionCount: 'sub."sessionCount"',
+  createdAt: 'sub."createdAt"',
+};
+
+router.get('/paged', protect, async (req, res) => {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize ?? '25'), 10) || 25));
+    const offset = (page - 1) * pageSize;
+
+    const toNum = (value) => {
+      if (value === undefined || value === null || value === '') return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const search = String(req.query.search ?? '').trim();
+    const practitionerName = String(req.query.practitionerName ?? '').trim();
+    const packServiceName = String(req.query.packServiceName ?? '').trim();
+    const isProspect = String(req.query.isProspect ?? '') === 'true';
+    const minSessions = toNum(req.query.minSessions);
+    const maxSessions = toNum(req.query.maxSessions);
+    const minBalance = toNum(req.query.minBalance);
+    const maxBalance = toNum(req.query.maxBalance);
+
+    const params = [];
+    const conditions = [];
+    const add = (value) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    if (search) {
+      const p = add(`%${search}%`);
+      conditions.push(
+        `(CONCAT(sub."firstName", ' ', sub."lastName") ILIKE ${p} OR COALESCE(sub.email, '') ILIKE ${p} OR COALESCE(sub.phone, '') ILIKE ${p})`
+      );
+    }
+    if (practitionerName) conditions.push(`COALESCE(sub."practitionerName", '') ILIKE ${add(`%${practitionerName}%`)}`);
+    if (packServiceName) conditions.push(`COALESCE(sub."packServiceName", '') ILIKE ${add(`%${packServiceName}%`)}`);
+    if (minSessions !== null) conditions.push(`sub."sessionCount" >= ${add(minSessions)}`);
+    if (maxSessions !== null) conditions.push(`sub."sessionCount" <= ${add(maxSessions)}`);
+    if (minBalance !== null) conditions.push(`sub.balance >= ${add(minBalance)}`);
+    if (maxBalance !== null) conditions.push(`sub.balance <= ${add(maxBalance)}`);
+    if (isProspect) conditions.push(`sub."isProspect" = TRUE`);
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sortExpr = PATIENT_SORTS[String(req.query.sort ?? '')] || 'sub."createdAt"';
+    const order = String(req.query.order ?? 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    const limitParam = add(pageSize);
+    const offsetParam = add(offset);
+
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total FROM (${baseSelect}) sub ${where}`,
+      params.slice(0, params.length - 2)
+    );
+    const dataResult = await query(
+      `SELECT * FROM (${baseSelect}) sub ${where} ORDER BY ${sortExpr} ${order} NULLS LAST LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      params
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        patients: dataResult.rows,
+        total: countResult.rows[0]?.total ?? 0,
+        page,
+        pageSize,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -286,7 +374,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, patient: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -365,7 +453,7 @@ router.post(
         patient: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
 );
@@ -449,7 +537,7 @@ router.put('/:id', protect, async (req, res) => {
       patient: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -467,7 +555,7 @@ router.get('/:id/history', protect, async (req, res) => {
     );
     return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -492,7 +580,7 @@ router.delete('/:id', protect, async (req, res) => {
       message: 'Patient deleted successfully',
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 

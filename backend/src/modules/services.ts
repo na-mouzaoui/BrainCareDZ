@@ -10,7 +10,8 @@ router.get('/', protect, async (req, res) => {
       `SELECT id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services
        WHERE is_active = TRUE
-       ORDER BY created_at DESC`
+       ORDER BY created_at DESC
+       LIMIT 500`
     );
 
     return res.status(200).json({
@@ -19,7 +20,7 @@ router.get('/', protect, async (req, res) => {
       services: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -37,7 +38,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, service: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -83,7 +84,7 @@ router.post(
         service: result.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
 );
@@ -128,7 +129,7 @@ router.put('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
       service: result.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 
@@ -148,7 +149,7 @@ router.delete('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
       message: 'Service deleted successfully',
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
   }
 });
 

@@ -23,7 +23,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (pseudo: string, password: string) => Promise<AuthResult>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,22 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-
     const hydrateUser = async () => {
-      if (!savedToken) {
-        setIsLoading(false);
-        return;
-      }
-
-      setToken(savedToken);
+      // Le token est stocké dans un cookie httpOnly : on ne peut que le valider côté serveur.
       const response = await auth.getMe();
       if (response.success && response.data) {
         setUser(response.data as User);
+        setToken('cookie');
       } else {
-        localStorage.removeItem('token');
-        setToken(null);
         setUser(null);
+        setToken(null);
       }
 
       setIsLoading(false);
@@ -61,9 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (pseudo: string, password: string): Promise<AuthResult> => {
     try {
       const response = await auth.login(pseudo, password);
-      if (response.success && response.token && response.data) {
-        localStorage.setItem('token', response.token);
-        setToken(response.token);
+      if (response.success && response.data) {
+        setToken('cookie');
         setUser(response.data as User);
         return { success: true };
       }
@@ -77,8 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    try {
+      await auth.logout();
+    } catch {
+      // On nettoie l'état local même si l'appel réseau échoue.
+    }
     setToken(null);
     setUser(null);
   };

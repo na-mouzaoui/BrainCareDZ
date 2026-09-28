@@ -6,6 +6,9 @@ import { query } from './index.js';
  * CREATE ... IF NOT EXISTS / OR REPLACE / DROP ... IF EXISTS.
  */
 export async function ensureSchema(): Promise<void> {
+  // Security hardening: token revocation
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`);
+
   // practitioner_services (junction)
   await query(
     `CREATE TABLE IF NOT EXISTS practitioner_services (
