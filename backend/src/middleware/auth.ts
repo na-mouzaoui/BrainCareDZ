@@ -30,12 +30,14 @@ export const protect = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Not authorized to access this route' });
       }
 
+      // Portée session (false) et non transaction : les déclencheurs d'audit lisent
+      // ces valeurs lors des requêtes suivantes de la même connexion.
       await client.query(
-        `SELECT set_config('app.user_id', $1, true),
-                set_config('app.user_name', $2, true),
-                set_config('app.user_email', $3, true),
-                set_config('app.user_role', $4, true),
-                set_config('app.user_pseudo', $5, true)`,
+        `SELECT set_config('app.user_id', $1, false),
+                set_config('app.user_name', $2, false),
+                set_config('app.user_email', $3, false),
+                set_config('app.user_role', $4, false),
+                set_config('app.user_pseudo', $5, false)`,
         [
           req.user.id || '',
           req.user.name || '',
@@ -54,9 +56,21 @@ export const protect = async (req, res, next) => {
         client,
       };
 
-      // Release client when response finishes
+      // Efface le contexte de session puis libère la connexion (évite toute fuite
+      // de contexte vers une requête non authentifiée réutilisant la même connexion).
       res.on('finish', () => {
-        try { client.release(); } catch { /* already released */ }
+        client
+          .query(
+            `SELECT set_config('app.user_id', '', false),
+                    set_config('app.user_name', '', false),
+                    set_config('app.user_email', '', false),
+                    set_config('app.user_role', '', false),
+                    set_config('app.user_pseudo', '', false)`
+          )
+          .catch(() => undefined)
+          .finally(() => {
+            try { client.release(); } catch { /* already released */ }
+          });
       });
 
       userContextStore.run(ctx, () => next());

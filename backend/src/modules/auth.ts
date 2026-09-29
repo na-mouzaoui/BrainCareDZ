@@ -82,6 +82,8 @@ router.post(
 
       res.cookie(AUTH_COOKIE, token, cookieOptions());
 
+      // Renseigne l'utilisateur pour que la ligne de log porte son nom (sinon « Unknown »).
+      req.user = safeUser;
       await logActivity({ req, action: 'LOGIN', resource: 'auth', resourceId: user.id, resourceName: user.name });
 
       return res.status(200).json({
