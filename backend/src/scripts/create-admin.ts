@@ -24,6 +24,7 @@ async function createAdmin() {
          SET name = $2,
              password_hash = $3,
              role = 'admin',
+             pseudo = COALESCE(NULLIF(pseudo, ''), 'admin'),
              updated_at = NOW()
          WHERE email = $1`,
         [email, 'Admin User', passwordHash]
@@ -37,9 +38,9 @@ async function createAdmin() {
     }
 
     await query(
-      `INSERT INTO users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)`,
-      ['Admin User', email, passwordHash, 'admin']
+      `INSERT INTO users (name, pseudo, email, password_hash, role)
+       VALUES ($1, $2, $3, $4, $5)`,
+      ['Admin User', 'admin', email, passwordHash, 'admin']
     );
 
     console.log('\nAdmin account created successfully!\n');

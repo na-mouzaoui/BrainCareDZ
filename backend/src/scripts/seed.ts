@@ -30,12 +30,12 @@ const seedDatabase = async () => {
     const receptionistHash = await bcryptjs.hash('password123', 10);
 
     const users = await query(
-      `INSERT INTO users (name, email, password_hash, role)
+      `INSERT INTO users (name, pseudo, email, password_hash, role)
        VALUES
-         ('Admin User', 'admin@example.com', $1, 'admin'),
-         ('Test User', 'test@gmail.com', $2, 'psy'),
-         ('Practitioner One', 'practitioner@example.com', $3, 'psy'),
-         ('Receptionist', 'receptionist@example.com', $4, 'coach')
+         ('Admin User', 'admin', 'admin@example.com', $1, 'admin'),
+         ('Test User', 'test_user', 'test@gmail.com', $2, 'psy'),
+         ('Practitioner One', 'practitioner_one', 'practitioner@example.com', $3, 'psy'),
+         ('Receptionist', 'receptionist', 'receptionist@example.com', $4, 'coach')
        RETURNING id, name, email, role`,
       [adminHash, testHash, practitionerHash, receptionistHash]
     );

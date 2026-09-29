@@ -13,7 +13,11 @@ const AUTH_COOKIE = 'token';
 const cookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+  // En production, front et API peuvent être sur des domaines distincts (cross-site) :
+  // SameSite=None est requis pour que le navigateur conserve et renvoie le cookie.
+  sameSite:
+    (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') ||
+    (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 });
@@ -48,10 +52,11 @@ router.post(
     const { pseudo, password } = req.body;
 
     try {
+      // Accepte l'identifiant saisi comme pseudo OU e-mail (comptes créés sans pseudo).
       const result = await query(
-        `SELECT id, name, pseudo, role, password_hash, token_version
+        `SELECT id, name, pseudo, role, email, password_hash, token_version
          FROM users
-         WHERE pseudo = $1`,
+         WHERE pseudo = $1 OR LOWER(email) = $1`,
         [pseudo.toLowerCase()]
       );
 
