@@ -1,28 +1,9 @@
-/*const API_PORT = process.env.NEXT_PUBLIC_API_PORT || '5001';
-
-function resolveApiBaseUrl(): string {
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (rawApiUrl) {
-    return rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
-  }
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`;
-  }
-  return `http://localhost:${API_PORT}/api`;
-}*/
-function resolveApiBaseUrl(): string {
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!rawApiUrl) {
-    throw new Error('NEXT_PUBLIC_API_URL is not configured');
-  }
-
-  return rawApiUrl.endsWith('/api')
-    ? rawApiUrl
-    : `${rawApiUrl.replace(/\/$/, '')}/api`;
-}
-
-const API_BASE_URL = resolveApiBaseUrl();
+// Les appels partent de la même origine que l'application : Next.js les relaie
+// vers le backend (voir `rewrites` dans next.config.mjs). Le cookie de session
+// reste ainsi « first-party » ; les navigateurs qui bloquent les cookies tiers
+// (Chrome/Edge) ne le suppriment plus, y compris quand le front et l'API sont
+// hébergés sur deux domaines différents.
+const API_BASE_URL = '/api';
 
 interface ApiRequestOptions extends RequestInit {
   body?: any;
