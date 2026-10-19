@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { patients } from '@/lib/api';
+import { formatAmount } from '@/lib/format';
 import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -303,8 +304,8 @@ export default function PatientsPage() {
                             <span className="text-gray-400">—</span>
                           )}
                         </TableCell>
-                        <TableCell className={patient.balance > 0 ? 'text-green-600 font-semibold' : patient.balance < 0 ? 'text-red-600 font-semibold' : ''}>
-                          {patient.packServiceName && patient.balance < (patient.packPricePerSession ?? 0) && (
+                        <TableCell className={Number(patient.balance) > 0 ? 'text-green-600 font-semibold' : Number(patient.balance) < 0 ? 'text-red-600 font-semibold' : ''}>
+                          {patient.packServiceName && Number(patient.balance) < Number(patient.packPricePerSession ?? 0) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <AlertCircle className="inline-block h-4 w-4 mr-1 text-red-500 cursor-help" aria-label="Solde insuffisant" />
@@ -312,7 +313,7 @@ export default function PatientsPage() {
                               <TooltipContent>Solde insuffisant pour une séance</TooltipContent>
                             </Tooltip>
                           )}
-                          {patient.balance > 0 ? '+' : ''}{Number(patient.balance).toLocaleString('fr-FR')} DZD
+                          {Number(patient.balance) > 0 ? '+' : ''}{formatAmount(patient.balance)} DZD
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-sm text-gray-500">
                           {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString('fr-FR') : '—'}

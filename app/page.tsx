@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { appointments, patients, payments, patientPacks, sessionNotes as sessionNotesApi, waitingList as waitingListApi, expenses as expensesApi } from '@/lib/api';
+import { formatAmount } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -211,6 +212,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [carouselPage, setCarouselPage] = useState(0);
+  const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);
   const [tileToggles, setTileToggles] = useState<Record<string, boolean>>({});
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -637,7 +639,7 @@ export default function DashboardPage() {
       );
 
       // --- Détails pour tooltips ---
-      const fmt = (n: number) => n.toLocaleString('fr-FR') + ' DZD';
+      const fmt = (n: number) => `${formatAmount(n)} DZD`;
 
       // CA du mois — détail par patient
       const revMonthMap: Record<string, number> = {};
@@ -1014,6 +1016,30 @@ export default function DashboardPage() {
 
   const totalPages = Math.ceil(kpiTiles.length / 4);
 
+  const handleCarouselTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    carouselTouchRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleCarouselTouchEnd = (e: React.TouchEvent) => {
+    const start = carouselTouchRef.current;
+    carouselTouchRef.current = null;
+    const touch = e.changedTouches[0];
+    if (!start || !touch) return;
+
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+
+    // Seul un geste franchement horizontal change de page : le défilement
+    // vertical de la page reste natif.
+    if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return;
+
+    setCarouselPage((page) =>
+      dx < 0 ? Math.min(totalPages - 1, page + 1) : Math.max(0, page - 1)
+    );
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -1032,7 +1058,11 @@ export default function DashboardPage() {
               <ChevronLeft className="h-4 w-4" />
             </button>
           )}
-          <div className="overflow-hidden flex-1 min-w-0">
+          <div
+            className="overflow-hidden flex-1 min-w-0 touch-pan-y"
+            onTouchStart={handleCarouselTouchStart}
+            onTouchEnd={handleCarouselTouchEnd}
+          >
             <div
               className="flex transition-transform duration-300 ease-in-out"
               style={{ transform: `translateX(-${carouselPage * 100}%)` }}

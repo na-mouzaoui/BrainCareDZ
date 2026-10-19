@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { payments as paymentsApi, patients as patientsApi } from '@/lib/api';
+import { formatAmount } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -210,7 +211,7 @@ function PaymentsContent() {
   const handleAmountChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '');
     const num = parseInt(digits) || 0;
-    setAmountDisplay(digits ? num.toLocaleString('fr-FR') : '');
+    setAmountDisplay(digits ? formatAmount(num) : '');
     setFormData((prev) => ({ ...prev, amount: digits ? String(num) : '' }));
   };
 
@@ -282,14 +283,6 @@ function PaymentsContent() {
     } catch (err) {
       setError('Erreur lors de la suppression du paiement');
     }
-  };
-
-  const formatPrice = (price: number) => {
-    const numPrice = Number(price) || 0;
-    return new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(numPrice);
   };
 
   const formatDate = (dateString: string) => {
@@ -471,7 +464,7 @@ function PaymentsContent() {
                   </Select>
                   {selectedPatient && (
                     <div className="text-sm text-gray-500 mt-1 space-y-1">
-                      <p>Solde : {Number(selectedPatient.balance || 0).toLocaleString('fr-FR')} DZD</p>
+                      <p>Solde : {formatAmount(selectedPatient.balance)} DZD</p>
                       {selectedPatient.packServiceName && (
                         <p>Pack {selectedPatient.packServiceName} ({selectedPatient.packRemaining}/{selectedPatient.packTotal})</p>
                       )}
@@ -605,7 +598,7 @@ function PaymentsContent() {
                         </span>
                       </TableCell>
                       <TableCell className="font-semibold">
-                        {formatPrice(payment.amount)} DZD
+                        {formatAmount(payment.amount)} DZD
                       </TableCell>
                       <TableCell className="capitalize hidden md:table-cell">
                         {payment.paymentMethod === 'cash'
@@ -658,7 +651,7 @@ function PaymentsContent() {
           <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           <div className="mt-4 pt-4 border-t flex items-center justify-between">
             <p className="text-sm text-gray-500">Total ({filteredPayments.length === payments.length ? 'tous' : 'filtré'})</p>
-            <p className="text-xl font-bold text-brand-700">{formatPrice(totalFiltered)} DZD</p>
+            <p className="text-xl font-bold text-brand-700">{formatAmount(totalFiltered)} DZD</p>
           </div>
         </CardContent>
       </Card>
