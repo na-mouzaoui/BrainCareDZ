@@ -10,12 +10,19 @@ const __dirname = path.dirname(__filename)
 // Le navigateur n'appelle que l'origine du front, donc le cookie de session
 // reste first-party (les cookies tiers sont bloqués par Chrome/Edge).
 // Priorité : API_PROXY_TARGET > NEXT_PUBLIC_API_URL > backend local.
-const apiTarget = (
+const rawApiTarget = (
   process.env.API_PROXY_TARGET ||
   process.env.NEXT_PUBLIC_API_URL ||
   `http://localhost:${process.env.NEXT_PUBLIC_API_PORT || '5001'}`
-)
-  .trim()
+).trim()
+
+// Next.js requires rewrite destinations to start with http:// or https://.
+// Default to https:// when the env var is a bare hostname.
+const withScheme = /^https?:\/\//i.test(rawApiTarget)
+  ? rawApiTarget
+  : `https://${rawApiTarget}`
+
+const apiTarget = withScheme
   .replace(/\/+$/, '')
   .replace(/\/api$/, '')
 
