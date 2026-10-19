@@ -212,7 +212,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [carouselPage, setCarouselPage] = useState(0);
-  const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
   const [tileToggles, setTileToggles] = useState<Record<string, boolean>>({});
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -1016,28 +1016,19 @@ export default function DashboardPage() {
 
   const totalPages = Math.ceil(kpiTiles.length / 4);
 
-  const handleCarouselTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-    carouselTouchRef.current = { x: touch.clientX, y: touch.clientY };
+  const scrollToPage = (index: number) => {
+    const container = carouselRef.current;
+    if (!container) return;
+    const page = Math.max(0, Math.min(totalPages - 1, index));
+    container.scrollTo({ left: page * container.clientWidth, behavior: 'smooth' });
+    setCarouselPage(page);
   };
 
-  const handleCarouselTouchEnd = (e: React.TouchEvent) => {
-    const start = carouselTouchRef.current;
-    carouselTouchRef.current = null;
-    const touch = e.changedTouches[0];
-    if (!start || !touch) return;
-
-    const dx = touch.clientX - start.x;
-    const dy = touch.clientY - start.y;
-
-    // Seul un geste franchement horizontal change de page : le défilement
-    // vertical de la page reste natif.
-    if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return;
-
-    setCarouselPage((page) =>
-      dx < 0 ? Math.min(totalPages - 1, page + 1) : Math.max(0, page - 1)
-    );
+  const handleCarouselScroll = () => {
+    const container = carouselRef.current;
+    if (!container) return;
+    const page = Math.round(container.scrollLeft / container.clientWidth);
+    setCarouselPage((current) => (page !== current ? page : current));
   };
 
   return (
@@ -1051,7 +1042,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           {totalPages > 1 && (
             <button
-              onClick={() => setCarouselPage((p) => Math.max(0, p - 1))}
+              onClick={() => scrollToPage(carouselPage - 1)}
               disabled={carouselPage === 0}
               className="hidden sm:flex shrink-0 h-8 w-8 rounded-full bg-white border shadow-md items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
             >
@@ -1059,26 +1050,21 @@ export default function DashboardPage() {
             </button>
           )}
           <div
-            className="overflow-hidden flex-1 min-w-0 touch-pan-y"
-            onTouchStart={handleCarouselTouchStart}
-            onTouchEnd={handleCarouselTouchEnd}
+            ref={carouselRef}
+            onScroll={handleCarouselScroll}
+            className="no-scrollbar flex-1 min-w-0 flex overflow-x-auto snap-x snap-mandatory scroll-smooth"
           >
-            <div
-              className="flex transition-transform duration-300 ease-in-out"
-              style={{ transform: `translateX(-${carouselPage * 100}%)` }}
-            >
-              {Array.from({ length: totalPages }).map((_, pageIndex) => (
-                <div key={pageIndex} className="w-full flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {kpiTiles.slice(pageIndex * 4, pageIndex * 4 + 4).map((tile) => (
-                    <KpiCard key={tile.id} tile={tile} />
-                  ))}
-                </div>
-              ))}
-            </div>
+            {Array.from({ length: totalPages }).map((_, pageIndex) => (
+              <div key={pageIndex} className="w-full flex-shrink-0 snap-center grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {kpiTiles.slice(pageIndex * 4, pageIndex * 4 + 4).map((tile) => (
+                  <KpiCard key={tile.id} tile={tile} />
+                ))}
+              </div>
+            ))}
           </div>
           {totalPages > 1 && (
             <button
-              onClick={() => setCarouselPage((p) => Math.min(totalPages - 1, p + 1))}
+              onClick={() => scrollToPage(carouselPage + 1)}
               disabled={carouselPage >= totalPages - 1}
               className="hidden sm:flex shrink-0 h-8 w-8 rounded-full bg-white border shadow-md items-center justify-center disabled:opacity-30 hover:bg-gray-50 transition"
             >
@@ -1091,7 +1077,7 @@ export default function DashboardPage() {
             {Array.from({ length: totalPages }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => setCarouselPage(i)}
+                onClick={() => scrollToPage(i)}
                 className={`h-2 rounded-full transition-all ${i === carouselPage ? 'bg-brand-600 w-6' : 'bg-gray-300 w-2 hover:bg-gray-400'}`}
               />
             ))}
