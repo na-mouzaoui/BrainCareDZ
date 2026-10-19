@@ -60,6 +60,13 @@ export async function apiRequest<T = any>(
 
     const data = await response.json();
 
+    // Session expirée ou révoquée : on prévient l'application pour qu'elle
+    // ramène l'utilisateur vers la page de connexion, au lieu de laisser chaque
+    // écran échouer avec un message technique.
+    if (response.status === 401 && typeof window !== 'undefined' && !endpoint.startsWith('/auth/')) {
+      window.dispatchEvent(new CustomEvent('auth:expired', { detail: { message: data.message } }));
+    }
+
     if (!response.ok) {
       console.error(`API ${response.status} ${endpoint}:`, data);
       const errorMessages: Record<number, string> = {

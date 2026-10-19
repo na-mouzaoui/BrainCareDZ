@@ -120,6 +120,46 @@ router.put('/calendar-settings/:role', protect, async (req, res) => {
       weekendDays, hasBreakfastBreak, breakfastBreakStart, breakfastBreakEnd,
     } = req.body;
 
+    // Validation des paramètres du calendrier
+    const normalizeTime = (t: any) => {
+      if (t === undefined || t === null || t === '') return null;
+      const s = String(t);
+      return s.length === 5 ? `${s}:00` : s;
+    };
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+    if (consultationDuration !== undefined && consultationDuration !== null && consultationDuration !== '') {
+      const duration = Number(consultationDuration);
+      if (!Number.isInteger(duration) || duration < 15) {
+        return res.status(400).json({ success: false, error: 'La durée de consultation doit être un entier supérieur ou égal à 15 minutes.' });
+      }
+    }
+    for (const t of [workStartTime, workEndTime, breakfastBreakStart, breakfastBreakEnd]) {
+      if (t !== undefined && t !== null && t !== '' && !timeRe.test(String(t))) {
+        return res.status(400).json({ success: false, error: 'Heure invalide (format attendu HH:MM).' });
+      }
+    }
+    if (weekendDays !== undefined && weekendDays !== null && !Array.isArray(weekendDays)) {
+      return res.status(400).json({ success: false, error: 'weekendDays doit être une liste de jours.' });
+    }
+
+    const existing = await query('SELECT * FROM calendar_settings WHERE calendar_role = $1', [role]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Settings not found for this role' });
+    }
+    const current = existing.rows[0];
+
+    const effStart = normalizeTime(workStartTime) ?? normalizeTime(current.work_start_time);
+    const effEnd = normalizeTime(workEndTime) ?? normalizeTime(current.work_end_time);
+    if (effStart && effEnd && effEnd <= effStart) {
+      return res.status(400).json({ success: false, error: "L'heure de fin doit être postérieure à l'heure de début." });
+    }
+    const effBreakStart = breakfastBreakStart !== undefined ? normalizeTime(breakfastBreakStart) : normalizeTime(current.breakfast_break_start);
+    const effBreakEnd = breakfastBreakEnd !== undefined ? normalizeTime(breakfastBreakEnd) : normalizeTime(current.breakfast_break_end);
+    if (effBreakStart && effBreakEnd && effBreakEnd <= effBreakStart) {
+      return res.status(400).json({ success: false, error: 'La pause doit se terminer après son début.' });
+    }
+
     const result = await query(
       `UPDATE calendar_settings SET
         work_start_time = COALESCE($2, work_start_time),

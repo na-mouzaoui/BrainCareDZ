@@ -44,7 +44,7 @@ BEGIN
       FROM appointments a
       JOIN appointment_patients ap ON ap.appointment_id = a.id
       WHERE a.status NOT IN ('cancelled')
-        AND a.patient_id IN (SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id)
+        AND ap.patient_id IN (SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id)
       GROUP BY ap.patient_id
     ) sub
     WHERE p.id = sub.patient_id

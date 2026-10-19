@@ -22,6 +22,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  sessionExpired: boolean;
   login: (pseudo: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
 }
@@ -32,6 +33,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    // 401 renvoyé par une requête quelconque (cookie expiré, session révoquée par
+    // un logout sur un autre appareil, compte supprimé) : on vide la session, ce
+    // qui fait rediriger les pages vers /login par leur garde existante.
+    const handleExpired = () => {
+      setUser(null);
+      setToken(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener('auth:expired', handleExpired);
+    return () => window.removeEventListener('auth:expired', handleExpired);
+  }, []);
 
   useEffect(() => {
     const hydrateUser = async () => {
@@ -57,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.data) {
         setToken('cookie');
         setUser(response.data as User);
+        setSessionExpired(false);
         return { success: true };
       }
       const errorMessage = response.error || response.message || 'Pseudo ou mot de passe invalide';
@@ -86,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isLoading,
         isAuthenticated: !!token,
+        sessionExpired,
         login,
         logout,
       }}

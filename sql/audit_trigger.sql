@@ -189,3 +189,24 @@ EXCEPTION WHEN OTHERS THEN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
+
+-- Attache le trigger d'audit à chaque table métier (idempotent).
+-- Sans cette étape, fn_audit_log existe mais n'est déclenchée par aucune table.
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'patients','users','services','appointments','payments','expenses',
+    'session_notes','patient_packs','patient_pack_usages','patient_outcomes',
+    'invoices','invoice_items','companies','waiting_list',
+    'professions','motifs','patient_motifs'
+  ]
+  LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_audit_%I ON %I', t, t);
+    EXECUTE format(
+      'CREATE TRIGGER trg_audit_%I AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_audit_log()',
+      t, t
+    );
+  END LOOP;
+END $$;

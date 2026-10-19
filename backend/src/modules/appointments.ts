@@ -129,6 +129,14 @@ router.post(
     }),
     body('startTime', 'Valid start time is required').isISO8601(),
     body('endTime', 'Valid end time is required').isISO8601(),
+    body('endTime').custom((value, { req }) => {
+      const start = req.body.startTime;
+      if (!start || !value) return true; // la présence/format est gérée par les validateurs ci-dessus
+      if (new Date(value) <= new Date(start)) {
+        throw new Error("L'heure de fin doit être postérieure à l'heure de début");
+      }
+      return true;
+    }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -245,38 +253,27 @@ router.post(
         );
         const apId = apResult.rows[0]?.id;
 
-        // Auto-link pack if service is set and not deferred
+        // Assure qu'un pack existe pour ce patient/service. Le débit de la séance
+        // n'a PAS lieu ici : il est effectué à la complétion du RDV par le trigger
+        // sync_pack_on_appointment_status (le pré-lier ici empêchait le débit).
         if (apId && serviceId && !packDeferred) {
-          // Find existing pack with remaining sessions
           const existingPack = await query(
-            `SELECT id, remaining_sessions FROM patient_packs
+            `SELECT id FROM patient_packs
              WHERE patient_id = $1 AND service_id = $2 AND remaining_sessions > 0
              ORDER BY created_at DESC LIMIT 1`,
             [pid, serviceId]
           );
 
-          let packId: string;
-          if (existingPack.rowCount > 0) {
-            packId = existingPack.rows[0].id;
-          } else {
-            // Create a new pack
+          if (existingPack.rowCount === 0) {
             const svc = await query('SELECT sessions, price FROM services WHERE id = $1', [serviceId]);
             const totalSessions = svc.rows[0]?.sessions || 1;
             const price = svc.rows[0]?.price || 0;
-            const newPack = await query(
+            await query(
               `INSERT INTO patient_packs (patient_id, service_id, total_sessions, remaining_sessions, practitioner_id, price)
-               VALUES ($1, $2, $3, $3, $4, $5) RETURNING id`,
+               VALUES ($1, $2, $3, $3, $4, $5)`,
               [pid, serviceId, totalSessions, selectedPractitionerId, price]
             );
-            packId = newPack.rows[0].id;
           }
-
-          // Link pack to appointment_patient
-          await query(
-            `INSERT INTO patient_pack_usages (pack_id, appointment_patient_id)
-             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [packId, apId]
-          );
         }
       }
 
@@ -334,6 +331,10 @@ router.put('/:id', protect, async (req, res) => {
 
     const nextStart = startTime || current.startTime;
     const nextEnd = endTime || current.endTime;
+
+    if (new Date(nextEnd) <= new Date(nextStart)) {
+      return res.status(400).json({ success: false, message: "L'heure de fin doit être postérieure à l'heure de début" });
+    }
 
     const isCoach = req.body.role === 'coach';
     let nextPractitionerRole: string | undefined;

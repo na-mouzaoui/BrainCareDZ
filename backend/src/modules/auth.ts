@@ -61,14 +61,14 @@ router.post(
       );
 
       if (result.rowCount === 0) {
-        return res.status(401).json({ success: false, message: 'Invalid pseudo or password' });
+        return res.status(401).json({ success: false, message: 'Pseudo ou mot de passe invalide' });
       }
 
       const user = result.rows[0];
 
       const isMatch = await bcryptjs.compare(password, user.password_hash);
       if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid pseudo or password' });
+        return res.status(401).json({ success: false, message: 'Pseudo ou mot de passe invalide' });
       }
 
       const safeUser = {

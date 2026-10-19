@@ -119,7 +119,11 @@ c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children
            SELECT 1 FROM appointments a
            JOIN appointment_patients ap ON ap.appointment_id = a.id AND ap.patient_id = c.id
            WHERE a.status = 'completed'
-         ) AS "isProspect"
+         ) AS "isProspect",
+         (
+           SELECT COUNT(*)::int FROM appointment_patients ap
+           WHERE ap.patient_id = c.id
+         ) AS "appointmentCount"
   FROM patients c
   LEFT JOIN professions prof ON prof.id = c.profession_id
   LEFT JOIN LATERAL (

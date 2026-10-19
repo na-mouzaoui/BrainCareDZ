@@ -198,6 +198,7 @@ export async function ensureSchema(): Promise<void> {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID,
       user_name VARCHAR(255),
+      user_pseudo VARCHAR(255),
       user_email VARCHAR(255),
       user_role VARCHAR(50),
       action VARCHAR(100) NOT NULL,
@@ -216,6 +217,9 @@ export async function ensureSchema(): Promise<void> {
   await query('CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action)');
   await query('CREATE INDEX IF NOT EXISTS idx_activity_logs_resource ON activity_logs(resource)');
   await query('CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)');
+
+  // Colonne utilisée par activity-logs.ts et activity-logger.ts (absente à l'origine → 500 + logs muets).
+  await query('ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS user_pseudo VARCHAR(255)');
 
   // Drop any CHECK constraint on activity_logs.action (pre-existing constraint blocks new action types)
   try {
@@ -392,4 +396,26 @@ export async function ensureSchema(): Promise<void> {
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS first_contact_date DATE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS first_appointment_date DATE`);
   await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS abandon_reason TEXT`);
+
+  // Audit triggers : attache fn_audit_log (définie par sql/audit_trigger.sql) à chaque
+  // table métier pour produire une ligne d'audit à chaque écriture. Ignoré silencieusement
+  // si la fonction n'est pas encore installée (base non initialisée).
+  const auditTables = [
+    'patients', 'users', 'services', 'appointments', 'payments', 'expenses',
+    'session_notes', 'patient_packs', 'patient_pack_usages', 'patient_outcomes',
+    'invoices', 'invoice_items', 'companies', 'waiting_list',
+    'professions', 'motifs', 'patient_motifs',
+  ];
+  for (const table of auditTables) {
+    try {
+      await query(`DROP TRIGGER IF EXISTS trg_audit_${table} ON ${table}`);
+      await query(
+        `CREATE TRIGGER trg_audit_${table}
+         AFTER INSERT OR UPDATE OR DELETE ON ${table}
+         FOR EACH ROW EXECUTE FUNCTION fn_audit_log()`
+      );
+    } catch {
+      // fn_audit_log absente (base non initialisée) : on n'échoue pas le démarrage.
+    }
+  }
 }

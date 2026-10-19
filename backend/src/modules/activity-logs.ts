@@ -6,7 +6,9 @@ const router = express.Router();
 
 router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    const { limit = 100, offset = 0, action, userId, resource } = req.query;
+    const { action, userId, resource } = req.query;
+    const limit = Math.min(500, Math.max(1, Number.parseInt(String(req.query.limit ?? '100'), 10) || 100));
+    const offset = Math.max(0, Number.parseInt(String(req.query.offset ?? '0'), 10) || 0);
 
     const params = [];
     const where = [];

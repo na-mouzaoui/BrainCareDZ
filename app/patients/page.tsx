@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PaginationControls } from '@/components/pagination-controls';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import FilterDialog, {
   type FilterField,
   type FilterValues,
@@ -44,6 +45,7 @@ interface Patient {
   lastSessionDate?: string;
   consecutiveNoShows?: number;
   isProspect?: boolean;
+  appointmentCount?: number;
   createdAt?: string;
 }
 
@@ -106,6 +108,7 @@ export default function PatientsPage() {
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -159,10 +162,10 @@ export default function PatientsPage() {
     }
   }
 
-  async function handleDelete(patientId: string, patientName: string) {
-    if (!confirm(`Voulez-vous vraiment supprimer définitivement ${patientName} ? Cette action est irréversible.`)) {
-      return;
-    }
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const patientId = deleteTarget.id;
+    setDeleteTarget(null);
 
     try {
       setError('');
@@ -349,7 +352,7 @@ export default function PatientsPage() {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(patient.id, `${patient.firstName} ${patient.lastName}`);
+                            setDeleteTarget(patient);
                           }}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >
@@ -472,6 +475,36 @@ export default function PatientsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le patient</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(deleteTarget?.appointmentCount ?? 0) > 0 ? (
+                <>
+                  <strong>{deleteTarget?.firstName} {deleteTarget?.lastName}</strong> a{' '}
+                  {deleteTarget?.appointmentCount} rendez-vous. La suppression de ce patient
+                  entraîne la suppression définitive de tous ses rendez-vous (ainsi que de ses
+                  paiements, packs et comptes rendus associés). Cette action est irréversible.
+                </>
+              ) : (
+                <>
+                  Voulez-vous vraiment supprimer définitivement{' '}
+                  <strong>{deleteTarget?.firstName} {deleteTarget?.lastName}</strong> ? Cette action
+                  est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

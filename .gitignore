@@ -53,3 +53,8 @@ Thumbs.db
 # Runtime temporary files
 tmp/
 temp/
+
+.md
+.playwright-mcp/
+.commandcode
+.docs/

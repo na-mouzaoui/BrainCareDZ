@@ -12,6 +12,7 @@ interface UserContext {
   userRole: string;
   userPseudo: string;
   client?: pg.PoolClient;
+  queue?: Promise<unknown>;
 }
 
 export const userContextStore = new AsyncLocalStorage<UserContext>();
@@ -36,19 +37,25 @@ const getPoolConfig = () => {
 export const getPool = () => {
   if (!pool) {
     pool = new Pool(getPoolConfig());
-    pool.on('connect', (client) => {
-      client.query('SET search_path TO public').catch((error) => {
-        void error;
-      });
-    });
   }
   return pool;
+};
+
+// Exécute une requête sur la connexion dédiée à la requête HTTP, en sérialisant
+// les appels concurrents (évite « client.query() when the client is already
+// executing a query » tout en conservant le contexte app.user_* pour l'audit).
+export const runOnClient = (ctx: UserContext, text: string, params: any[] = []) => {
+  const run = () => ctx.client!.query(text, params);
+  const previous = ctx.queue ?? Promise.resolve();
+  const next = previous.then(run, run);
+  ctx.queue = next.catch(() => undefined);
+  return next;
 };
 
 export const query = async (text: string, params: any[] = []) => {
   const ctx = userContextStore.getStore();
   if (ctx?.client) {
-    return ctx.client.query(text, params);
+    return runOnClient(ctx, text, params);
   }
   return getPool().query(text, params);
 };
