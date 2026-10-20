@@ -228,11 +228,6 @@ export default function DashboardPage() {
     return () => mq.removeEventListener('change', update);
   }, []);
 
-  useEffect(() => {
-    if (carouselRef.current) carouselRef.current.scrollLeft = 0;
-    setCarouselPage(0);
-  }, [isMobile]);
-
   const toggleTile = (key: string) => {
     setTileToggles((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -1019,8 +1014,7 @@ export default function DashboardPage() {
     return <DashboardSkeleton />;
   }
 
-  const tilesPerPage = isMobile ? 1 : 4;
-  const totalPages = Math.ceil(kpiTiles.length / tilesPerPage);
+  const totalPages = Math.ceil(kpiTiles.length / 4);
 
   const scrollToPage = (index: number) => {
     const container = carouselRef.current;
@@ -1062,7 +1056,7 @@ export default function DashboardPage() {
           >
             {Array.from({ length: totalPages }).map((_, pageIndex) => (
               <div key={pageIndex} className="w-full flex-shrink-0 snap-center grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {kpiTiles.slice(pageIndex * tilesPerPage, pageIndex * tilesPerPage + tilesPerPage).map((tile) => (
+                {kpiTiles.slice(pageIndex * 4, pageIndex * 4 + 4).map((tile) => (
                   <KpiCard key={tile.id} tile={tile} />
                 ))}
               </div>
