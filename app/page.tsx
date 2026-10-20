@@ -100,7 +100,7 @@ function KpiCard({ tile }: { tile: KpiTile }) {
   const hasDate = tile.dateValue !== undefined && tile.onDateChange;
 
   const cardContent = (
-    <Card className="py-1.5 cursor-default">
+    <Card className="py-1.5 cursor-default h-full">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 py-1.5">
         <CardTitle className="text-xs font-medium leading-tight">{tile.label}</CardTitle>
         {tile.icon}
@@ -1052,10 +1052,10 @@ export default function DashboardPage() {
           <div
             ref={carouselRef}
             onScroll={handleCarouselScroll}
-            className="no-scrollbar flex-1 min-w-0 flex overflow-x-auto snap-x snap-mandatory scroll-smooth"
+            className="no-scrollbar flex-1 min-w-0 flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-3"
           >
             {Array.from({ length: totalPages }).map((_, pageIndex) => (
-              <div key={pageIndex} className="w-full flex-shrink-0 snap-center grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div key={pageIndex} className="w-full flex-shrink-0 snap-start grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start auto-rows-fr">
                 {kpiTiles.slice(pageIndex * 4, pageIndex * 4 + 4).map((tile) => (
                   <KpiCard key={tile.id} tile={tile} />
                 ))}
