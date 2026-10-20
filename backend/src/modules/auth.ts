@@ -53,14 +53,18 @@ router.post(
 
     try {
       // Accepte l'identifiant saisi comme pseudo OU e-mail (comptes créés sans pseudo).
+      // Comparaison insensible à la casse et aux espaces : un pseudo saisi « Nazim »
+      // doit retrouver un compte stocké « Nazim » comme « nazim ».
+      const identifier = String(pseudo).trim().toLowerCase();
       const result = await query(
         `SELECT id, name, pseudo, role, email, password_hash, token_version
          FROM users
-         WHERE pseudo = $1 OR LOWER(email) = $1`,
-        [pseudo.toLowerCase()]
+         WHERE LOWER(TRIM(pseudo)) = $1 OR LOWER(TRIM(email)) = $1`,
+        [identifier]
       );
 
       if (result.rowCount === 0) {
+        console.warn('[auth/login] identifiant inconnu:', identifier);
         return res.status(401).json({ success: false, message: 'Pseudo ou mot de passe invalide' });
       }
 
@@ -68,6 +72,7 @@ router.post(
 
       const isMatch = await bcryptjs.compare(password, user.password_hash);
       if (!isMatch) {
+        console.warn('[auth/login] mot de passe invalide pour:', identifier);
         return res.status(401).json({ success: false, message: 'Pseudo ou mot de passe invalide' });
       }
 
