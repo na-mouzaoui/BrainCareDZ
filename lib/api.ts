@@ -49,7 +49,13 @@ export async function apiRequest<T = any>(
     }
 
     if (!response.ok) {
-      console.error(`API ${response.status} ${endpoint}:`, data);
+      // `/auth/me` en 401 est normal tant que l'utilisateur n'est pas connecté :
+      // c'est la vérification de session au chargement. On ne la logue pas comme
+      // une erreur pour ne pas polluer la console (et l'overlay Next.js).
+      const isAnonymousCheck = response.status === 401 && endpoint === '/auth/me';
+      if (!isAnonymousCheck) {
+        console.error(`API ${response.status} ${endpoint}:`, data);
+      }
       const errorMessages: Record<number, string> = {
         401: 'Session expirée, reconnectez-vous',
         403: 'Accès non autorisé',

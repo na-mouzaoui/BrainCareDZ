@@ -199,6 +199,7 @@ export default function AdminPage() {
   const [logsLimit] = useState(50);
   const [logFilterAction, setLogFilterAction] = useState('all');
   const [logFilterResource, setLogFilterResource] = useState('all');
+  const [logFilterUser, setLogFilterUser] = useState('all');
   const [logFilterSearch, setLogFilterSearch] = useState('');
 
   const usersSort = useSort(
@@ -258,7 +259,7 @@ export default function AdminPage() {
     if (user?.role === 'admin') {
       loadActivityLogs();
     }
-  }, [user, logsOffset, logFilterAction, logFilterResource]);
+  }, [user, logsOffset, logFilterAction, logFilterResource, logFilterUser]);
 
   async function loadServices() {
     try {
@@ -340,6 +341,7 @@ export default function AdminPage() {
       const filters: any = {};
       if (logFilterAction && logFilterAction !== 'all') filters.action = logFilterAction;
       if (logFilterResource && logFilterResource !== 'all') filters.resource = logFilterResource;
+      if (logFilterUser && logFilterUser !== 'all') filters.userId = logFilterUser;
       const response = await activityLogs.getAll(logsLimit, logsOffset, filters);
       if (response.success && response.data) {
         setActivityLogsList(response.data.logs || []);
@@ -1092,6 +1094,22 @@ export default function AdminPage() {
                     onChange={(e) => { setLogFilterSearch(e.target.value); setLogsOffset(0); }}
                     className="w-full sm:w-48"
                   />
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Label className="text-sm whitespace-nowrap">Utilisateur:</Label>
+                  <Select value={logFilterUser} onValueChange={(v) => { setLogFilterUser(v); setLogsOffset(0); }}>
+                    <SelectTrigger className="flex-1 sm:w-48">
+                      <SelectValue placeholder="Tous" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.pseudo || u.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Label className="text-sm whitespace-nowrap">Action:</Label>
