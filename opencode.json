@@ -35,8 +35,8 @@
       "Move-Item *": "allow",
       "Move-Item": "allow",
       "robocopy *": "allow",
-      "git*": "deny",
-      "git *": "deny"
+      "git *": "allow",
+      "git": "allow"
     },
     "external_directory": {
       "*": "ask",

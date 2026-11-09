@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack --port 3002",
     "dev:all": "concurrently --prefix \"\" --prefix-colors reset \"npm --prefix backend run dev\" \"npm run dev\"",
     "dev:backend": "npm --prefix backend run dev",
     "build": "next build",
