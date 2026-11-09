@@ -17,8 +17,19 @@ const paymentSelect = `
 
 router.get('/', protect, async (req, res) => {
   try {
-    const payments = await query(`${paymentSelect} ORDER BY p.created_at DESC LIMIT 100`);
-    const total = await query(`SELECT COUNT(*)::int AS count FROM payments`);
+    const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : null;
+    if (patientId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) {
+      return res.status(400).json({ success: false, error: 'Invalid patient ID' });
+    }
+    const where = patientId ? 'WHERE p.patient_id = $1' : '';
+    const params = patientId ? [patientId] : [];
+    const limit = patientId ? 1000 : 100;
+
+    const payments = await query(
+      `${paymentSelect} ${where} ORDER BY p.created_at DESC LIMIT ${limit}`,
+      params
+    );
+    const total = await query(`SELECT COUNT(*)::int AS count FROM payments p ${where}`, params);
 
     return res.json({
       success: true,

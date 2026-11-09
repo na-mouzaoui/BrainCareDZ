@@ -286,6 +286,8 @@ export const companyInvoices = {
 export const payments = {
   getAll: () =>
     apiRequest('/payments', { method: 'GET' }),
+  getByPatient: (patientId: string) =>
+    apiRequest(`/payments?patientId=${encodeURIComponent(patientId)}`, { method: 'GET' }),
   getById: (id: string) =>
     apiRequest(`/payments/${id}`, { method: 'GET' }),
   create: (data: any) =>

@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { AlertCircle, Edit2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Edit2, History, Plus, Trash2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -74,6 +74,10 @@ function PaymentsContent() {
   const [error, setError] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [historyPatient, setHistoryPatient] = useState<{ id: string; name: string } | null>(null);
+  const [historyPayments, setHistoryPayments] = useState<Payment[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const [formData, setFormData] = useState(() => {
     const now = new Date();
@@ -284,6 +288,56 @@ function PaymentsContent() {
       setError('Erreur lors de la suppression du paiement');
     }
   };
+
+  const openHistory = async (payment: Payment) => {
+    setHistoryPatient({
+      id: payment.patientId,
+      name: `${payment.patientFirstName || ''} ${payment.patientLastName || ''}`.trim() || 'Patient',
+    });
+    setHistoryPayments([]);
+    setHistoryLoading(true);
+    try {
+      const response = await paymentsApi.getByPatient(payment.patientId);
+      if (response.success && response.data) {
+        const data = response.data;
+        setHistoryPayments(Array.isArray(data) ? data : data.payments || []);
+      } else {
+        setError("Erreur lors du chargement de l'historique des paiements");
+      }
+    } catch (err) {
+      setError("Erreur lors du chargement de l'historique des paiements");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const historyTotal = useMemo(
+    () => historyPayments.reduce(
+      (sum, p) => (p.status === 'completed' ? sum + (Number(p.amount) || 0) : sum),
+      0
+    ),
+    [historyPayments]
+  );
+
+  const methodLabel = (method?: string) => {
+    switch (method) {
+      case 'cash':
+        return 'Espèces';
+      case 'check':
+        return 'Chèque';
+      case 'bank-transfer':
+        return 'Virement bancaire';
+      case 'mobile-money':
+        return 'Mobile Money';
+      case 'other':
+        return 'Autre';
+      default:
+        return method || '—';
+    }
+  };
+
+  const statusLabel = (status?: string) =>
+    status === 'completed' ? 'Complété' : status === 'pending' ? 'En attente' : 'Échoué';
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -628,6 +682,15 @@ function PaymentsContent() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => openHistory(payment)}
+                          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                          title="Historique des paiements du patient"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => router.push(`/payments/${payment.id}/edit`)}
                           className="text-brand-700 hover:text-brand-900 hover:bg-brand-50"
                         >
@@ -655,6 +718,83 @@ function PaymentsContent() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Patient payment history */}
+      <Dialog
+        open={historyPatient !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryPatient(null);
+            setHistoryPayments([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Historique des paiements — {historyPatient?.name}</DialogTitle>
+            <DialogDescription>
+              Tous les paiements enregistrés pour ce patient.
+            </DialogDescription>
+          </DialogHeader>
+
+          {historyLoading ? (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          ) : historyPayments.length === 0 ? (
+            <p className="py-8 text-center text-gray-500">Aucun paiement enregistré</p>
+          ) : (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Montant</TableHead>
+                    <TableHead>Mode</TableHead>
+                    <TableHead className="hidden sm:table-cell">Statut</TableHead>
+                    <TableHead className="hidden md:table-cell">Enregistré par</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyPayments.map((p, index) => (
+                    <TableRow key={p.id || `history-${index}`}>
+                      <TableCell className="text-sm text-gray-600">
+                        {formatDate(p.processedDate || p.createdAt)}
+                      </TableCell>
+                      <TableCell className="font-semibold">
+                        {formatAmount(p.amount)} DZD
+                      </TableCell>
+                      <TableCell className="text-sm">{methodLabel(p.paymentMethod)}</TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <span className={
+                          p.status === 'completed'
+                            ? 'inline-block rounded bg-green-100 px-2 py-1 text-sm font-medium text-green-700'
+                            : p.status === 'pending'
+                            ? 'inline-block rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-700'
+                            : 'inline-block rounded bg-red-100 px-2 py-1 text-sm font-medium text-red-700'
+                        }>
+                          {statusLabel(p.status)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-gray-600">
+                        {p.createdByName || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <div className="border-t pt-4 flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Total des versements ({historyPayments.filter((p) => p.status === 'completed').length} paiement
+              {historyPayments.filter((p) => p.status === 'completed').length > 1 ? 's' : ''})
+            </p>
+            <p className="text-xl font-bold text-brand-700">{formatAmount(historyTotal)} DZD</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {mustPay && (
         <Dialog open={showLeaveWarning} onOpenChange={(open) => {
