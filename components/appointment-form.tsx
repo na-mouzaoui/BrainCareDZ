@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertCircle, Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { patients as patientsApi, services as servicesApi, appointments as appointmentsApi, users as usersApi, patientPacks } from '@/lib/api';
@@ -91,6 +92,16 @@ export default function AppointmentForm({
   const [submitting, setSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [isPersonal, setIsPersonal] = useState(false);
+  const [newPatientOpen, setNewPatientOpen] = useState(false);
+  const [newPatientData, setNewPatientData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    dateOfBirth: '',
+  });
+  const [newPatientError, setNewPatientError] = useState('');
+  const [creatingPatient, setCreatingPatient] = useState(false);
   const { user } = useAuth();
 
   const validPatients = useMemo(() => uniqueById(patientsList), [patientsList]);
@@ -185,6 +196,45 @@ export default function AppointmentForm({
     }
   }
 
+  async function handleCreatePatient(e?: React.FormEvent) {
+    e?.preventDefault();
+    setNewPatientError('');
+
+    const firstName = newPatientData.firstName.trim();
+    const lastName = newPatientData.lastName.trim();
+    const phone = newPatientData.phone.trim();
+
+    if (!firstName || !lastName || !phone) {
+      setNewPatientError('Le prénom, le nom et le téléphone sont obligatoires.');
+      return;
+    }
+
+    setCreatingPatient(true);
+    try {
+      const response = await patientsApi.create({
+        firstName,
+        lastName,
+        phone,
+        email: newPatientData.email.trim(),
+        dateOfBirth: newPatientData.dateOfBirth || undefined,
+      });
+
+      if (!response.success || !response.data?.id) {
+        throw new Error(response.message || response.error || 'Échec de la création du patient');
+      }
+
+      const created = response.data as Patient;
+      setPatientsList((prev) => uniqueById([...prev, created]));
+      setFormData((prev) => ({ ...prev, patientIds: [created.id] }));
+      setNewPatientOpen(false);
+      setNewPatientData({ firstName: '', lastName: '', phone: '', email: '', dateOfBirth: '' });
+    } catch (err) {
+      setNewPatientError(err instanceof Error ? err.message : 'Impossible de créer le patient');
+    } finally {
+      setCreatingPatient(false);
+    }
+  }
+
   const selectSinglePatient = (value: string) => {
     setError('');
     setFormData((prev) => ({
@@ -268,6 +318,7 @@ export default function AppointmentForm({
   const hasInsufficientBalance = !!selectedPatient && !!selectedService && patientBalance < servicePricePerSession;
 
   return (
+    <>
     <form id="appointment-form" onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
@@ -320,7 +371,23 @@ export default function AppointmentForm({
           ) : (
             <>
             <Field>
-              <FieldLabel>Patient *</FieldLabel>
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel>Patient *</FieldLabel>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs gap-1"
+                  onClick={() => {
+                    setNewPatientError('');
+                    setNewPatientOpen(true);
+                  }}
+                  disabled={isFormLoading}
+                >
+                  <Plus className="h-3 w-3" />
+                  Nouveau patient
+                </Button>
+              </div>
               <PatientSearchSelect
                 patients={validPatients}
                 value={formData.patientIds[0]}
@@ -464,5 +531,101 @@ export default function AppointmentForm({
         </div>
       )}
     </form>
+
+    <Dialog open={newPatientOpen} onOpenChange={setNewPatientOpen}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Nouveau patient</DialogTitle>
+          <DialogDescription>
+            Créez rapidement le patient puis il sera automatiquement sélectionné pour ce rendez-vous.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleCreatePatient} className="space-y-4">
+          {newPatientError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{newPatientError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="new-patient-first-name">Prénom *</FieldLabel>
+              <Input
+                id="new-patient-first-name"
+                value={newPatientData.firstName}
+                onChange={(e) => setNewPatientData((prev) => ({ ...prev, firstName: e.target.value }))}
+                disabled={creatingPatient}
+                autoFocus
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-patient-last-name">Nom *</FieldLabel>
+              <Input
+                id="new-patient-last-name"
+                value={newPatientData.lastName}
+                onChange={(e) => setNewPatientData((prev) => ({ ...prev, lastName: e.target.value }))}
+                disabled={creatingPatient}
+                required
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="new-patient-phone">Téléphone *</FieldLabel>
+              <Input
+                id="new-patient-phone"
+                type="tel"
+                value={newPatientData.phone}
+                onChange={(e) => setNewPatientData((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="0XX XX XX XX"
+                disabled={creatingPatient}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-patient-dob">Date de naissance</FieldLabel>
+              <Input
+                id="new-patient-dob"
+                type="date"
+                value={newPatientData.dateOfBirth}
+                onChange={(e) => setNewPatientData((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+                disabled={creatingPatient}
+              />
+            </Field>
+          </div>
+
+          <Field>
+            <FieldLabel htmlFor="new-patient-email">E-mail</FieldLabel>
+            <Input
+              id="new-patient-email"
+              type="email"
+              value={newPatientData.email}
+              onChange={(e) => setNewPatientData((prev) => ({ ...prev, email: e.target.value }))}
+              placeholder="patient@exemple.com"
+              disabled={creatingPatient}
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setNewPatientOpen(false)}
+              disabled={creatingPatient}
+            >
+              Annuler
+            </Button>
+            <Button type="submit" disabled={creatingPatient} className="gap-2">
+              {creatingPatient ? <Spinner size="sm" /> : 'Créer et sélectionner'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
