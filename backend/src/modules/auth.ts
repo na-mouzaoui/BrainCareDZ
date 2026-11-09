@@ -53,13 +53,14 @@ router.post(
 
     try {
       // Accepte l'identifiant saisi comme pseudo OU e-mail (comptes créés sans pseudo).
-      // Comparaison insensible à la casse et aux espaces : un pseudo saisi « Nazim »
-      // doit retrouver un compte stocké « Nazim » comme « nazim ».
+      // Les espaces sont ignorés dans le pseudo : « asma_abikchi » retrouve le compte
+      // « asma _abikchi » créé avec des espaces dans le prénom/nom.
       const identifier = String(pseudo).trim().toLowerCase();
       const result = await query(
         `SELECT id, name, pseudo, role, email, password_hash, token_version
          FROM users
-         WHERE LOWER(TRIM(pseudo)) = $1 OR LOWER(TRIM(email)) = $1`,
+         WHERE LOWER(REGEXP_REPLACE(pseudo, '\\s+', '', 'g')) = REGEXP_REPLACE($1, '\\s+', '', 'g')
+            OR LOWER(TRIM(email)) = $1`,
         [identifier]
       );
 

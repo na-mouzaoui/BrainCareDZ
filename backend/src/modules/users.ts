@@ -104,8 +104,17 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ success: false, error: 'First name, last name, and role are required' });
     }
 
-    const name = `${firstName} ${lastName}`;
-    const pseudo = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
+    // Nettoie les espaces saisis (espaces en trop, collage « Prénom Nom ») : sans
+    // cela le pseudo généré contient des espaces et devient difficile à saisir.
+    const cleanPart = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
+    const first = cleanPart(firstName);
+    const last = cleanPart(lastName);
+    if (!first || !last) {
+      return res.status(400).json({ success: false, error: 'First name and last name are required' });
+    }
+
+    const name = `${first} ${last}`;
+    const pseudo = `${first}_${last}`.toLowerCase().replace(/\s+/g, '_');
 
     const exists = await query('SELECT id FROM users WHERE pseudo = $1', [pseudo]);
     if (exists.rowCount > 0) {
@@ -118,7 +127,7 @@ router.post('/', protect, async (req, res) => {
        VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)
        RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
                  role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [name, pseudo, firstName, lastName, passwordHash, role, phone || null]
+      [name, pseudo, first, last, passwordHash, role, phone || null]
     );
 
     if (serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
@@ -143,11 +152,14 @@ router.put('/:id', protect, async (req, res) => {
 
     let pseudo = null;
     let name = null;
+    let first = null;
+    let last = null;
     if (firstName || lastName) {
-      const f = firstName || '';
-      const l = lastName || '';
-      name = `${f} ${l}`.trim();
-      pseudo = `${f.toLowerCase()}_${l.toLowerCase()}`;
+      const cleanPart = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
+      first = cleanPart(firstName);
+      last = cleanPart(lastName);
+      name = `${first} ${last}`.trim();
+      pseudo = `${first}_${last}`.toLowerCase().replace(/\s+/g, '_');
 
       const dup = await query('SELECT id FROM users WHERE pseudo = $1 AND id <> $2', [pseudo, req.params.id]);
       if (dup.rowCount > 0) {
@@ -167,7 +179,7 @@ router.put('/:id', protect, async (req, res) => {
        WHERE id = $1
        RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
                  role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, pseudo, firstName || null, lastName || null, role, phone]
+      [req.params.id, name, pseudo, first, last, role, phone]
     );
 
     if (updated.rowCount === 0) {
