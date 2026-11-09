@@ -440,9 +440,13 @@ export default function PatientsPage() {
                 return (
                   <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
-                      <p className="font-medium">{item.serviceName}</p>
+                      <p className="font-medium">{item.serviceName || 'Pack à définir'}</p>
                       <p className="text-sm text-gray-500">
                         {startTime.toLocaleDateString('fr-FR')} à {startTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="text-gray-400">Pris en charge par :</span>{' '}
+                        {item.practitionerName || '\u2014'}
                       </p>
                       {item.packTotal && (
                         <p className="text-xs text-gray-400">

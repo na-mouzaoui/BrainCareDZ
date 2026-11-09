@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { ALGERIAN_WILAYAS } from '@/lib/communes';
 import { getPatientLists, DEFAULT_LISTS, type PatientLists } from '@/lib/patient-lists';
-import { AlertCircle, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { AlertCircle, ChevronRight, ChevronLeft, Check, CalendarIcon } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 export interface PatientFormData {
   firstName: string;
@@ -75,6 +77,20 @@ function toDateInputValue(value?: string | null): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// Date ISO (AAAA-MM-JJ) -> affichage manuel JJ/MM/AAAA.
+function toDisplayDate(value?: string | null): string {
+  if (!value) return '';
+  const iso = toDateInputValue(value);
+  if (!iso) return '';
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+// Date locale -> ISO (AAAA-MM-JJ), sans décalage de fuseau horaire.
+function dateToIso(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function normalizeInitialData(data: PatientFormData): PatientFormData {
   return {
     ...data,
@@ -127,6 +143,8 @@ export function PatientForm({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [lists, setLists] = useState<PatientLists>(DEFAULT_LISTS);
+  const [dobText, setDobText] = useState(() => toDisplayDate(formData.dateOfBirth));
+  const [dobCalendarOpen, setDobCalendarOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -142,36 +160,83 @@ export function PatientForm({
     }
   }, [initialData]);
 
+  // Garde le champ texte synchronisé quand la date vient du calendrier (ou des données initiales).
+  useEffect(() => {
+    setDobText(toDisplayDate(formData.dateOfBirth));
+  }, [formData.dateOfBirth]);
+
   const handleInputChange = (field: string, value: any) => {
     setError('');
     const newData: any = { ...formData, [field]: value };
     
-    if (field === 'dateOfBirth' && value) {
-      const birthDate = new Date(value);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      newData.age = age;
-      
-      if (age < 12) {
-        newData.patientType = 'Enfant';
-        newData.hasChildren = false;
-        newData.childrenCount = 0;
-        newData.maritalStatus = 'Célibataire';
-      } else if (age >= 12 && age < 18) {
-        newData.patientType = 'Adolescent';
-        newData.hasChildren = false;
-        newData.childrenCount = 0;
-        newData.maritalStatus = 'Célibataire';
+    if (field === 'dateOfBirth') {
+      if (!value) {
+        newData.age = undefined;
       } else {
-        newData.patientType = 'Adulte';
+        const birthDate = new Date(value);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        newData.age = age;
+
+        if (age < 12) {
+          newData.patientType = 'Enfant';
+          newData.hasChildren = false;
+          newData.childrenCount = 0;
+          newData.maritalStatus = 'Célibataire';
+        } else if (age >= 12 && age < 18) {
+          newData.patientType = 'Adolescent';
+          newData.hasChildren = false;
+          newData.childrenCount = 0;
+          newData.maritalStatus = 'Célibataire';
+        } else {
+          newData.patientType = 'Adulte';
+        }
       }
     }
     
     setFormData(newData);
+  };
+
+  // Saisie manuelle JJ/MM/AAAA : formatage automatique puis validation.
+  const handleDobManualChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    } else if (digits.length > 2) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    setDobText(formatted);
+
+    if (digits.length === 0) {
+      setError('');
+      handleInputChange('dateOfBirth', '');
+      return;
+    }
+    if (digits.length < 8) return;
+
+    const day = Number(digits.slice(0, 2));
+    const month = Number(digits.slice(2, 4));
+    const year = Number(digits.slice(4));
+    const date = new Date(year, month - 1, day);
+    const isRealDate =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (!isRealDate || year < 1900 || date > today) {
+      setError('Date de naissance invalide (format JJ/MM/AAAA)');
+      return;
+    }
+
+    setError('');
+    handleInputChange('dateOfBirth', dateToIso(date));
   };
 
   const handleCheckboxChange = (field: string, value: string) => {
@@ -273,13 +338,50 @@ export function PatientForm({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field>
-                <FieldLabel>Date de naissance</FieldLabel>
-                <Input
-                  type="date"
-                  value={formData.dateOfBirth || ''}
-                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                  disabled={isFormLoading}
-                />
+                <FieldLabel htmlFor="patient-dob">Date de naissance</FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="patient-dob"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="JJ/MM/AAAA"
+                    maxLength={10}
+                    value={dobText}
+                    onChange={(e) => handleDobManualChange(e.target.value)}
+                    disabled={isFormLoading}
+                  />
+                  <Popover open={dobCalendarOpen} onOpenChange={setDobCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        disabled={isFormLoading}
+                        aria-label="Choisir la date dans le calendrier"
+                      >
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        key={formData.dateOfBirth || 'empty'}
+                        mode="single"
+                        selected={formData.dateOfBirth ? new Date(`${formData.dateOfBirth}T00:00:00`) : undefined}
+                        defaultMonth={formData.dateOfBirth ? new Date(`${formData.dateOfBirth}T00:00:00`) : new Date(1990, 0, 1)}
+                        captionLayout="dropdown"
+                        startMonth={new Date(1900, 0, 1)}
+                        endMonth={new Date()}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          const iso = dateToIso(date);
+                          handleInputChange('dateOfBirth', iso);
+                          setDobText(toDisplayDate(iso));
+                          setDobCalendarOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </Field>
               <Field>
                 <FieldLabel>Âge</FieldLabel>

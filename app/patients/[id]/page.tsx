@@ -72,6 +72,7 @@ interface AppointmentItem {
   serviceName?: string;
   practitionerName?: string;
   practitionerRole?: string;
+  noteAuthorName?: string;
   packDeferred?: boolean;
   patients: Array<{
     patientId: string;
@@ -84,6 +85,7 @@ interface AppointmentItem {
 interface NoteItem {
   id: string;
   appointmentId: string;
+  patientId?: string;
   appointmentStartTime?: string;
   serviceName?: string;
   practitionerName?: string;
@@ -190,6 +192,28 @@ export default function PatientDetailPage() {
   const [switchServiceId, setSwitchServiceId] = useState('');
   const [switchLoading, setSwitchLoading] = useState(false);
   const [switchError, setSwitchError] = useState('');
+
+  // Praticien ayant réellement pris en charge la séance : l'auteur du compte
+  // rendu, avec repli sur le praticien assigné au rendez-vous.
+  const notePractitionerByAppointment = useMemo(() => {
+    const map = new Map<string, string>();
+    notesList.forEach((note) => {
+      if (!note.appointmentId || !note.practitionerName) return;
+      if (note.patientId && patientId && note.patientId !== patientId) return;
+      if (!map.has(note.appointmentId)) {
+        map.set(note.appointmentId, note.practitionerName);
+      }
+    });
+    return map;
+  }, [notesList, patientId]);
+
+  const getPractitionerName = useCallback((appt: AppointmentItem) => {
+    const fromNote = notePractitionerByAppointment.get(appt.id);
+    if (fromNote) return fromNote;
+    if (appt.noteAuthorName && appt.noteAuthorName !== 'Non assigné') return appt.noteAuthorName;
+    if (appt.practitionerName && appt.practitionerName !== 'Non assigné') return appt.practitionerName;
+    return '\u2014';
+  }, [notePractitionerByAppointment]);
 
   const loadData = useCallback(async () => {
     if (!patientId) return;
@@ -612,7 +636,7 @@ export default function PatientDetailPage() {
                           </TableCell>
                           <TableCell>{appt.serviceName || '\u2014'}</TableCell>
                           <TableCell>
-                            {appt.practitionerName || '\u2014'}
+                            {getPractitionerName(appt)}
                             {appt.practitionerRole && (
                               <span className="text-xs text-gray-400 ml-1">
                                 ({appt.practitionerRole === 'psy' ? 'Psy' : appt.practitionerRole === 'coach' ? 'Coach' : 'Admin'})
@@ -793,7 +817,7 @@ export default function PatientDetailPage() {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Service</TableHead>
-                        <TableHead>Praticien</TableHead>
+                        <TableHead>Pris en charge par</TableHead>
                         <TableHead>Réf. RDV</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -806,7 +830,9 @@ export default function PatientDetailPage() {
                               {formatDateTime(appt.startTime)}
                             </TableCell>
                             <TableCell>{appt.serviceName || '\u2014'}</TableCell>
-                            <TableCell>{appt.practitionerName || '\u2014'}</TableCell>
+                            <TableCell>
+                              {getPractitionerName(appt)}
+                            </TableCell>
                             <TableCell>
                               <Button
                                 variant="link"

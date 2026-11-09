@@ -550,9 +550,22 @@ router.get('/:id/history', protect, async (req, res) => {
     const { id } = req.params;
     const result = await query(
       `SELECT a.id, a.start_time AS "startTime", a.end_time AS "endTime", a.status,
-              s.name AS "serviceName", s.type AS "serviceType"
+              a.practitioner_id AS "practitionerId",
+              s.name AS "serviceName", s.type AS "serviceType",
+              COALESCE(
+                (SELECT u2.name
+                 FROM session_notes sn
+                 JOIN appointment_patients ap2 ON ap2.id = sn.appointment_patient_id
+                 JOIN users u2 ON u2.id = sn.practitioner_id
+                 WHERE ap2.appointment_id = a.id AND ap2.patient_id = $1
+                 ORDER BY sn.created_at ASC
+                 LIMIT 1),
+                u.name
+              ) AS "practitionerName",
+              COALESCE(u.role, a.role) AS "practitionerRole"
        FROM appointments a
-       JOIN services s ON s.id = a.service_id
+       LEFT JOIN services s ON s.id = a.service_id
+       LEFT JOIN users u ON u.id = a.practitioner_id
        WHERE a.id IN (SELECT ap.appointment_id FROM appointment_patients ap WHERE ap.patient_id = $1)
        ORDER BY a.start_time DESC`,
       [id]
