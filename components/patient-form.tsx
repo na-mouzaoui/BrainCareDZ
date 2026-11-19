@@ -321,6 +321,7 @@ export function PatientForm({
                   type="text"
                   value={formData.firstName || ''}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
+                  maxLength={80}
                   disabled={isFormLoading}
                   required
                 />
@@ -331,6 +332,7 @@ export function PatientForm({
                   type="text"
                   value={formData.lastName || ''}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
+                  maxLength={80}
                   disabled={isFormLoading}
                   required
                 />
@@ -419,6 +421,7 @@ export function PatientForm({
                   type="tel"
                   value={formData.phone || ''}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
+                  maxLength={20}
                   disabled={isFormLoading}
                   required
                 />
@@ -429,6 +432,7 @@ export function PatientForm({
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => handleInputChange('email', e.target.value)}
+                  maxLength={120}
                   disabled={isFormLoading}
                 />
               </Field>

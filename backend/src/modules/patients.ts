@@ -22,12 +22,28 @@ function normalizePatientStatus(value: any): string | null | typeof INVALID_STAT
 }
 
 /** Contrôle de la date de naissance : format, futur et borne basse (1900). */
-function dateOfBirthError(value: any): string | null {
-  if (value === undefined || value === null || value === '') return null;
+function dateOfBirthError(value: any): string | null {  if (value === undefined || value === null || value === '') return null;
   const dob = new Date(value);
   if (Number.isNaN(dob.getTime())) return 'Date de naissance invalide.';
   if (dob > new Date()) return 'La date de naissance ne peut pas être dans le futur.';
   if (dob < new Date('1900-01-01')) return 'La date de naissance est trop ancienne (avant 1900).';
+  return null;
+}
+
+/** Longueurs maximales des champs libres d'un patient. */
+function patientLengthError(data: any): string | null {
+  const checks: Array<[any, number, string]> = [
+    [data.firstName, 80, 'Le prénom'],
+    [data.lastName, 80, 'Le nom'],
+    [data.phone, 20, 'Le téléphone'],
+    [data.email, 120, "L'email"],
+    [data.notes, 5000, 'Les notes'],
+  ];
+  for (const [value, max, label] of checks) {
+    if (value !== undefined && value !== null && String(value).length > max) {
+      return `${label} ne peut pas dépasser ${max} caractères.`;
+    }
+  }
   return null;
 }
 
@@ -429,9 +445,14 @@ router.post(
   protect,
   [
     body('firstName', 'First name is required').notEmpty().trim(),
+    body('firstName', 'Le prénom ne peut pas dépasser 80 caractères').isLength({ max: 80 }),
     body('lastName', 'Last name is required').notEmpty().trim(),
+    body('lastName', 'Le nom ne peut pas dépasser 80 caractères').isLength({ max: 80 }),
     body('phone', 'Valid phone number is required').notEmpty().trim(),
+    body('phone', 'Le téléphone ne peut pas dépasser 20 caractères').isLength({ max: 20 }),
     body('email', 'Valid email is required').optional({ values: 'falsy' }).isEmail(),
+    body('email', "L'email ne peut pas dépasser 120 caractères").optional({ values: 'falsy' }).isLength({ max: 120 }),
+    body('notes', 'Les notes ne peuvent pas dépasser 5000 caractères').optional({ values: 'falsy' }).isLength({ max: 5000 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -537,6 +558,11 @@ router.put('/:id', protect, async (req, res) => {
 
     if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
       return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+    }
+
+    const lengthError = patientLengthError(req.body);
+    if (lengthError) {
+      return res.status(400).json({ success: false, message: lengthError });
     }
 
     const dobError = dateOfBirthError(dateOfBirth);
