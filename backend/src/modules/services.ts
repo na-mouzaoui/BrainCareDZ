@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, type, duration, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services
        WHERE is_active = TRUE
        ORDER BY created_at DESC
@@ -28,7 +28,7 @@ router.get('/', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, price, sessions, type, duration, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM services WHERE id = $1`,
       [req.params.id]
     );
@@ -51,6 +51,7 @@ router.post(
     body('name', 'Le nom du service est requis').notEmpty().trim(),
     body('price', 'Le prix doit être un nombre positif').isFloat({ min: 0 }),
     body('sessions', 'Le nombre de séances doit être un entier >= 1').optional().isInt({ min: 1 }),
+    body('duration', 'La durée doit être un entier entre 1 et 480 minutes').optional().isInt({ min: 1, max: 480 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -60,7 +61,7 @@ router.post(
     }
 
     try {
-      const { name, price, sessions, type } = req.body;
+      const { name, price, sessions, type, duration } = req.body;
       const safePrice = Number(price);
       const safeSessions = sessions ? Number(sessions) : 1;
 
@@ -72,11 +73,18 @@ router.post(
         return res.status(400).json({ success: false, message: 'Nombre de séances invalide' });
       }
 
+      const safeDuration = duration === undefined || duration === null || duration === ''
+        ? 60
+        : Number(duration);
+      if (!Number.isInteger(safeDuration) || safeDuration < 1 || safeDuration > 480) {
+        return res.status(400).json({ success: false, message: 'Durée invalide (1 à 480 minutes).' });
+      }
+
       const result = await query(
-        `INSERT INTO services (name, price, sessions, type)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [name, safePrice, safeSessions, type || 'consultation']
+        `INSERT INTO services (name, price, sessions, type, duration)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, name, price, sessions, type, duration, created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [name, safePrice, safeSessions, type || 'consultation', safeDuration]
       );
 
       return res.status(201).json({
@@ -92,7 +100,7 @@ router.post(
 
 router.put('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
   try {
-    const { name, price, sessions, type } = req.body;
+    const { name, price, sessions, type, duration } = req.body;
 
     if (price !== undefined) {
       const safePrice = Number(price);
@@ -108,16 +116,31 @@ router.put('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
       }
     }
 
+    if (duration !== undefined && duration !== null && duration !== '') {
+      const safeDuration = Number(duration);
+      if (!Number.isInteger(safeDuration) || safeDuration < 1 || safeDuration > 480) {
+        return res.status(400).json({ success: false, message: 'Durée invalide (1 à 480 minutes).' });
+      }
+    }
+
     const result = await query(
       `UPDATE services
        SET name = COALESCE($2, name),
            price = COALESCE($3, price),
            sessions = COALESCE($4, sessions),
            type = COALESCE($5, type),
+           duration = COALESCE($6, duration),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, price, sessions, type, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [req.params.id, name, price !== undefined ? Number(price) : undefined, sessions !== undefined ? Number(sessions) : undefined, type || null]
+       RETURNING id, name, price, sessions, type, duration, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [
+        req.params.id,
+        name,
+        price !== undefined ? Number(price) : undefined,
+        sessions !== undefined ? Number(sessions) : undefined,
+        type || null,
+        duration !== undefined && duration !== null && duration !== '' ? Number(duration) : undefined,
+      ]
     );
 
     if (result.rowCount === 0) {

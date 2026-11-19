@@ -151,6 +151,8 @@ router.post(
     }),
     body('startTime', 'Valid start time is required').isISO8601(),
     body('endTime', 'Valid end time is required').isISO8601(),
+    body('role', 'Calendrier invalide').optional().isIn(['admin', 'psy', 'coach']),
+    body('packDeferred', 'Le champ « pack différé » doit être un booléen').optional().isBoolean(),
     body('endTime').custom((value, { req }) => {
       const start = req.body.startTime;
       if (!start || !value) return true; // la présence/format est gérée par les validateurs ci-dessus
@@ -170,6 +172,12 @@ router.post(
 
     try {
       const { patientIds, serviceId, startTime, endTime, practitionerId, role, packDeferred, title } = req.body;
+
+      // Refus explicite plutôt que coercition : `'false'` (chaîne) ne doit pas
+      // devenir `true` via `!!value`.
+      if (packDeferred !== undefined && typeof packDeferred !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'Le champ « pack différé » doit être un booléen.' });
+      }
 
       const isPersonal = !!title;
 
@@ -350,6 +358,14 @@ router.put('/:id', protect, async (req, res) => {
     }
 
     const { startTime, endTime, status, serviceId, patientIds, packDeferred } = req.body;
+
+    // Valeurs invalides : on refuse au lieu de les ignorer silencieusement.
+    if (req.body.role !== undefined && !['admin', 'psy', 'coach'].includes(req.body.role)) {
+      return res.status(400).json({ success: false, message: 'Calendrier invalide.' });
+    }
+    if (packDeferred !== undefined && typeof packDeferred !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Le champ « pack différé » doit être un booléen.' });
+    }
 
     const nextStart = startTime || current.startTime;
     const nextEnd = endTime || current.endTime;

@@ -86,10 +86,26 @@ router.get('/:id', protect, async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const { patientId, amount, paymentMethod, notes, paymentDate } = req.body;
+    const { patientId, amount, paymentMethod, notes, paymentDate, status } = req.body;
 
     if (!patientId || amount === undefined || amount === null) {
       return res.status(400).json({ success: false, error: 'Patient ID and amount are required' });
+    }
+
+    // Le statut n'est pas modifiable à la création : refuser plutôt qu'ignorer.
+    if (status !== undefined && status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: 'Un paiement est enregistré au statut « completed » ; le statut fourni n’est pas pris en compte.',
+      });
+    }
+
+    // Une date invalide ne doit pas être remplacée silencieusement par « maintenant ».
+    const parsedDate = paymentDate !== undefined && paymentDate !== null && paymentDate !== ''
+      ? new Date(paymentDate)
+      : new Date();
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ success: false, error: 'Date de paiement invalide.' });
     }
 
     const safeAmount = Number(amount);
@@ -124,7 +140,7 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    const processedDate = paymentDate || new Date().toISOString();
+    const processedDate = parsedDate.toISOString();
 
     const inserted = await query(
       `INSERT INTO payments (patient_id, amount, payment_method, status, notes, processed_date, created_by)
