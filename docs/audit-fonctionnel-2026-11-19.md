@@ -67,7 +67,7 @@
 | BUG-15 | Noms de services dupliqués autorisés | 🟠 Majeur | SQL | XS |
 | BUG-16 | Dérive de données existante (packs, session_count, soldes) | 🟠 Majeur | SQL | M |
 | BUG-17 | Garde `beforeunload` impossible à lever sur la page Paiements | 🟠 Majeur | Front (`payments/page.tsx`) | S |
-| BUG-18 | Écrire un compte rendu complète le RDV sans confirmation | 🟠 Majeur | Back | S |
+| BUG-18 | Compte rendu : clôture du RDV sans confirmation avant l'heure | 🟠 Majeur | Front + Back | S |
 | BUG-19 | Faute « A mount of 0 requires notes » | 🟡 Moyen | Back | XS |
 | BUG-20 | État vide trompeur quand un filtre ne retourne rien | 🟡 Moyen | Front (`patients/page.tsx`) | XS |
 | BUG-21 | « Réinitialiser » n'applique pas la réinitialisation | 🟡 Moyen | Front (`filter-dialog.tsx`) | XS |
@@ -265,25 +265,75 @@ setMustPay(false);
 
 ---
 
-## BUG-18 — Écrire un compte rendu complète le RDV sans confirmation
+## BUG-18 — Écrire un compte rendu clôture le RDV sans confirmation (avant l'heure)
 
-**Zone** : `backend/src/modules/session-notes.ts`
+**Zone** : `app/appointments/[id]/report/page.tsx` (`handleSaveAll`, `handleSelectPack`), `backend/src/modules/appointments.ts`
+
+**Processus métier (validé — ne pas changer)**
+
+Un compte rendu porte sur **un rendez-vous** : dès qu'il est enregistré, le rendez-vous est **considéré comme terminé** et la séance est débitée (pack ou solde). C'est le comportement attendu.
 
 **Constat**
-`POST /api/session-notes` marque automatiquement le RDV `completed`, ce qui déclenche le trigger de débit du pack / du solde. Aucune confirmation n'est demandée, et le formulaire ne permet pas d'enregistrer un brouillon.
+
+Le passage en « terminé » est déclenché par le frontend (`appointments.complete(id)`) juste après l'enregistrement du compte rendu, **sans aucune confirmation**. Or un praticien peut très bien rédiger ses notes **la veille** ou **avant l'heure du créneau** : le rendez-vous est alors clôturé et la séance débitée alors que la consultation n'a pas encore eu lieu.
 
 **Scénario de reproduction**
 
-Un rendez-vous est planifié pour jeudi. Le mercredi soir, le praticien prépare son dossier et saisit quelques notes dans le champ « Compte rendu », puis clique sur « Enregistrer » en pensant sauvegarder un brouillon.
+Un rendez-vous est planifié jeudi à 15 h 00. Le mercredi soir, le praticien prépare son dossier et saisit quelques notes dans le champ « Compte rendu », puis clique sur « Enregistrer » en pensant sauvegarder un brouillon.
 
-Le rendez-vous passe aussitôt au statut « terminé » : le trigger de débit s'exécute, la séance est retirée du pack du patient (ou débitée de son solde), alors que la consultation n'a pas encore eu lieu. Le lendemain, en constatant l'erreur, il faut modifier manuellement le statut pour rendre la séance — une manipulation que peu d'utilisateurs connaissent, et qui laisse une trace d'annulation dans le journal d'audit.
+Le rendez-vous passe aussitôt au statut « terminé » : le trigger de débit s'exécute, la séance est retirée du pack du patient (ou débitée de son solde), alors que la consultation n'a pas encore eu lieu. Le lendemain, il faut modifier manuellement le statut pour rendre la séance — une manipulation que peu d'utilisateurs connaissent, et qui laisse une trace d'annulation dans le journal d'audit.
 
 **Impact**
-Débit financier involontaire, RDV terminé par erreur (le retour en arrière n'est possible que par une modification manuelle de statut).
 
-**Correctif**
-- Soit rendre l'action explicite (« Enregistrer et clôturer la séance ») avec une case à cocher `clôturer = true`.
-- Soit ne plus changer le statut dans `POST /session-notes` ; la clôture passe par `POST /appointments/:id/complete` (déjà utilisé par le rapport).
+- Débit financier involontaire (pack ou solde) avant la tenue effective de la séance.
+- Le compteur de séances du patient est faussé.
+- Aucun signal : l'utilisateur n'est pas averti que son enregistrement a clôturé le rendez-vous.
+
+**Correctif (retenu)**
+
+> Le processus reste inchangé (rapport ⇒ RDV terminé). On ajoute uniquement une **confirmation lorsque le créneau n'a pas encore commencé.**
+
+**1. Popup de confirmation avant clôture anticipée** (`app/appointments/[id]/report/page.tsx`)
+
+```tsx
+const isBeforeSlot = appointment?.startTime
+  ? new Date(appointment.startTime).getTime() > Date.now()
+  : false;
+```
+
+À l'enregistrement (et lors de la sélection du pack différé, qui clôture aussi le RDV) :
+
+```tsx
+if (isBeforeSlot) {
+  const confirmed = await askConfirmation(
+    `Le créneau de ce rendez-vous n'a pas encore commencé (prévu le ${formatDateTime(appointment.startTime)}). ` +
+    `En continuant, le rendez-vous sera clôturé et la séance débitée avant l'heure prévue. ` +
+    `Souhaitez-vous prendre en charge ce rendez-vous maintenant ?`
+  );
+  if (!confirmed) return; // on reste sur la page, rien n'est clôturé
+}
+await appointments.complete(appointment.id);
+```
+
+Popup (AlertDialog) avec deux actions :
+- **Annuler** (par défaut) → retour au compte rendu, aucune clôture ;
+- **Clôturer maintenant** → enregistre la clôture et le débit.
+
+**2. Garde-fou côté serveur (traçabilité)**
+
+`PUT /api/appointments/:id/complete` accepte un indicateur `earlyCompletion: true` et le journalise (`logActivity`) afin que la clôture anticipée soit visible dans le journal d'audit, sans bloquer l'action.
+
+**3. Cas non concernés**
+
+- Créneau déjà commencé → aucune popup, comportement actuel.
+- RDV déjà terminé → aucune popup (rien à clôturer).
+- RDV annulé → pas de compte rendu possible.
+
+**Test de non-régression**
+
+- RDV à 15 h 00, enregistrement à 14 h 50 → **popup** ; « Annuler » ⇒ statut inchangé, solde inchangé ; « Clôturer maintenant » ⇒ terminé + débit.
+- RDV à 15 h 00, enregistrement à 15 h 05 → **aucune popup**, clôture directe.
+- Même contrôle sur le flux « pack différé » (la sélection du pack clôture aussi le RDV).
 
 **Effort** : S
 
