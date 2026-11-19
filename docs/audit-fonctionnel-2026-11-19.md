@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **14 problèmes ouverts**. Les 21 bugs traités (19 corrigés + 2 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **14 problèmes ouverts**. Les 21 bugs traités (20 corrigés + 1 vérifié conforme) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -520,7 +520,7 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | BUG-17 | `8ab638f` | `mustPay` en état React (plus une ref) | navigation libre après paiement |
 | BUG-18 | `d46d77a` | Confirmation si le créneau n'a pas commencé | popup + journalisation `earlyCompletion` |
 | BUG-19 | `205401f` | Message français + clé `message` | 400 « Un montant de 0 nécessite des notes. » |
-| BUG-20 | — | **Vérifié conforme** (état vide distingué des filtres) | filtre sans résultat → « Aucun patient ne correspond… » |
+| BUG-20 | `64d4a40` | État vide distinct lorsque des filtres sont actifs | filtre sans résultat → « Aucun patient ne correspond… » + bouton de réinitialisation |
 | BUG-21 | — | **Vérifié conforme** (réinitialisation appliquée) | « Réinitialiser » → liste restaurée (17 patients) |
 | BUG-22 | `73edcc5` | Message distinct si date de naissance future | 31/12/2099 → « ne peut pas être dans le futur » |
 
