@@ -16,59 +16,85 @@ ALTER TABLE patients DROP COLUMN IF EXISTS would_recommend;
 
 -- ============================================================
 -- POINT 2: Trigger to keep patients.practitioner_id in sync
+--   (corrigé — voir sql/fix_sync_patient_practitioner.sql pour le détail :
+--    DELETE déplacé en BEFORE, recalcul sur tous les RDV du patient)
 -- ============================================================
 CREATE OR REPLACE FUNCTION sync_patient_practitioner()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status) THEN
-    UPDATE patients p SET practitioner_id = sub.new_prac
-    FROM (
-      SELECT ap.patient_id,
-             (ARRAY_AGG(a.practitioner_id ORDER BY a.start_time DESC))[1] AS new_prac
-      FROM appointments a
+  UPDATE patients p SET practitioner_id = r.new_prac
+  FROM (
+    SELECT ap.patient_id,
+           (ARRAY_AGG(a.practitioner_id ORDER BY a.start_time DESC))[1] AS new_prac
+    FROM appointments a
+    JOIN appointment_patients ap ON ap.appointment_id = a.id
+    WHERE a.status <> 'cancelled'
+      AND ap.patient_id IN (
+        SELECT patient_id FROM appointment_patients WHERE appointment_id = NEW.id
+      )
+    GROUP BY ap.patient_id
+  ) r
+  WHERE p.id = r.patient_id
+    AND p.practitioner_id IS DISTINCT FROM r.new_prac;
+
+  UPDATE patients p SET practitioner_id = NULL
+  WHERE p.id IN (
+      SELECT patient_id FROM appointment_patients WHERE appointment_id = NEW.id
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM appointments a
       JOIN appointment_patients ap ON ap.appointment_id = a.id
-      WHERE a.status NOT IN ('cancelled')
-        AND a.id = NEW.id
-      GROUP BY ap.patient_id
-    ) sub
-    WHERE p.id = sub.patient_id
-      AND p.practitioner_id IS DISTINCT FROM sub.new_prac;
-  END IF;
+      WHERE ap.patient_id = p.id AND a.status <> 'cancelled'
+    );
 
-  -- Also recalculate when an appointment is deleted
-  IF TG_OP = 'DELETE' THEN
-    UPDATE patients p SET practitioner_id = sub.new_prac
-    FROM (
-      SELECT ap.patient_id,
-             (ARRAY_AGG(a.practitioner_id ORDER BY a.start_time DESC))[1] AS new_prac
-      FROM appointments a
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION sync_patient_practitioner_on_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE patients p SET practitioner_id = r.new_prac
+  FROM (
+    SELECT ap.patient_id,
+           (ARRAY_AGG(a.practitioner_id ORDER BY a.start_time DESC))[1] AS new_prac
+    FROM appointments a
+    JOIN appointment_patients ap ON ap.appointment_id = a.id
+    WHERE a.status <> 'cancelled'
+      AND a.id <> OLD.id
+      AND ap.patient_id IN (
+        SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id
+      )
+    GROUP BY ap.patient_id
+  ) r
+  WHERE p.id = r.patient_id
+    AND p.practitioner_id IS DISTINCT FROM r.new_prac;
+
+  UPDATE patients p SET practitioner_id = NULL
+  WHERE p.id IN (
+      SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM appointments a
       JOIN appointment_patients ap ON ap.appointment_id = a.id
-      WHERE a.status NOT IN ('cancelled')
-        AND ap.patient_id IN (SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id)
-      GROUP BY ap.patient_id
-    ) sub
-    WHERE p.id = sub.patient_id
-      AND p.practitioner_id IS DISTINCT FROM sub.new_prac;
+      WHERE ap.patient_id = p.id AND a.id <> OLD.id AND a.status <> 'cancelled'
+    );
 
-    -- If no more appointments, set NULL
-    UPDATE patients p SET practitioner_id = NULL
-    WHERE p.id IN (SELECT patient_id FROM appointment_patients WHERE appointment_id = OLD.id)
-      AND NOT EXISTS (
-        SELECT 1 FROM appointments a
-        JOIN appointment_patients ap2 ON ap2.appointment_id = a.id
-        WHERE ap2.patient_id = p.id AND a.status NOT IN ('cancelled')
-      );
-  END IF;
-
-  RETURN COALESCE(NEW, OLD);
+  RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_sync_patient_practitioner ON appointments;
 CREATE TRIGGER trg_sync_patient_practitioner
-  AFTER INSERT OR UPDATE OF status OR DELETE ON appointments
+  AFTER INSERT OR UPDATE OF status ON appointments
   FOR EACH ROW
   EXECUTE FUNCTION sync_patient_practitioner();
+
+DROP TRIGGER IF EXISTS trg_sync_patient_practitioner_del ON appointments;
+CREATE TRIGGER trg_sync_patient_practitioner_del
+  BEFORE DELETE ON appointments
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_patient_practitioner_on_delete();
 
 -- ============================================================
 -- POINT 3: invoices.created_by CASCADE → SET NULL
