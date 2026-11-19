@@ -5,6 +5,7 @@ import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
 import { logActivity } from '../utils/activity-logger.js';
+import { sendDbError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -99,7 +100,7 @@ router.post(
       });
     } catch (error) {
       console.error('[auth/login]', error);
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -126,7 +127,7 @@ router.post('/logout', async (req, res) => {
     return res.status(200).json({ success: true, message: 'Logged out' });
   } catch (error) {
     console.error('[auth/logout]', error);
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -146,7 +147,7 @@ router.get('/me', protect, async (req, res) => {
     return res.status(200).json({ success: true, user: result.rows[0] });
   } catch (error) {
     console.error('[auth/me]', error);
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -202,7 +203,7 @@ router.post('/change-password', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('[auth/change-password]', error);
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

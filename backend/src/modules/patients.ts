@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const PATIENT_STATUSES = ['En cours', 'Terminé', 'Abandon'];
@@ -294,7 +295,7 @@ router.get('/', protect, async (req, res) => {
       patients: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -311,7 +312,7 @@ router.get('/search/:query', protect, async (req, res) => {
       patients: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -395,7 +396,7 @@ router.get('/paged', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -409,7 +410,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, patient: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -497,7 +498,7 @@ router.post(
         patient: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -596,7 +597,7 @@ router.put('/:id', protect, async (req, res) => {
       patient: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -627,7 +628,7 @@ router.get('/:id/history', protect, async (req, res) => {
     );
     return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -652,7 +653,7 @@ router.delete('/:id', protect, async (req, res) => {
       message: 'Patient deleted successfully',
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

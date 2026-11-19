@@ -2,6 +2,7 @@ import express from 'express';
 import bcryptjs from 'bcryptjs';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const ensureAdmin = (req, res) => {
@@ -43,7 +44,7 @@ router.get('/', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -62,7 +63,7 @@ router.get('/practitioners', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -91,7 +92,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: user.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -140,7 +141,7 @@ router.post('/', protect, async (req, res) => {
 
     return res.status(201).json({ success: true, data: inserted.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -199,7 +200,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: updated.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -214,7 +215,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -249,7 +250,7 @@ router.put('/me/password', protect, async (req, res) => {
 
     return res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -277,7 +278,7 @@ router.put('/:id/password', protect, async (req, res) => {
 
     return res.json({ success: true, data: updated.rows[0], message: 'Password updated successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

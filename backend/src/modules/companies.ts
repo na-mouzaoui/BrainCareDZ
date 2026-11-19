@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const companySelect = `
@@ -15,7 +16,7 @@ router.get('/', protect, async (req, res) => {
     const result = await query(`${companySelect} ORDER BY name ASC LIMIT 1000`);
     return res.status(200).json({ success: true, count: result.rowCount, companies: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -28,7 +29,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, company: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -70,7 +71,7 @@ router.post(
 
       return res.status(201).json({ success: true, company: created.rows[0] });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -117,7 +118,7 @@ router.put(
 
       return res.status(200).json({ success: true, company: updated.rows[0] });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -131,7 +132,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Company deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

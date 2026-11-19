@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
 import { logActivity } from '../utils/activity-logger.js';
+import { sendDbError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/', protect, async (req, res) => {
       entries: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -104,7 +105,7 @@ router.post(
         entry: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -142,7 +143,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Entrée retirée de la liste d\'attente' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -200,7 +201,7 @@ router.put(
         entries: result.rows,
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );

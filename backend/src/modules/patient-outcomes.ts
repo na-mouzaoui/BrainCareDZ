@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const outcomeSelect = `
@@ -29,7 +30,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
       outcomes: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -77,7 +78,7 @@ router.post(
         outcome: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -97,7 +98,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Evaluation deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

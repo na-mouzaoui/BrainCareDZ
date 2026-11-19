@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const expenseSelect = `
@@ -18,7 +19,7 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
     const result = await query(`${expenseSelect} ORDER BY e.expense_date DESC, e.created_at DESC LIMIT 1000`);
     return res.status(200).json({ success: true, count: result.rowCount, expenses: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -31,7 +32,7 @@ router.get('/:id', protect, authorize('admin'), async (req, res) => {
 
     return res.status(200).json({ success: true, expense: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -78,7 +79,7 @@ router.post(
         expense: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -135,7 +136,7 @@ router.put(
         expense: updated.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -149,7 +150,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Expense deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

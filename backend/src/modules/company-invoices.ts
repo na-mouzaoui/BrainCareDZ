@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 router.get('/next-reference', protect, async (req, res) => {
@@ -19,7 +20,7 @@ router.get('/next-reference', protect, async (req, res) => {
     }
     return res.json({ success: true, data: `${nextNum}/${year}` });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -53,7 +54,7 @@ router.get('/', protect, async (req, res) => {
     const result = await query(`${invoiceSelect} ORDER BY i.invoice_date DESC, i.created_at DESC LIMIT 1000`);
     return res.status(200).json({ success: true, count: result.rowCount, invoices: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -69,7 +70,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, invoice });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -182,7 +183,7 @@ router.post(
       if ((error as any)?.code === '23505') {
         return res.status(409).json({ success: false, message: 'Cette reference de facture existe deja.' });
       }
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -324,7 +325,7 @@ router.put(
       if ((error as any)?.code === '23505') {
         return res.status(409).json({ success: false, message: 'Cette reference de facture existe deja.' });
       }
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -338,7 +339,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Company invoice deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

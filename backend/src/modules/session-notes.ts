@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const noteSelect = `
@@ -31,7 +32,7 @@ router.get('/', protect, async (req, res) => {
       notes: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -55,7 +56,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
       notes: result.rows,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -68,7 +69,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, note: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -161,7 +162,7 @@ router.post(
         note: created.rows[0],
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -197,7 +198,7 @@ router.put('/:id', protect, async (req, res) => {
       note: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -220,7 +221,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Session note deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
 import { logActivity } from '../utils/activity-logger.js';
+import { sendDbError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ router.get('/', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -108,7 +109,7 @@ router.get('/availability/:date', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -127,7 +128,7 @@ router.get('/:id', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -307,7 +308,7 @@ router.post(
       });
     } catch (error) {
       console.error('Appointments error:', error);
-      return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+      return sendDbError(res, error, 'Erreur interne du serveur');
     }
   }
 );
@@ -453,7 +454,7 @@ router.put('/:id', protect, async (req, res) => {
       appointment: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -525,7 +526,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Appointment cancelled successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -574,7 +575,7 @@ router.put('/:id/complete', protect, async (req, res) => {
       appointment: updated.rows[0],
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

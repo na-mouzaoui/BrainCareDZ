@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 const router = express.Router();
 
 const paymentSelect = `
@@ -39,7 +40,7 @@ router.get('/', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -65,7 +66,7 @@ router.get('/summary', protect, async (req, res) => {
 
     return res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -79,7 +80,7 @@ router.get('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -136,7 +137,7 @@ router.post('/', protect, async (req, res) => {
 
     return res.status(201).json({ success: true, data: created.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -176,7 +177,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, data: updated.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
@@ -201,7 +202,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.json({ success: true, message: 'Payment deleted successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 

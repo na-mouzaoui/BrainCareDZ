@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db/index.js';
 import { authenticateToken, authorizeRole } from '../middleware/auth.js';
+import { sendDbError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+    return sendDbError(res, error, 'Erreur interne du serveur');
   }
 });
 
