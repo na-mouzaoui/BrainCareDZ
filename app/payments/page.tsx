@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { payments as paymentsApi, patients as patientsApi } from '@/lib/api';
@@ -95,8 +95,9 @@ function PaymentsContent() {
     };
   });
   const [amountDisplay, setAmountDisplay] = useState('');
-  const mustPayRef = useRef(searchParams.get('patientId') !== null);
-  const mustPay = mustPayRef.current;
+  // État (et non ref) : le passage à false doit re-rendre le composant pour que
+  // l'écouteur eforeunload soit réellement retiré.
+  const [mustPay, setMustPay] = useState(searchParams.get('patientId') !== null);
 
   const selectedPatient = useMemo(
     () => patients.find((p) => p.id === formData.patientId),
@@ -260,7 +261,7 @@ function PaymentsContent() {
       });
 
       if (response.success) {
-        mustPayRef.current = false;
+        setMustPay(false);
         await loadData();
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
@@ -852,7 +853,7 @@ function PaymentsContent() {
                 className="bg-brand-700 hover:bg-brand-800"
                 onClick={() => {
                   setShowLeaveWarning(false);
-                  mustPayRef.current = false;
+                  setMustPay(false);
                   if (pendingNavigation) router.push(pendingNavigation);
                 }}
               >
