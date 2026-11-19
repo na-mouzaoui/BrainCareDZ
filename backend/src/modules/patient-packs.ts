@@ -135,10 +135,25 @@ router.post('/select', protect, async (req, res) => {
       `INSERT INTO patient_pack_usages (pack_id, appointment_patient_id) VALUES ($1, $2)`,
       [packId, appointmentPatientId]
     );
-    await query(
-      `UPDATE patient_packs SET remaining_sessions = remaining_sessions - 1, updated_at = NOW() WHERE id = $1`,
+    // Décrémentation conditionnelle : jamais sous zéro, même en cas de concurrence.
+    const decremented = await query(
+      `UPDATE patient_packs
+          SET remaining_sessions = remaining_sessions - 1, updated_at = NOW()
+        WHERE id = $1 AND remaining_sessions > 0
+        RETURNING id`,
       [packId]
     );
+    if (decremented.rowCount === 0) {
+      await query(
+        'DELETE FROM patient_pack_usages WHERE pack_id = $1 AND appointment_patient_id = $2',
+        [packId, appointmentPatientId]
+      );
+      return res.status(409).json({
+        success: false,
+        code: 'PACK_DEPLETED',
+        message: 'Ce pack est épuisé. Sélectionnez un autre pack ou créez-en un nouveau.',
+      });
+    }
     await query(
       `UPDATE appointments a
        SET service_id = $1, updated_at = NOW()

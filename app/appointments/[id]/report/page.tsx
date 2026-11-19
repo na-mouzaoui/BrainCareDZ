@@ -250,7 +250,10 @@ export default function AppointmentReportPage() {
     if (packDialogOpen && currentPatient) {
       patientPacks.getByPatient(currentPatient.patientId).then((res) => {
         if (res.success && res.data) {
-          setPatientPacksList(res.data.packs || []);
+          // Ne proposer que les packs encore utilisables (remaining > 0).
+          setPatientPacksList(
+            (res.data.packs || []).filter((p: any) => Number(p.remainingSessions) > 0)
+          );
         }
       }).catch(() => setPatientPacksList([]));
     }

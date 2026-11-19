@@ -125,7 +125,11 @@ export default function AppointmentForm({
     }
     patientPacks.getByPatient(selectedId).then((res) => {
       if (res.success && res.data) {
-        setPatientPacksList(res.data.packs || []);
+        // Seuls les packs encore utilisables sont proposés comme « packs en cours » :
+        // un pack à 0 séance ne peut pas être sélectionné (il créerait un doublon fantôme).
+        setPatientPacksList(
+          (res.data.packs || []).filter((p: any) => Number(p.remainingSessions) > 0)
+        );
       } else {
         setPatientPacksList([]);
       }
