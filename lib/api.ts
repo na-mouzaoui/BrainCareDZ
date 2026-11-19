@@ -296,6 +296,14 @@ export const companyInvoices = {
 export const payments = {
   getAll: () =>
     apiRequest('/payments', { method: 'GET' }),
+  summary: (params: { patientId?: string; from?: string; to?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.patientId) query.append('patientId', params.patientId);
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`/payments/summary${suffix}`, { method: 'GET' });
+  },
   getByPatient: (patientId: string) =>
     apiRequest(`/payments?patientId=${encodeURIComponent(patientId)}`, { method: 'GET' }),
   getById: (id: string) =>

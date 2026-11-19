@@ -29,6 +29,7 @@ import FilterDialog, {
   type FilterField,
   type FilterValues,
   resetFilters,
+  countActiveFilters,
 } from '@/components/filter-dialog';
 import { useSort, SortableHeader } from '@/components/sortable-header';
 
@@ -69,6 +70,8 @@ function PaymentsContent() {
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
+  // Total exact calculé en base (indépendant du plafond de 100 lignes renvoyé par l'API).
+  const [serverSummary, setServerSummary] = useState<{ count: number; total: number } | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -187,6 +190,15 @@ function PaymentsContent() {
         paymentsApi.getAll(),
         patientsApi.getAll(),
       ]);
+
+      const summaryRes = await paymentsApi.summary();
+      if (summaryRes.success && summaryRes.data) {
+        const summaryData: any = summaryRes.data;
+        setServerSummary({
+          count: Number(summaryData.count ?? 0),
+          total: Number(summaryData.total ?? 0),
+        });
+      }
 
       if (patientsRes.success && patientsRes.data) {
         const patientsData = patientsRes.data;
@@ -713,8 +725,24 @@ function PaymentsContent() {
           )}
           <PaginationControls page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           <div className="mt-4 pt-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">Total ({filteredPayments.length === payments.length ? 'tous' : 'filtré'})</p>
-            <p className="text-xl font-bold text-brand-700">{formatAmount(totalFiltered)} DZD</p>
+            <div>
+              <p className="text-sm text-gray-500">
+                Total ({countActiveFilters(filterFields, filters) > 0 ? 'filtré' : 'tous'})
+              </p>
+              {serverSummary && payments.length < serverSummary.count && (
+                <p className="text-xs text-amber-600">
+                  Affichage des {payments.length} derniers paiements sur {serverSummary.count}
+                </p>
+              )}
+            </div>
+            <p className="text-xl font-bold text-brand-700">
+              {formatAmount(
+                countActiveFilters(filterFields, filters) > 0
+                  ? totalFiltered
+                  : (serverSummary?.total ?? totalFiltered)
+              )}{' '}
+              DZD
+            </p>
           </div>
         </CardContent>
       </Card>

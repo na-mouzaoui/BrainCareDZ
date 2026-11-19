@@ -43,6 +43,32 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+router.get('/summary', protect, async (req, res) => {
+  try {
+    const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : null;
+    if (patientId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) {
+      return res.status(400).json({ success: false, error: 'Invalid patient ID' });
+    }
+
+    const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : null;
+    const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : null;
+
+    const result = await query(
+      `SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount), 0)::numeric AS total
+         FROM payments p
+        WHERE p.status = 'completed'
+          AND ($1::uuid IS NULL OR p.patient_id = $1)
+          AND ($2::date IS NULL OR p.processed_date >= $2::date)
+          AND ($3::date IS NULL OR p.processed_date < ($3::date + 1))`,
+      [patientId, from, to]
+    );
+
+    return res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Erreur interne du serveur' });
+  }
+});
+
 router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(`${paymentSelect} WHERE p.id = $1`, [req.params.id]);

@@ -453,6 +453,17 @@ export default function DashboardPage() {
         expensesPromise,
       ]);
 
+      // Totaux exacts calculés en base : la liste `/payments` est plafonnée à 100
+      // lignes, ce qui fausserait les recettes si on les additionnait côté client.
+      const summaryNow = new Date();
+      const pad2 = (n: number) => String(n).padStart(2, '0');
+      const todayStr = `${summaryNow.getFullYear()}-${pad2(summaryNow.getMonth() + 1)}-${pad2(summaryNow.getDate())}`;
+      const monthStartStr = `${summaryNow.getFullYear()}-${pad2(summaryNow.getMonth() + 1)}-01`;
+      const [monthSummaryRes, daySummaryRes] = await Promise.all([
+        payments.summary({ from: monthStartStr, to: todayStr }),
+        payments.summary({ from: todayStr, to: todayStr }),
+      ]);
+
       let patientItems: any[] = [];
       let appointmentItems: any[] = [];
       let paymentItems: any[] = [];
@@ -518,13 +529,18 @@ export default function DashboardPage() {
       };
 
       // --- Revenue ---
-      const monthlyRevenue = paymentItems
-        .filter((p: any) => p.status === 'completed' && Number(p.amount || 0) > 0 && isInCurrentMonth(p.processedDate || p.createdAt))
-        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+      // Total exact fourni par la base ; repli sur la liste (plafonnée) si l'appel échoue.
+      const monthlyRevenue = monthSummaryRes.success && monthSummaryRes.data
+        ? Number((monthSummaryRes.data as any).total ?? 0)
+        : paymentItems
+            .filter((p: any) => p.status === 'completed' && Number(p.amount || 0) > 0 && isInCurrentMonth(p.processedDate || p.createdAt))
+            .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
-      const dailyRevenue = paymentItems
-        .filter((p: any) => p.status === 'completed' && Number(p.amount || 0) > 0 && isToday(p.processedDate || p.createdAt))
-        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+      const dailyRevenue = daySummaryRes.success && daySummaryRes.data
+        ? Number((daySummaryRes.data as any).total ?? 0)
+        : paymentItems
+            .filter((p: any) => p.status === 'completed' && Number(p.amount || 0) > 0 && isToday(p.processedDate || p.createdAt))
+            .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
       // --- Packs vendus (depuis patient_packs, date de création) ---
       const packsMonth = packItems.filter((p: any) => isInCurrentMonth(p.createdAt)).length;
