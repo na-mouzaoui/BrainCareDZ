@@ -23,8 +23,13 @@ const CONSTRAINT_MESSAGES: Record<string, { status: number; message: string }> =
   patients_children_count_check: { status: 400, message: "Le nombre d'enfants ne peut pas être négatif." },
   expenses_amount_check: { status: 400, message: 'Le montant doit être supérieur à zéro.' },
   invoices_discount_check: { status: 400, message: 'La remise ne peut pas être négative.' },
+  invoices_discount_lte_subtotal_check: { status: 400, message: 'La remise ne peut pas dépasser le total HT.' },
   patient_packs_total_sessions_check: { status: 400, message: 'Le nombre de séances doit être supérieur à zéro.' },
   patient_packs_remaining_check: { status: 400, message: 'Nombre de séances restantes invalide.' },
+  patient_packs_total_max_check: { status: 400, message: 'Le nombre de séances ne peut pas dépasser 1000.' },
+  patient_packs_price_check: { status: 400, message: 'Le prix du pack doit être positif ou nul.' },
+  outcomes_improvement_range: { status: 400, message: "L'amélioration perçue doit être comprise entre 0 et 10." },
+  outcomes_satisfaction_range: { status: 400, message: 'La satisfaction globale doit être comprise entre 0 et 10.' },
 };
 
 const PG_CODE_MESSAGES: Record<string, { status: number; message: string }> = {

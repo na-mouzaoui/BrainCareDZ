@@ -129,11 +129,28 @@ router.post(
         return res.status(400).json({ success: false, message: 'Designation requise pour chaque ligne.' });
       }
 
+      if (safeItems.some((item) =>
+        !Number.isInteger(item.sessionCount) || item.sessionCount < 1 ||
+        !Number.isInteger(item.learnerCount) || item.learnerCount < 1 ||
+        item.unitPrice < 0
+      )) {
+        await query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: 'Chaque ligne doit avoir au moins 1 séance, 1 apprenant et un prix positif.',
+        });
+      }
+
       const subtotal = safeItems.reduce((sum, item) => sum + item.subtotal, 0);
       const discountValue = Number(discount || 0);
       const discountedTotal = Math.max(subtotal - discountValue, 0);
       const vatValue = Number(vatAmount || 0);
       const grandTotal = discountedTotal + vatValue;
+
+      if (discountValue > subtotal) {
+        await query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'La remise ne peut pas dépasser le total HT.' });
+      }
 
       const inserted = await query(
         `INSERT INTO invoices (
@@ -253,8 +270,24 @@ router.put(
           return res.status(400).json({ success: false, message: 'Designation requise pour chaque ligne.' });
         }
 
+        if (safeItems.some((item) =>
+          !Number.isInteger(item.sessionCount) || item.sessionCount < 1 ||
+          !Number.isInteger(item.learnerCount) || item.learnerCount < 1 ||
+          item.unitPrice < 0
+        )) {
+          await query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            message: 'Chaque ligne doit avoir au moins 1 séance, 1 apprenant et un prix positif.',
+          });
+        }
+
         subtotal = safeItems.reduce((sum, item) => sum + item.subtotal, 0);
         const discountValue = Number(discount ?? existing.rows[0].discount ?? 0);
+        if (discountValue > subtotal) {
+          await query('ROLLBACK');
+          return res.status(400).json({ success: false, message: 'La remise ne peut pas dépasser le total HT.' });
+        }
         discountedTotal = Math.max(subtotal - discountValue, 0);
         const vatValue = Number(vatAmount ?? existing.rows[0].vatAmount ?? 0);
         grandTotal = discountedTotal + vatValue;
@@ -280,6 +313,10 @@ router.put(
       } else if (discount !== undefined || vatAmount !== undefined) {
         const currentSubtotal = Number(existing.rows[0].subtotal || 0);
         const discountValue = Number(discount ?? existing.rows[0].discount ?? 0);
+        if (discountValue > currentSubtotal) {
+          await query('ROLLBACK');
+          return res.status(400).json({ success: false, message: 'La remise ne peut pas dépasser le total HT.' });
+        }
         const vatValue = Number(vatAmount ?? existing.rows[0].vatAmount ?? 0);
         subtotal = currentSubtotal;
         discountedTotal = Math.max(currentSubtotal - discountValue, 0);

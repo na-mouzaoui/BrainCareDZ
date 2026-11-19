@@ -21,6 +21,16 @@ function normalizePatientStatus(value: any): string | null | typeof INVALID_STAT
   return PATIENT_STATUSES.includes(v) ? v : INVALID_STATUS;
 }
 
+/** Contrôle de la date de naissance : format, futur et borne basse (1900). */
+function dateOfBirthError(value: any): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  const dob = new Date(value);
+  if (Number.isNaN(dob.getTime())) return 'Date de naissance invalide.';
+  if (dob > new Date()) return 'La date de naissance ne peut pas être dans le futur.';
+  if (dob < new Date('1900-01-01')) return 'La date de naissance est trop ancienne (avant 1900).';
+  return null;
+}
+
 function normalizeGender(value) {
   if (value === undefined || value === null || value === '') return null;
 
@@ -445,6 +455,10 @@ router.post(
       if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
         return res.status(400).json({ success: false, message: 'Gender value is invalid' });
       }
+      const dobError = dateOfBirthError(dateOfBirth);
+      if (dobError) {
+        return res.status(400).json({ success: false, message: dobError });
+      }
       const patientStatus = normalizePatientStatus(status);
       if (patientStatus === INVALID_STATUS) {
         return res.status(400).json({ success: false, message: 'Statut patient invalide.' });
@@ -523,6 +537,11 @@ router.put('/:id', protect, async (req, res) => {
 
     if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
       return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+    }
+
+    const dobError = dateOfBirthError(dateOfBirth);
+    if (dobError) {
+      return res.status(400).json({ success: false, message: dobError });
     }
 
     const statusProvided = status !== undefined;
