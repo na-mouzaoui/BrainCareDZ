@@ -64,7 +64,7 @@
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
 | BUG-14 | Donut « Canal d'acquisition » sans légende | 🟠 Majeur | Front (`app/page.tsx`) | XS |
-| BUG-15 | Noms de services dupliqués autorisés | 🟠 Majeur | SQL | XS |
+| BUG-15 | Noms de services (packs) dupliqués : recherche de similarité + unicité | 🟠 Majeur | Back + Front + SQL | S |
 | BUG-16 | Dérive de données existante (packs, session_count, soldes) | 🟠 Majeur | SQL | M |
 | BUG-17 | Garde `beforeunload` impossible à lever sur la page Paiements | 🟠 Majeur | Front (`payments/page.tsx`) | S |
 | BUG-18 | Compte rendu : clôture du RDV sans confirmation avant l'heure | 🟠 Majeur | Front + Back | S |
@@ -123,9 +123,9 @@ Ajouter aussi les libellés manquants de `source_of_acquisition` (mapping valeur
 
 ---
 
-## BUG-15 — Noms de services dupliqués autorisés
+## BUG-15 — Noms de services (packs) dupliqués autorisés
 
-**Zone** : table `services`
+**Zone** : table `services`, `backend/src/modules/services.ts`, `components/service-form.tsx`
 
 **Constat**
 `POST /api/services { name: 'Consultation classique' }` alors qu'un service actif porte déjà ce nom → **201**. En base : deux services actifs homonymes (`is_active = true`), prix différents.
@@ -140,13 +140,65 @@ La semaine suivante, la secrétaire planifie un rendez-vous depuis le calendrier
 Mauvais service sélectionné → mauvais prix, mauvais pack, mauvais débit du solde.
 
 **Correctif**
-```sql
-CREATE UNIQUE INDEX services_name_active_unique
-  ON services (lower(btrim(name))) WHERE is_active;
-```
-Et renvoyer 409 avec un message clair côté API.
 
-**Effort** : XS
+**Décision** : on conserve l'unicité du nom, mais on **aide l'utilisateur à la respecter** — pendant la saisie, une recherche en temps réel affiche les services dont le nom est proche de ce qu'il tape.
+
+**1. Migration — unicité + recherche par similarité**
+
+```sql
+-- Recherche "floue" par trigrammes
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Unicité du nom parmi les services actifs (insensible à la casse et aux espaces)
+CREATE UNIQUE INDEX IF NOT EXISTS services_name_active_unique
+  ON services (lower(btrim(name)))
+  WHERE is_active;
+```
+
+**2. Endpoint de recherche en temps réel**
+
+```ts
+// GET /api/services/search?q=consult
+router.get('/search', protect, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ success: true, services: [] });
+
+  const result = await query(
+    `SELECT id, name, price, sessions, type,
+            round(similarity(name, $1)::numeric, 2) AS score
+       FROM services
+      WHERE is_active
+        AND (name ILIKE '%' || $1 || '%' OR similarity(name, $1) >= 0.3)
+      ORDER BY score DESC, name ASC
+      LIMIT 8`,
+    [q]
+  );
+  return res.json({ success: true, services: result.rows });
+});
+```
+
+> La route `/search` doit être déclarée **avant** `/:id`, sinon Express l'interprète comme un identifiant.
+
+**3. Formulaire — recherche pendant la frappe**
+
+- champ « Nom du service » avec **debounce de 250 ms** ;
+- liste « Services existants similaires » sous le champ : nom, prix, nombre de séances ;
+- si le nom saisi correspond **exactement** (casse/espaces ignorés) à un service actif : encart rouge « Ce nom existe déjà » et **bouton d'enregistrement désactivé** ;
+- sinon, la liste sert d'aide : l'utilisateur peut renommer (« Consultation classique (2026) », « Consultation + bilan »…) ;
+- cliquer sur un résultat peut préremplir le prix/les séances du service existant si l'utilisateur veut le modifier plutôt que le dupliquer.
+
+**4. Garde-fou serveur (inchangé)**
+
+La contrainte d'unicité renvoie désormais **409** avec un message explicite (via `sendDbError`) : « Cet enregistrement existe déjà. » — le formulaire affiche « Un service porte déjà ce nom. Choisissez un autre nom. »
+
+**Test de non-régression**
+
+- Taper « consult » → la liste affiche « Consultation », « Consultation classique »…
+- Créer « consultation classique » alors que « Consultation classique » existe → **409**, bouton bloqué côté formulaire.
+- Créer un nom réellement nouveau → **201**.
+- Désactiver un service puis créer le même nom → **201** (l'unicité ne porte que sur les services actifs).
+
+**Effort** : S
 
 ---
 
