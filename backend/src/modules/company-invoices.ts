@@ -96,6 +96,13 @@ router.post(
       await query('BEGIN');
       const { companyId, reference, invoiceDate, items, discount, vatAmount, paymentMethod } = req.body;
 
+      // Le `.trim()` du validateur ne modifie pas req.body : on normalise ici.
+      const normalizedReference = String(reference ?? '').trim();
+      if (!normalizedReference) {
+        await query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'La référence de la facture est requise.' });
+      }
+
       const company = await query('SELECT id FROM companies WHERE id = $1', [companyId]);
       if (company.rowCount === 0) {
         await query('ROLLBACK');
@@ -135,7 +142,7 @@ router.post(
         RETURNING id`,
         [
           companyId,
-          reference,
+          normalizedReference,
           invoiceDate,
           subtotal,
           discountValue,
@@ -172,6 +179,9 @@ router.post(
       return res.status(201).json({ success: true, invoice });
     } catch (error) {
       await query('ROLLBACK');
+      if ((error as any)?.code === '23505') {
+        return res.status(409).json({ success: false, message: 'Cette reference de facture existe deja.' });
+      }
       return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
@@ -207,6 +217,14 @@ router.put(
       }
 
       const { reference, invoiceDate, items, discount, vatAmount, paymentMethod } = req.body;
+
+      // Une référence fournie ne peut pas être vide (le `.trim()` du validateur
+      // ne modifie pas req.body).
+      const normalizedReference = reference === undefined ? undefined : String(reference).trim();
+      if (normalizedReference !== undefined && normalizedReference === '') {
+        await query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'La référence de la facture est requise.' });
+      }
 
       let subtotal = null;
       let discountedTotal = null;
@@ -283,7 +301,7 @@ router.put(
          WHERE id = $1`,
         [
           req.params.id,
-          reference,
+          normalizedReference,
           invoiceDate,
           subtotal,
           nextDiscount,
@@ -303,6 +321,9 @@ router.put(
       return res.status(200).json({ success: true, invoice });
     } catch (error) {
       await query('ROLLBACK');
+      if ((error as any)?.code === '23505') {
+        return res.status(409).json({ success: false, message: 'Cette reference de facture existe deja.' });
+      }
       return res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
     }
   }
