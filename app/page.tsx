@@ -1156,8 +1156,11 @@ export default function DashboardPage() {
                   labelStyle={{ color: '#fff', fontWeight: 500 }}
                   itemStyle={{ color: '#fff' }}
                 />
-                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="-0.1em" fontSize={28} fontWeight="bold" fill="#0E4D4B">
+                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="-0.35em" fontSize={28} fontWeight="bold" fill="#0E4D4B">
                   {referralSources.reduce((sum, s) => sum + s.value, 0)}
+                </text>
+                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" dy="1.1em" fontSize={12} fill="#6B7280">
+                  patients
                 </text>
               </PieChart>
             </ResponsiveContainer>
