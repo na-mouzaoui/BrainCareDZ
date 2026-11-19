@@ -1,8 +1,9 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import { query } from '../db/index.js';
+import { query, getPool } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
 import { sendDbError } from '../utils/errors.js';
+import { logActivity } from '../utils/activity-logger.js';
 const router = express.Router();
 
 const PATIENT_STATUSES = ['En cours', 'Terminé', 'Abandon'];
@@ -151,6 +152,8 @@ c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children
          c.abandon_reason AS "abandonReason",
          c.status AS "status",
          c.balance AS "balance",
+         c.is_deleted AS "isDeleted",
+         c.deleted_at AS "deletedAt",
          pack_next.service_name AS "packServiceName",
          pack_next.pack_total AS "packTotal",
          pack_next.pack_remaining AS "packRemaining",
@@ -313,7 +316,7 @@ const PATIENTS_LIST_CAP = 2000;
 
 router.get('/', protect, async (req, res) => {
   try {
-    const result = await query(`${baseSelect} ORDER BY c.created_at DESC LIMIT ${PATIENTS_LIST_CAP}`);
+    const result = await query(`${baseSelect} WHERE c.is_deleted = FALSE ORDER BY c.created_at DESC LIMIT ${PATIENTS_LIST_CAP}`);
 
     return res.status(200).json({
       success: true,
@@ -330,7 +333,7 @@ router.get('/search/:query', protect, async (req, res) => {
     const params = [`%${req.params.query}%`];
     const where = `(c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR COALESCE(c.email, '') ILIKE $1)`;
 
-    const result = await query(`${baseSelect} WHERE ${where} ORDER BY c.created_at DESC LIMIT 10`, params);
+    const result = await query(`${baseSelect} WHERE ${where} AND c.is_deleted = FALSE ORDER BY c.created_at DESC LIMIT 10`, params);
 
     return res.status(200).json({
       success: true,
@@ -369,6 +372,8 @@ router.get('/paged', protect, async (req, res) => {
     const practitionerName = String(req.query.practitionerName ?? '').trim();
     const packServiceName = String(req.query.packServiceName ?? '').trim();
     const isProspect = String(req.query.isProspect ?? '') === 'true';
+    // Dossiers archivés : jamais renvoyés par défaut, et consultables uniquement par un admin.
+    const includeDeleted = String(req.query.includeDeleted ?? '') === 'true' && req.user.role === 'admin';
     const minSessions = toNum(req.query.minSessions);
     const maxSessions = toNum(req.query.maxSessions);
     const minBalance = toNum(req.query.minBalance);
@@ -394,6 +399,7 @@ router.get('/paged', protect, async (req, res) => {
     if (minBalance !== null) conditions.push(`sub.balance >= ${add(minBalance)}`);
     if (maxBalance !== null) conditions.push(`sub.balance <= ${add(maxBalance)}`);
     if (isProspect) conditions.push(`sub."isProspect" = TRUE`);
+    if (!includeDeleted) conditions.push(`sub."isDeleted" = FALSE`);
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -678,25 +684,128 @@ router.get('/:id/history', protect, async (req, res) => {
 });
 
 router.delete('/:id', protect, async (req, res) => {
+  const id = req.params.id;
+
+  // Archivage transactionnel : le patient quitte les listes, son historique reste.
+  // Seuls les rendez-vous À VENIR sont retirés pour libérer les créneaux.
+  const client = await getPool().connect();
   try {
-    const id = req.params.id;
-    
-    const existing = await query('SELECT id FROM patients WHERE id = $1', [id]);
+    await client.query('BEGIN');
+
+    const existing = await client.query(
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", is_deleted
+         FROM patients WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
     if (existing.rowCount === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Patient introuvable.' });
     }
+    if (existing.rows[0].is_deleted === true) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Ce dossier est déjà archivé.' });
+    }
 
-    // Supprimer les enregistrements liés d'abord (dans l'ordre pour éviter les contraintes)
-    await query('DELETE FROM payments WHERE patient_id = $1', [id]);
-    await query('DELETE FROM appointments WHERE id IN (SELECT ap.appointment_id FROM appointment_patients ap WHERE ap.patient_id = $1)', [id]);
+    // 1. Rendez-vous à venir : le patient est retiré de la jonction. Un RDV partagé
+    //    (calendrier Coach) n'est supprimé que s'il ne reste plus aucun patient, et
+    //    jamais s'il porte déjà un compte rendu.
+    const upcoming = await client.query(
+      `SELECT a.id
+         FROM appointments a
+         JOIN appointment_patients ap ON ap.appointment_id = a.id
+        WHERE ap.patient_id = $1 AND a.status = 'scheduled'
+        FOR UPDATE OF a`,
+      [id]
+    );
+    const upcomingIds = [...new Set(upcoming.rows.map((row: any) => row.id))];
 
-    // Puis supprimer le patient
-    await query('DELETE FROM patients WHERE id = $1', [id]);
+    await client.query(
+      `DELETE FROM appointment_patients ap
+        USING appointments a
+        WHERE ap.appointment_id = a.id
+          AND ap.patient_id = $1
+          AND a.status = 'scheduled'
+          AND NOT EXISTS (SELECT 1 FROM session_notes sn WHERE sn.appointment_patient_id = ap.id)`,
+      [id]
+    );
+
+    for (const appointmentId of upcomingIds) {
+      await client.query(
+        `DELETE FROM appointments a
+          WHERE a.id = $1
+            AND NOT EXISTS (SELECT 1 FROM appointment_patients ap WHERE ap.appointment_id = a.id)`,
+        [appointmentId]
+      );
+    }
+
+    // 2. Liste d'attente : un dossier archivé n'y a plus sa place.
+    const waiting = await client.query('DELETE FROM waiting_list WHERE patient_id = $1', [id]);
+
+    // 3. Archivage. Paiements, comptes rendus, packs et évaluations restent intacts.
+    await client.query(
+      `UPDATE patients
+          SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $2, updated_at = NOW()
+        WHERE id = $1`,
+      [id, req.user.id]
+    );
+
+    await client.query('COMMIT');
+
+    await logActivity({
+      req,
+      action: 'DELETE',
+      resource: 'patient',
+      resourceId: id,
+      resourceName: `${existing.rows[0].firstName} ${existing.rows[0].lastName}`,
+      changes: {
+        archived: true,
+        scheduledAppointmentsRemoved: upcomingIds.length,
+        waitingListRemoved: waiting.rowCount,
+      },
+    });
 
     return res.status(200).json({
       success: true,
-      message: 'Patient supprimé.',
+      message: upcomingIds.length
+        ? `Dossier patient archivé — ${upcomingIds.length} rendez-vous à venir supprimé(s).`
+        : 'Dossier patient archivé.',
     });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    return sendDbError(res, error, 'Erreur interne du serveur');
+  } finally {
+    client.release();
+  }
+});
+
+// Restauration d'un dossier archivé (réservée à l'administrateur).
+router.post('/:id/restore', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Action réservée aux administrateurs.' });
+    }
+
+    const result = await query(
+      `UPDATE patients
+          SET is_deleted = FALSE, deleted_at = NULL, deleted_by = NULL, updated_at = NOW()
+        WHERE id = $1 AND is_deleted = TRUE
+        RETURNING id, first_name AS "firstName", last_name AS "lastName"`,
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Dossier introuvable ou déjà actif.' });
+    }
+
+    await logActivity({
+      req,
+      action: 'RESTORE',
+      resource: 'patient',
+      resourceId: req.params.id,
+      resourceName: `${result.rows[0].firstName} ${result.rows[0].lastName}`,
+    });
+
+    return res.status(200).json({ success: true, message: 'Dossier patient restauré.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

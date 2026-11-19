@@ -142,6 +142,8 @@ export const patients = {
     }),
   delete: (id: string) =>
     apiRequest(`/patients/${id}`, { method: 'DELETE' }),
+  restore: (id: string) =>
+    apiRequest(`/patients/${id}/restore`, { method: 'POST' }),
   getHistory: (id: string) =>
     apiRequest(`/patients/${id}/history`, { method: 'GET' }),
 };

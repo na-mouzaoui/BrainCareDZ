@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Trash2, Users, Share2, Search, FileText, Plus, Calendar, ArrowLeft, RefreshCw } from 'lucide-react';
+import { AlertCircle, Trash2, Users, Share2, Search, FileText, Plus, Calendar, ArrowLeft, RefreshCw, Archive, RotateCcw } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { DetailPageSkeleton } from '@/components/page-skeletons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -61,6 +61,8 @@ interface PatientDetail {
   packTotal?: number;
   packRemaining?: number;
   packList?: Array<{ serviceName: string; remaining: number; total: number }>;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
 }
 
 interface AppointmentItem {
@@ -157,7 +159,7 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 
 };
 
 export default function PatientDetailPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const router = useRouter();
   const params = useParams();
   const patientId = params?.id as string;
@@ -446,6 +448,21 @@ export default function PatientDetailPage() {
     }
   };
 
+  const handleRestorePatient = async () => {
+    if (!patient) return;
+    try {
+      setError('');
+      const response = await patients.restore(patient.id);
+      if (!response.success) {
+        setError(response.message || 'Échec de la restauration du dossier');
+        return;
+      }
+      await loadData();
+    } catch {
+      setError('Une erreur est survenue lors de la restauration du dossier');
+    }
+  };
+
   if (authLoading || isLoading) {
     return <DetailPageSkeleton />;
   }
@@ -491,6 +508,25 @@ export default function PatientDetailPage() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {patient?.isDeleted && (
+        <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+          <Archive className="h-4 w-4" />
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Dossier archivé
+              {patient.deletedAt ? ` le ${new Date(patient.deletedAt).toLocaleDateString('fr-FR')}` : ''}
+              {' — '}il n&apos;apparaît plus dans la liste des patients, mais son historique reste conservé.
+            </span>
+            {user?.role === 'admin' && (
+              <Button size="sm" variant="outline" onClick={handleRestorePatient} className="gap-2">
+                <RotateCcw className="h-4 w-4" />
+                Restaurer le dossier
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

@@ -9,7 +9,7 @@ import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, Plus, Edit2, Trash2, History, X } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, History, Archive, RotateCcw, X } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -49,6 +49,8 @@ interface Patient {
   isProspect?: boolean;
   appointmentCount?: number;
   createdAt?: string;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
 }
 
 const PAGE_SIZE = 25;
@@ -111,6 +113,7 @@ export default function PatientsPage() {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Patient | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -124,8 +127,9 @@ export default function PatientsPage() {
     }
     setPage(1);
   }
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const router = useRouter();
+  const isAdmin = user?.role === 'admin';
 
   function handleOpenView(patient: Patient) {
     router.push(`/patients/${patient.id}`);
@@ -138,14 +142,16 @@ export default function PatientsPage() {
       return;
     }
     void loadPatients();
-  }, [isAuthenticated, authLoading, page, filters, sortKey, direction, router]);
+  }, [isAuthenticated, authLoading, page, filters, sortKey, direction, router, showArchived, isAdmin]);
 
   async function loadPatients(): Promise<Patient[]> {
     try {
       setIsLoading(true);
-      const response = await patients.getPaged(
-        buildPatientQuery(filters, page, PAGE_SIZE, sortKey, direction)
-      );
+      const params = buildPatientQuery(filters, page, PAGE_SIZE, sortKey, direction);
+      // Dossiers archivés : visibles uniquement sur demande d'un administrateur.
+      if (showArchived && isAdmin) params.includeDeleted = true;
+
+      const response = await patients.getPaged(params);
 
       if (response.success && response.data) {
         const payload = response.data as { patients?: Patient[]; total?: number };
@@ -162,6 +168,20 @@ export default function PatientsPage() {
       return [];
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleRestore(patient: Patient) {
+    try {
+      setError('');
+      const response = await patients.restore(patient.id);
+      if (response.success) {
+        await loadPatients();
+      } else {
+        setError(response.message || 'Échec de la restauration du patient');
+      }
+    } catch (err) {
+      setError('Une erreur s\'est produite lors de la restauration du patient');
     }
   }
 
@@ -220,6 +240,20 @@ export default function PatientsPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Patients</h1>
           </div>
           <div className="flex gap-2">
+            {isAdmin && (
+              <Button
+                variant={showArchived ? 'default' : 'outline'}
+                onClick={() => {
+                  setShowArchived((value) => !value);
+                  setPage(1);
+                }}
+                aria-pressed={showArchived}
+                className="gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                {showArchived ? 'Dossiers archivés affichés' : 'Dossiers archivés'}
+              </Button>
+            )}
             <Button
               onClick={() => setCreateOpen(true)}
               className="gap-2 bg-brand-700 hover:bg-brand-800"
@@ -283,6 +317,11 @@ export default function PatientsPage() {
                           }>
                             {patient.firstName} {patient.lastName}
                           </span>
+                          {patient.isDeleted && (
+                            <span className="ml-2 inline-block rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
+                              Archivé
+                            </span>
+                          )}
                           <span className="md:hidden mt-1 block text-xs font-normal text-gray-500">
                             {patient.phone && <span className="block">{patient.phone}</span>}
                             {patient.practitionerName && <span className="block">{patient.practitionerName}</span>}
@@ -339,31 +378,50 @@ export default function PatientsPage() {
                         >
                           <History className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Modifier ${patient.firstName} ${patient.lastName}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingPatient(patient);
-                              setEditOpen(true);
-                            }}
-                          className="gap-2"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Supprimer ${patient.firstName} ${patient.lastName}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTarget(patient);
-                          }}
-                          className="gap-2 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {patient.isDeleted ? (
+                          isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Restaurer ${patient.firstName} ${patient.lastName}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleRestore(patient);
+                              }}
+                              className="gap-2 text-brand-700 hover:text-brand-900"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Modifier ${patient.firstName} ${patient.lastName}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPatient(patient);
+                                  setEditOpen(true);
+                                }}
+                              className="gap-2"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Archiver le dossier de ${patient.firstName} ${patient.lastName}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(patient);
+                              }}
+                              className="gap-2 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -507,28 +565,20 @@ export default function PatientsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le patient</AlertDialogTitle>
+            <AlertDialogTitle>Archiver le dossier patient</AlertDialogTitle>
             <AlertDialogDescription>
-              {(deleteTarget?.appointmentCount ?? 0) > 0 ? (
-                <>
-                  <strong>{deleteTarget?.firstName} {deleteTarget?.lastName}</strong> a{' '}
-                  {deleteTarget?.appointmentCount} rendez-vous. La suppression de ce patient
-                  entraîne la suppression définitive de tous ses rendez-vous (ainsi que de ses
-                  paiements, packs et comptes rendus associés). Cette action est irréversible.
-                </>
-              ) : (
-                <>
-                  Voulez-vous vraiment supprimer définitivement{' '}
-                  <strong>{deleteTarget?.firstName} {deleteTarget?.lastName}</strong> ? Cette action
-                  est irréversible.
-                </>
-              )}
+              <strong>{deleteTarget?.firstName} {deleteTarget?.lastName}</strong>
+              {(deleteTarget?.appointmentCount ?? 0) > 0
+                ? ' disparaîtra des listes et ses rendez-vous à venir seront supprimés.'
+                : ' disparaîtra des listes.'}{' '}
+              Son historique (paiements, séances passées, comptes rendus, packs et évaluations)
+              reste conservé : le dossier pourra être restauré par un administrateur.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Supprimer
+              Archiver
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -14,6 +14,12 @@ export async function ensureSchema(): Promise<void> {
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`CREATE INDEX IF NOT EXISTS idx_users_is_active ON users (is_active) WHERE is_active = TRUE`);
 
+  // Archivage des dossiers patients (BUG-36) : la suppression effaçait l'historique.
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_patients_active ON patients (created_at DESC) WHERE is_deleted = FALSE`);
+
   // practitioner_services (junction)
   await query(
     `CREATE TABLE IF NOT EXISTS practitioner_services (
