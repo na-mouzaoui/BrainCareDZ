@@ -131,7 +131,7 @@ export default function NewCompanyInvoicePage() {
 
       <CompanyInvoiceForm
         companies={companiesForForm}
-        initialData={nextRef ? { companyId: '', reference: nextRef, invoiceDate: '', items: [{ description: '', sessionCount: 0, learnerCount: 0, unitPrice: 0, subtotal: 0 }], discount: 0, vatAmount: 0, subtotal: 0, discountedTotal: 0, grandTotal: 0 } : undefined}
+        initialData={nextRef ? { companyId: '', reference: nextRef, invoiceDate: new Date().toISOString().slice(0, 10), items: [{ description: '', sessionCount: 0, learnerCount: 0, unitPrice: 0, subtotal: 0 }], discount: 0, vatAmount: 0, subtotal: 0, discountedTotal: 0, grandTotal: 0 } : undefined}
         onSubmit={handleCreateInvoice}
       />
     </div>

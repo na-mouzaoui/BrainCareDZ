@@ -61,7 +61,8 @@ export default function CompanyInvoiceForm({
     initialData || {
       companyId: '',
       reference: '',
-      invoiceDate: '',
+      // Date préremplie à aujourd'hui (comme sur les paiements).
+      invoiceDate: new Date().toISOString().slice(0, 10),
       items: [{ ...EMPTY_ITEM }],
       discount: 0,
       vatAmount: 0,
@@ -358,7 +359,7 @@ export default function CompanyInvoiceForm({
               <Input value={totals.discountedTotal.toFixed(2)} readOnly disabled />
             </Field>
             <Field>
-              <FieldLabel>TVA</FieldLabel>
+              <FieldLabel>Montant TVA (DZD)</FieldLabel>
               <Input
                 type="number"
                 min="0"
