@@ -288,6 +288,7 @@ export default function expensesPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label="Supprimer la dépense"
                           onClick={() => handleDelete(expense.id)}
                           className="gap-2 text-red-600 hover:text-red-700"
                         >

@@ -146,6 +146,8 @@ export function DashboardNav() {
               key={item.href}
               href={item.href}
               onClick={closeSidebar}
+              aria-label={item.label}
+              title={item.label}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                 isActive ? 'bg-brand-700 text-white shadow-md' : 'text-gray-700 hover:bg-brand-50'
               }`}

@@ -695,6 +695,7 @@ function PaymentsContent() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Historique des paiements du patient"
                           onClick={() => openHistory(payment)}
                           className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                           title="Historique des paiements du patient"
@@ -704,6 +705,7 @@ function PaymentsContent() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Modifier le paiement"
                           onClick={() => router.push(`/payments/${payment.id}/edit`)}
                           className="text-brand-700 hover:text-brand-900 hover:bg-brand-50"
                         >
@@ -712,6 +714,7 @@ function PaymentsContent() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Supprimer le paiement"
                           onClick={() => handleDeletePayment(payment.id)}
                           className="text-red-600 hover:text-red-800 hover:bg-red-50"
                         >

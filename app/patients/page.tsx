@@ -324,6 +324,7 @@ export default function PatientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label={`Historique de ${patient.firstName} ${patient.lastName}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setHistoryPatient(patient);
@@ -341,6 +342,7 @@ export default function PatientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label={`Modifier ${patient.firstName} ${patient.lastName}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditingPatient(patient);
@@ -353,6 +355,7 @@ export default function PatientsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label={`Supprimer ${patient.firstName} ${patient.lastName}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteTarget(patient);

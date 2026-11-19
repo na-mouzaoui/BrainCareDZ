@@ -67,10 +67,12 @@ export default function LoginPage() {
             )}
 
             <Field>
-              <FieldLabel>Pseudo</FieldLabel>
+              <FieldLabel htmlFor="login-pseudo">Pseudo</FieldLabel>
               <Input
+                id="login-pseudo"
                 type="text"
                 placeholder="prenom_nom"
+                autoComplete="username"
                 value={pseudo}
                 onChange={(e) => setPseudo(e.target.value)}
                 required
@@ -79,8 +81,10 @@ export default function LoginPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Mot de passe</FieldLabel>
+              <FieldLabel htmlFor="login-password">Mot de passe</FieldLabel>
               <PasswordInput
+                id="login-password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

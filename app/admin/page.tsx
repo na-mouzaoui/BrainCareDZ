@@ -702,6 +702,7 @@ export default function AdminPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label={`Modifier ${u.name}`}
                               onClick={() => handleEditUser(u)}
                               className="text-brand-600 hover:text-brand-800 hover:bg-brand-50"
                             >
@@ -710,6 +711,7 @@ export default function AdminPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label={`Réinitialiser le mot de passe de ${u.name}`}
                               onClick={() => handleResetPassword(u.id, u.name)}
                               title="Réinitialiser le mot de passe à 123456789"
                               className="text-amber-600 hover:text-amber-800 hover:bg-amber-50"
@@ -719,6 +721,7 @@ export default function AdminPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label={`Supprimer ${u.name}`}
                               onClick={() => handleDeleteUser(u.id)}
                               className="text-red-600 hover:text-red-800 hover:bg-red-50"
                             >

@@ -705,6 +705,8 @@ export default function AppointmentsPage() {
                     type="button"
                     onClick={() => setViewMode(mode.value)}
                     title={mode.label}
+                    aria-label={mode.label}
+                    aria-pressed={viewMode === mode.value}
                     className={`p-1.5 rounded-md transition-colors ${
                       viewMode === mode.value
                         ? 'bg-brand-700 text-white'
