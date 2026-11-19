@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **14 problèmes ouverts**. Les 21 bugs traités (20 corrigés + 1 vérifié conforme) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **11 problèmes ouverts**. Les 24 bugs traités (22 corrigés + 2 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -40,31 +40,28 @@
 | Gravité | Nombre |
 |---|---|
 | 🔴 Critique | 0 |
-| 🟠 Majeur | 2 |
-| 🟡 Moyen | 9 |
+| 🟠 Majeur | 1 |
+| 🟡 Moyen | 7 |
 | ⚪ Robustesse | 3 |
-| **Total** | **14** |
+| **Total** | **11** |
 
 > **État au 19/11/2026** : les 17 bugs déjà corrigés (BUG-01 → BUG-18, sauf BUG-16 qui reste ouvert) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
 **Priorités restantes**
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
-2. **BUG-16** — dérive de données existante (16 packs, 2 `session_count`, 1 solde).
-3. **BUG-26 / BUG-27** — formulaire d'édition vide ~1 s, bouton recouvert par la pastille.
+2. **BUG-26 / BUG-27** — formulaire d'édition vide ~1 s, bouton recouvert par la pastille.
+3. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
 4. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
 
 ---
 
 ## 2. Tableau récapitulatif
 
-> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-22, sauf BUG-16) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
+> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-24) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
 
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
-| BUG-16 | Dérive de données existante (packs, session_count, soldes) | 🟠 Majeur | SQL | M |
-| BUG-23 | Message « Créneau complet » faux pour un excès de patients | 🟡 Moyen | Back (`appointments.ts`) | XS |
-| BUG-24 | Facture : date non préremplie, TVA ambiguë (montant vs %) | 🟡 Moyen | Front | S |
 | BUG-25 | Rafale de 8 appels API avant résolution de l'auth | 🟡 Moyen | Front | S |
 | BUG-26 | Page d'édition patient : formulaire vide ~1 s | 🟡 Moyen | Front | XS |
 | BUG-27 | Bouton « Nouveau patient » recouvert par la pastille utilisateur | 🟡 Moyen | Front | XS |
@@ -80,105 +77,6 @@
 ---
 
 # 🟠 MAJEUR
-
-## BUG-16 — Dérive de données existante (packs, session_count, soldes)
-
-**Zone** : données
-
-**Constat (mesuré le 19/11/2026)**
-
-| Anomalie | Volume |
-|---|---|
-| Packs avec `remaining_sessions ≠ total_sessions − nb_usages` | **16 packs** (ex. `total 1 / remaining 1` avec 1 usage ; `total 8 / remaining 7` avec 0 usage) |
-| Patients avec `session_count` ≠ nombre de RDV `completed` | 2 patients |
-| Solde stocké incohérent avec la formule de recalcul | *nazim mouzaoui* : stocké **16 020**, recalculé **16 200** |
-
-**Scénario de reproduction**
-
-La gérante effectue un contrôle de cohérence avant la clôture annuelle. Elle compare, pour chaque pack, le nombre de séances restantes affiché avec le nombre de séances réellement consommées dans l'historique des rendez-vous. Seize packs présentent un écart : certains affichent une séance restante alors qu'aucune n'a jamais été utilisée, d'autres affichent sept séances restantes sur huit alors qu'aucune consommation n'est enregistrée.
-
-Deux patients affichent également un compteur de séances différent du nombre de rendez-vous terminés, et le solde enregistré de « nazim mouzaoui » (16 020 DZD) ne correspond pas à celui obtenu en recalculant la formule officielle (16 200 DZD). Aucun de ces écarts n'est signalé par l'application ; ils proviennent d'opérations antérieures (ancien endpoint de consommation, suppressions manuelles, migrations). En l'état, un patient peut se voir offrir ou refuser une séance sur la base d'un compteur faux.
-
-Pour visualiser les écarts :
-
-```sql
-SELECT pk.id, pk.total_sessions, pk.remaining_sessions,
-       (SELECT count(*) FROM patient_pack_usages u WHERE u.pack_id = pk.id) AS usages
-FROM patient_packs pk
-WHERE pk.remaining_sessions <> pk.total_sessions
-   - (SELECT count(*) FROM patient_pack_usages u WHERE u.pack_id = pk.id);
--- → 16 lignes
-```
-
-**Impact**
-Séances affichées fausses, solde affiché faux (le patient croit avoir plus/moins de séances), litiges.
-
-**Correctif**
-1. Migration de réconciliation (à exécuter **après sauvegarde**) :
-
-```sql
-BEGIN;
-
--- 1) Recalcule remaining_sessions à partir des usages réels
-UPDATE patient_packs pk
-SET remaining_sessions = GREATEST(pk.total_sessions
-      - (SELECT count(*) FROM patient_pack_usages u WHERE u.pack_id = pk.id), 0),
-    updated_at = now();
-
--- 2) Recalcule session_count depuis les RDV terminés
-UPDATE patients p
-SET session_count = (
-  SELECT count(*) FROM appointment_patients ap
-  JOIN appointments a ON a.id = ap.appointment_id
-  WHERE ap.patient_id = p.id AND a.status = 'completed'
-);
-
--- 3) Recalcule les soldes avec la fonction officielle
-SELECT recalc_patient_balance(id) FROM patients;
-
-COMMIT;
-```
-
-2. Ajouter un **contrôle de cohérence quotidien** (job ou endpoint admin « Vérifier l'intégrité ») qui liste les écarts sans les corriger.
-3. Documenter la règle : `remaining = total − usages` doit toujours être vraie (trigger garanti).
-
-> ℹ️ Pendant l'audit, le solde de *nazim mouzaoui* a été recalculé (16 020 → 16 200). Si 16 020 était une valeur volontaire (ajustement manuel), il faudra la rétablir après avoir identifié l'origine de l'écart.
-
-**Effort** : M
-
----
-
-## BUG-23 — Message « Créneau complet » faux pour un excès de patients
-
-**Constat** : envoyer 20 patients sur un RDV renvoie « Créneau complet : maximum 1 RDV pour ce rôle à cet horaire », alors que le problème est le **nombre de patients** par RDV.
-
-**Scénario de reproduction**
-
-Pour une séance de groupe, la secrétaire tente d'associer cinq patients au même rendez-vous sur le calendrier Coach (la limite étant de quatre). Le serveur refuse, mais le message affiché parle d'un « créneau complet : maximum 1 RDV pour ce rôle à cet horaire ».
-
-Elle en déduit que l'horaire est déjà occupé par un autre rendez-vous, change l'heure, réessaie, et échoue à nouveau pour la même raison réelle. Le vrai problème — trop de patients sur un seul rendez-vous — n'est jamais évoqué ; elle finit par créer plusieurs rendez-vous distincts pour contourner un blocage qu'elle n'a pas compris.
-
-**Correctif** : message dédié (ex. « Maximum 4 patients par rendez-vous pour ce rôle ») et code d'erreur distinct (`TOO_MANY_PATIENTS`).
-**Effort** : XS
-
----
-
-## BUG-24 — Facture : date non préremplie, TVA ambiguë
-
-**Constat**
-- Le champ `Date *` est vide par défaut (les paiements, eux, sont préremplis à aujourd'hui) → l'utilisateur clique Enregistrer et reçoit « Veuillez saisir la date ».
-- Le champ « TVA » est un **montant** en DZD, pas un pourcentage, sans indication. Preuve dans les données : facture `1/2026` → HT 30, remise 10, **TVA 400**, TTC 420 (TVA 400 % du HT).
-
-**Scénario de reproduction**
-
-La comptable établit une facture pour une entreprise. Elle renseigne l'entreprise, la référence et les lignes, puis clique sur « Enregistrer la facture » : rien ne se passe, sinon un message « Veuillez saisir la date » alors que le champ date était vide par défaut et qu'elle ne l'avait pas remarqué. Elle corrige.
-
-Vient ensuite le champ « TVA » : elle saisit 19 en pensant à 19 %, et le total TTC n'augmente que de 19 DZD, car il s'agit d'un montant et non d'un pourcentage. La facture générée affiche un total incohérent avec le taux attendu, et la comptable ne comprend l'erreur qu'en comparant avec une facture précédente. Le même malentendu explique la facture existante `1/2026`, dont la TVA de 400 DZD représente 400 % du total hors taxes.
-
-**Correctif** : préremplir la date à `new Date().toISOString().slice(0,10)` ; renommer « TVA (montant DZD) » ou implémenter un taux (`TVA %` + calcul automatique) ; afficher le récapitulatif HT / remise / TVA / TTC.
-**Effort** : S
-
----
 
 ## BUG-25 — Rafale de 8 appels API avant résolution de l'authentification
 
@@ -523,6 +421,9 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | BUG-20 | `64d4a40` | État vide distinct lorsque des filtres sont actifs | filtre sans résultat → « Aucun patient ne correspond… » + bouton de réinitialisation |
 | BUG-21 | — | **Vérifié conforme** (réinitialisation appliquée) | « Réinitialiser » → liste restaurée (17 patients) |
 | BUG-22 | `73edcc5` | Message distinct si date de naissance future | 31/12/2099 → « ne peut pas être dans le futur » |
+| BUG-16 | `3164b4f` | Réconciliation : usages invalides, `remaining_sessions`, `session_count`, soldes | 16 packs → **0**, 2 compteurs → **0** |
+| BUG-23 | — | **Non reproduit** : message « Maximum N patient(s) pour ce rendez-vous » déjà spécifique | 5 patients coach → « Maximum 4 patient(s) » |
+| BUG-24 | `86c8e30` | Date préremplie + libellé « Montant TVA (DZD) » | date = jour, libellé explicite |
 
 ### 3.1 Migrations SQL appliquées en base
 
@@ -535,6 +436,7 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | `sql/invoices_reference_unique.sql` | Index unique sur la référence de facture (BUG-08) |
 | `sql/business_bounds.sql` | Bornes métier : enfants, packs, remise, évaluations (BUG-12) |
 | `sql/services_name_unique.sql` | `pg_trgm` + unicité du nom des services actifs (BUG-15) |
+| `sql/data_reconciliation.sql` | Réconciliation packs / `session_count` / soldes (BUG-16) |
 
 > `sql/integrity_fixes.sql` a également été mis à jour : une installation neuve obtient directement la version corrigée du trigger.
 
@@ -557,19 +459,16 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 `BUG-26` · `BUG-27`
 
 ### Lot 2 — Fiabilité des données (1 à 2 jours)
-`BUG-16` · `BUG-36`
+`BUG-36`
 
 ### Lot 3 — Finitions et durcissement (2 à 4 jours)
-`BUG-23` · `BUG-24` · `BUG-25` · `BUG-28` · `BUG-29` · `BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
+`BUG-25` · `BUG-28` · `BUG-29` · `BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
 
 ### Ordre d'application des migrations SQL restantes
 
-Les migrations des bugs corrigés sont déjà appliquées (voir § 3.1). Restent à préparer, dans cet ordre :
+Les migrations des bugs corrigés sont déjà appliquées (voir § 3.1). Reste à préparer :
 
-1. `data_reconciliation.sql` (BUG-16) — nettoyer les données **avant** d'ajouter les contraintes
-2. `schema_constraints.sql` (BUG-12) — CHECK + bornes
-3. `unique_services_name.sql` (BUG-15)
-4. `patients_soft_delete.sql` (BUG-36)
+1. `patients_soft_delete.sql` (BUG-36) — colonne `is_deleted`, index partiel et filtrage des listes
 
 > Chaque migration doit être répercutée dans `backend/src/db/schema.ts` (bloc `ensureSchema`), sinon elle sera écrasée au redémarrage du serveur.
 
