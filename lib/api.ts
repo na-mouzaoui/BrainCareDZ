@@ -207,8 +207,11 @@ export const appointments = {
       method: 'DELETE',
       body: reason ? { reason } : {},
     }),
-  complete: (id: string) =>
-    apiRequest(`/appointments/${id}/complete`, { method: 'PUT' }),
+  complete: (id: string, options?: { earlyCompletion?: boolean }) =>
+    apiRequest(`/appointments/${id}/complete`, {
+      method: 'PUT',
+      body: options?.earlyCompletion ? { earlyCompletion: true } : undefined,
+    }),
   getAvailability: (date: string) =>
     apiRequest(`/appointments/availability/${date}`, { method: 'GET' }),
 };

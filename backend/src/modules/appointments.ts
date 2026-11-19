@@ -583,7 +583,15 @@ router.put('/:id/complete', protect, async (req, res) => {
 
     const updated = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
 
-    await logActivity({ req, action: 'COMPLETE', resource: 'appointment', resourceId: req.params.id, resourceName: aptLabel });
+    await logActivity({
+      req,
+      action: 'COMPLETE',
+      resource: 'appointment',
+      resourceId: req.params.id,
+      resourceName: aptLabel,
+      // Clôture anticipée : tracée pour l'audit (popup de confirmation côté front).
+      changes: req.body?.earlyCompletion === true ? { earlyCompletion: true } : undefined,
+    });
 
     return res.status(200).json({
       success: true,

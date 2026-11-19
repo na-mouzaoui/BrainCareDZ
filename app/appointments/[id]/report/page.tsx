@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { appointments, sessionNotes, patients as patientsApi, patientPacks, services as servicesApi } from '@/lib/api';
@@ -16,6 +16,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 
 interface AppointmentPatient {
@@ -100,6 +110,9 @@ export default function AppointmentReportPage() {
   const [evoWouldRecommend, setEvoWouldRecommend] = useState(false);
   const [isViewing, setIsViewing] = useState(true);
   const [packDialogOpen, setPackDialogOpen] = useState(false);
+  // Confirmation avant de clôturer un RDV dont le créneau n'a pas encore commencé.
+  const [earlyConfirmOpen, setEarlyConfirmOpen] = useState(false);
+  const earlyConfirmedRef = useRef(false);
   const [packSubmitting, setPackSubmitting] = useState(false);
   const [packError, setPackError] = useState('');
   const [servicesList, setServicesList] = useState<ServiceItem[]>([]);
@@ -332,6 +345,18 @@ export default function AppointmentReportPage() {
 
   async function handleSaveAll() {
     if (!appointment || !currentPatient) return;
+
+    // Le créneau n'a pas encore commencé : enregistrer va clôturer le RDV et
+    // débiter la séance. On demande confirmation avant de continuer.
+    const slotNotStarted = appointment.startTime
+      ? new Date(appointment.startTime).getTime() > Date.now()
+      : false;
+    if (slotNotStarted && appointment.status !== 'completed' && !earlyConfirmedRef.current) {
+      setEarlyConfirmOpen(true);
+      return;
+    }
+    earlyConfirmedRef.current = false;
+
     setIsSubmitting(true);
     try {
       const evoResponse = await patientsApi.update(currentPatient.patientId, {
@@ -359,7 +384,7 @@ export default function AppointmentReportPage() {
       if (appointment.status !== 'completed' && !currentPatientPackPending) {
         // Le serveur refuse la clôture d'un RDV « pack différé » sans pack :
         // on ne clôture donc qu'une fois le pack réellement choisi.
-        const completeResponse = await appointments.complete(appointment.id);
+        const completeResponse = await appointments.complete(appointment.id, { earlyCompletion: slotNotStarted });
         if (!completeResponse.success) {
           throw new Error(completeResponse.message || 'Échec de la clôture du rendez-vous');
         }
@@ -415,7 +440,10 @@ export default function AppointmentReportPage() {
 
       // Le pack est désormais lié à la séance : on peut clôturer le rendez-vous.
       if (appointment && appointment.status !== 'completed') {
-        const completeResponse = await appointments.complete(appointment.id);
+        const early = appointment.startTime
+          ? new Date(appointment.startTime).getTime() > Date.now()
+          : false;
+        const completeResponse = await appointments.complete(appointment.id, { earlyCompletion: early });
         if (!completeResponse.success) {
           setPackError(completeResponse.message || 'Pack enregistré, mais la clôture du rendez-vous a échoué.');
           return;
@@ -687,6 +715,36 @@ export default function AppointmentReportPage() {
       </Dialog>
 
       {/* Obligatory pack selection dialog (deferred pack) */}
+      {/* Confirmation : clôture avant l'heure prévue */}
+      <AlertDialog open={earlyConfirmOpen} onOpenChange={setEarlyConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Le créneau n&apos;a pas encore commencé</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ce rendez-vous est prévu le{' '}
+              <strong>{appointment ? formatDateTime(appointment.startTime) : ''}</strong>.
+              <br />
+              En continuant, le rendez-vous sera <strong>clôturé</strong> et la séance{' '}
+              <strong>débitée</strong> (pack ou solde) avant l&apos;heure prévue.
+              <br />
+              Souhaitez-vous prendre en charge ce rendez-vous maintenant ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setEarlyConfirmOpen(false);
+                earlyConfirmedRef.current = true;
+                void handleSaveAll();
+              }}
+            >
+              Clôturer maintenant
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={packDialogOpen} onOpenChange={(open) => { if (open) setPackDialogOpen(true); }}>
         <DialogContent
           showCloseButton={false}
