@@ -280,10 +280,10 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const existing = await query('SELECT id FROM patient_packs WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Pack not found' });
+      return res.status(404).json({ success: false, message: 'Pack introuvable.' });
     }
     await query('DELETE FROM patient_packs WHERE id = $1', [req.params.id]);
-    return res.status(200).json({ success: true, message: 'Pack deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Pack supprimé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

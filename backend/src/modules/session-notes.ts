@@ -64,7 +64,7 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(`${noteSelect} WHERE sn.id = $1`, [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Session note not found' });
+      return res.status(404).json({ success: false, message: 'Compte rendu introuvable.' });
     }
 
     return res.status(200).json({ success: true, note: result.rows[0] });
@@ -100,7 +100,7 @@ router.post(
       );
 
       if (junction.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Appointment patient not found' });
+        return res.status(404).json({ success: false, message: 'Séance du patient introuvable.' });
       }
 
       const appointmentPractitionerId = junction.rows[0].practitionerId;
@@ -158,7 +158,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Session note created successfully',
+        message: 'Compte rendu créé.',
         note: created.rows[0],
       });
     } catch (error) {
@@ -171,7 +171,7 @@ router.put('/:id', protect, async (req, res) => {
   try {
     const existing = await query('SELECT practitioner_id AS "practitionerId" FROM session_notes WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Session note not found' });
+      return res.status(404).json({ success: false, message: 'Compte rendu introuvable.' });
     }
 
     if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
@@ -194,7 +194,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Session note updated successfully',
+      message: 'Compte rendu mis à jour.',
       note: updated.rows[0],
     });
   } catch (error) {
@@ -209,7 +209,7 @@ router.delete('/:id', protect, async (req, res) => {
       [req.params.id]
     );
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Session note not found' });
+      return res.status(404).json({ success: false, message: 'Compte rendu introuvable.' });
     }
 
     const current = existing.rows[0];
@@ -219,7 +219,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     await query('DELETE FROM session_notes WHERE id = $1', [req.params.id]);
 
-    return res.status(200).json({ success: true, message: 'Session note deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Compte rendu supprimé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

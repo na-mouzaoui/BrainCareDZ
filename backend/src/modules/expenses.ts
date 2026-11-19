@@ -27,7 +27,7 @@ router.get('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     const result = await query(`${expenseSelect} WHERE e.id = $1`, [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Expense not found' });
+      return res.status(404).json({ success: false, message: 'Dépense introuvable.' });
     }
 
     return res.status(200).json({ success: true, expense: result.rows[0] });
@@ -75,7 +75,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Expense created successfully',
+        message: 'Dépense créée.',
         expense: created.rows[0],
       });
     } catch (error) {
@@ -105,7 +105,7 @@ router.put(
     try {
       const existing = await query('SELECT id FROM expenses WHERE id = $1', [req.params.id]);
       if (existing.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Expense not found' });
+        return res.status(404).json({ success: false, message: 'Dépense introuvable.' });
       }
 
       const { title, category, amount, expenseDate, notes } = req.body;
@@ -132,7 +132,7 @@ router.put(
 
       return res.status(200).json({
         success: true,
-        message: 'Expense updated successfully',
+        message: 'Dépense mise à jour.',
         expense: updated.rows[0],
       });
     } catch (error) {
@@ -145,10 +145,10 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     const result = await query('DELETE FROM expenses WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Expense not found' });
+      return res.status(404).json({ success: false, message: 'Dépense introuvable.' });
     }
 
-    return res.status(200).json({ success: true, message: 'Expense deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Dépense supprimée.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

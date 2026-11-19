@@ -101,7 +101,7 @@ router.get('/calendar-settings/:role', protect, async (req, res) => {
   try {
     const result = await query('SELECT * FROM calendar_settings WHERE calendar_role = $1', [req.params.role]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Settings not found for this role' });
+      return res.status(404).json({ success: false, error: 'Paramètres introuvables pour ce rôle.' });
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error: any) {
@@ -146,7 +146,7 @@ router.put('/calendar-settings/:role', protect, async (req, res) => {
 
     const existing = await query('SELECT * FROM calendar_settings WHERE calendar_role = $1', [role]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Settings not found for this role' });
+      return res.status(404).json({ success: false, error: 'Paramètres introuvables pour ce rôle.' });
     }
     const current = existing.rows[0];
 
@@ -177,7 +177,7 @@ router.put('/calendar-settings/:role', protect, async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Settings not found for this role' });
+      return res.status(404).json({ success: false, error: 'Paramètres introuvables pour ce rôle.' });
     }
 
     await logActivity({

@@ -58,7 +58,7 @@ router.get('/:id', protect, async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Service not found' });
+      return res.status(404).json({ success: false, message: 'Service introuvable.' });
     }
 
     return res.status(200).json({ success: true, service: result.rows[0] });
@@ -168,12 +168,12 @@ router.put('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Service not found' });
+      return res.status(404).json({ success: false, message: 'Service introuvable.' });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Service updated successfully',
+      message: 'Service mis à jour.',
       service: result.rows[0],
     });
   } catch (error) {
@@ -189,12 +189,12 @@ router.delete('/:id', protect, authorize('admin', 'psy'), async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Service not found' });
+      return res.status(404).json({ success: false, message: 'Service introuvable.' });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Service deleted successfully',
+      message: 'Service supprimé.',
     });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');

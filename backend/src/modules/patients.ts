@@ -431,7 +431,7 @@ router.get('/:id', protect, async (req, res) => {
     const result = await query(`${baseSelect} WHERE c.id = $1`, [req.params.id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Patient not found' });
+      return res.status(404).json({ success: false, message: 'Patient introuvable.' });
     }
 
     return res.status(200).json({ success: true, patient: result.rows[0] });
@@ -444,13 +444,13 @@ router.post(
   '/',
   protect,
   [
-    body('firstName', 'First name is required').notEmpty().trim(),
+    body('firstName', 'Le prénom est requis.').notEmpty().trim(),
     body('firstName', 'Le prénom ne peut pas dépasser 80 caractères').isLength({ max: 80 }),
-    body('lastName', 'Last name is required').notEmpty().trim(),
+    body('lastName', 'Le nom est requis.').notEmpty().trim(),
     body('lastName', 'Le nom ne peut pas dépasser 80 caractères').isLength({ max: 80 }),
-    body('phone', 'Valid phone number is required').notEmpty().trim(),
+    body('phone', 'Un numéro de téléphone valide est requis.').notEmpty().trim(),
     body('phone', 'Le téléphone ne peut pas dépasser 20 caractères').isLength({ max: 20 }),
-    body('email', 'Valid email is required').optional({ values: 'falsy' }).isEmail(),
+    body('email', 'Un email valide est requis.').optional({ values: 'falsy' }).isEmail(),
     body('email', "L'email ne peut pas dépasser 120 caractères").optional({ values: 'falsy' }).isLength({ max: 120 }),
     body('notes', 'Les notes ne peuvent pas dépasser 5000 caractères').optional({ values: 'falsy' }).isLength({ max: 5000 }),
   ],
@@ -474,7 +474,7 @@ router.post(
       } = req.body;
 
       if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
-        return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+        return res.status(400).json({ success: false, message: 'Genre invalide.' });
       }
       const dobError = dateOfBirthError(dateOfBirth);
       if (dobError) {
@@ -529,7 +529,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Patient created successfully',
+        message: 'Patient créé.',
         patient: created.rows[0],
       });
     } catch (error) {
@@ -542,7 +542,7 @@ router.put('/:id', protect, async (req, res) => {
   try {
     const existing = await query('SELECT id FROM patients WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Patient not found' });
+      return res.status(404).json({ success: false, message: 'Patient introuvable.' });
     }
 
     const {
@@ -557,7 +557,7 @@ router.put('/:id', protect, async (req, res) => {
     } = req.body;
 
     if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
-      return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+      return res.status(400).json({ success: false, message: 'Genre invalide.' });
     }
 
     const lengthError = patientLengthError(req.body);
@@ -638,7 +638,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Patient updated successfully',
+      message: 'Patient mis à jour.',
       patient: updated.rows[0],
     });
   } catch (error) {
@@ -683,7 +683,7 @@ router.delete('/:id', protect, async (req, res) => {
     
     const existing = await query('SELECT id FROM patients WHERE id = $1', [id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Patient not found' });
+      return res.status(404).json({ success: false, message: 'Patient introuvable.' });
     }
 
     // Supprimer les enregistrements liés d'abord (dans l'ordre pour éviter les contraintes)
@@ -695,7 +695,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Patient deleted successfully',
+      message: 'Patient supprimé.',
     });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');

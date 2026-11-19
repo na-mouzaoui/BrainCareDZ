@@ -52,7 +52,7 @@ router.post(
 
       const patient = await query('SELECT first_name AS "firstName", last_name AS "lastName" FROM patients WHERE id = $1', [patientId]);
       if (patient.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Patient not found' });
+        return res.status(404).json({ success: false, message: 'Patient introuvable.' });
       }
 
       const inserted = await query(
@@ -74,7 +74,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Evaluation recorded successfully',
+        message: 'Évaluation enregistrée.',
         outcome: created.rows[0],
       });
     } catch (error) {
@@ -91,12 +91,12 @@ router.delete('/:id', protect, async (req, res) => {
       [req.params.id]
     );
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Evaluation not found' });
+      return res.status(404).json({ success: false, message: 'Évaluation introuvable.' });
     }
 
     await query('DELETE FROM patient_outcomes WHERE id = $1', [req.params.id]);
 
-    return res.status(200).json({ success: true, message: 'Evaluation deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Évaluation supprimée.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

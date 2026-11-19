@@ -40,8 +40,8 @@ const generateToken = (user) => {
 router.post(
   '/login',
   [
-    body('pseudo', 'Pseudo is required').not().isEmpty(),
-    body('password', 'Password is required').exists(),
+    body('pseudo', 'Le pseudo est requis.').not().isEmpty(),
+    body('password', 'Le mot de passe est requis.').exists(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -141,7 +141,7 @@ router.get('/me', protect, async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
     }
 
     return res.status(200).json({ success: true, user: result.rows[0] });

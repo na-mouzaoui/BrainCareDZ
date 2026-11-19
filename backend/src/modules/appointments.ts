@@ -118,7 +118,7 @@ router.get('/:id', protect, async (req, res) => {
     const result = await query(`${appointmentSelect} WHERE a.id = $1`, [req.params.id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
+      return res.status(404).json({ success: false, message: 'Rendez-vous introuvable.' });
     }
 
     return res.json({
@@ -145,12 +145,12 @@ router.post(
       if (req.body.title) return true;
       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value));
     }),
-    body('serviceId', 'Valid service ID is required').custom((value, { req }) => {
+    body('serviceId', 'Le service est requis.').custom((value, { req }) => {
       if (req.body.title || req.body.packDeferred) return true;
       return value && String(value).trim() !== '';
     }),
-    body('startTime', 'Valid start time is required').isISO8601(),
-    body('endTime', 'Valid end time is required').isISO8601(),
+    body('startTime', 'L\'heure de début est invalide.').isISO8601(),
+    body('endTime', 'L\'heure de fin est invalide.').isISO8601(),
     body('role', 'Calendrier invalide').optional().isIn(['admin', 'psy', 'coach']),
     body('packDeferred', 'Le champ « pack différé » doit être un booléen').optional().isBoolean(),
     body('endTime').custom((value, { req }) => {
@@ -201,7 +201,7 @@ router.post(
         ? null
         : await query('SELECT id, type FROM services WHERE id = $1 AND is_active = TRUE', [serviceId]);
       if (!req.body.title && !req.body.packDeferred && (service === null || service.rowCount === 0)) {
-        return res.status(404).json({ success: false, message: 'Service not found' });
+        return res.status(404).json({ success: false, message: 'Service introuvable.' });
       }
 
       // Calendrier cible : fourni explicitement (rôle du calendrier sélectionné) sinon dérivé du praticien choisi.
@@ -311,7 +311,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message: 'Appointment created successfully',
+        message: 'Rendez-vous créé.',
         appointment: created.rows[0],
       });
     } catch (error) {
@@ -328,13 +328,13 @@ router.put('/:id', protect, async (req, res) => {
       [req.params.id]
     );
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
+      return res.status(404).json({ success: false, message: 'Rendez-vous introuvable.' });
     }
 
     const current = existing.rows[0];
 
     if (current.status === 'completed') {
-      return res.status(400).json({ success: false, message: 'Cannot modify a completed appointment' });
+      return res.status(400).json({ success: false, message: 'Impossible de modifier un rendez-vous terminé.' });
     }
 
     if (req.user.role !== 'admin' && current.practitionerId !== req.user.id) {
@@ -466,7 +466,7 @@ router.put('/:id', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Appointment updated successfully',
+      message: 'Rendez-vous mis à jour.',
       appointment: updated.rows[0],
     });
   } catch (error) {
@@ -483,11 +483,11 @@ router.delete('/:id', protect, async (req, res) => {
       [req.params.id]
     );
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
+      return res.status(404).json({ success: false, message: 'Rendez-vous introuvable.' });
     }
 
     if (existing.rows[0].status === 'completed') {
-      return res.status(400).json({ success: false, message: 'Cannot cancel a completed appointment' });
+      return res.status(400).json({ success: false, message: 'Impossible d\'annuler un rendez-vous terminé.' });
     }
 
     if (req.user.role !== 'admin' && existing.rows[0].practitionerId !== req.user.id) {
@@ -540,7 +540,7 @@ router.delete('/:id', protect, async (req, res) => {
 
     await logActivity({ req, action: 'CANCEL', resource: 'appointment', resourceId: req.params.id, resourceName: aptLabel, changes: { reason } });
 
-    return res.status(200).json({ success: true, message: 'Appointment cancelled successfully' });
+    return res.status(200).json({ success: true, message: 'Rendez-vous annulé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }
@@ -550,7 +550,7 @@ router.put('/:id/complete', protect, async (req, res) => {
   try {
     const existing = await query('SELECT practitioner_id AS "practitionerId", service_id AS "serviceId", status FROM appointments WHERE id = $1', [req.params.id]);
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
+      return res.status(404).json({ success: false, message: 'Rendez-vous introuvable.' });
     }
 
     const current = existing.rows[0];
@@ -595,7 +595,7 @@ router.put('/:id/complete', protect, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Appointment completed successfully',
+      message: 'Rendez-vous terminé.',
       appointment: updated.rows[0],
     });
   } catch (error) {

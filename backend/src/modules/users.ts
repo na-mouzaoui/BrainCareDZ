@@ -87,7 +87,7 @@ router.get('/:id', protect, async (req, res) => {
     );
 
     if (user.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
     return res.json({ success: true, data: user.rows[0] });
@@ -102,7 +102,7 @@ router.post('/', protect, async (req, res) => {
 
     const { firstName, lastName, role, phone, serviceIds } = req.body;
     if (!firstName || !lastName || !role) {
-      return res.status(400).json({ success: false, error: 'First name, last name, and role are required' });
+      return res.status(400).json({ success: false, error: 'Le prénom, le nom et le rôle sont requis.' });
     }
 
     // Nettoie les espaces saisis (espaces en trop, collage « Prénom Nom ») : sans
@@ -111,7 +111,7 @@ router.post('/', protect, async (req, res) => {
     const first = cleanPart(firstName);
     const last = cleanPart(lastName);
     if (!first || !last) {
-      return res.status(400).json({ success: false, error: 'First name and last name are required' });
+      return res.status(400).json({ success: false, error: 'Le prénom et le nom sont requis.' });
     }
 
     const name = `${first} ${last}`;
@@ -119,7 +119,7 @@ router.post('/', protect, async (req, res) => {
 
     const exists = await query('SELECT id FROM users WHERE pseudo = $1', [pseudo]);
     if (exists.rowCount > 0) {
-      return res.status(400).json({ success: false, error: 'User with this pseudo already exists' });
+      return res.status(400).json({ success: false, error: 'Un utilisateur avec ce pseudo existe déjà.' });
     }
 
     const passwordHash = await bcryptjs.hash('123456789', 10);
@@ -184,7 +184,7 @@ router.put('/:id', protect, async (req, res) => {
     );
 
     if (updated.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
     if (serviceIds && Array.isArray(serviceIds)) {
@@ -210,10 +210,10 @@ router.delete('/:id', protect, async (req, res) => {
 
     const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
-    return res.json({ success: true, message: 'User deleted successfully' });
+    return res.json({ success: true, message: 'Utilisateur supprimé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }
@@ -223,10 +223,10 @@ router.put('/me/password', protect, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, error: 'currentPassword and newPassword are required' });
+      return res.status(400).json({ success: false, error: 'Le mot de passe actuel et le nouveau mot de passe sont requis.' });
     }
     if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters' });
+      return res.status(400).json({ success: false, error: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
     }
 
     const userResult = await query(
@@ -234,7 +234,7 @@ router.put('/me/password', protect, async (req, res) => {
       [req.user.id]
     );
     if (userResult.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
     const isMatch = await bcryptjs.compare(currentPassword, userResult.rows[0].password_hash);
@@ -248,7 +248,7 @@ router.put('/me/password', protect, async (req, res) => {
       [req.user.id, passwordHash]
     );
 
-    return res.json({ success: true, message: 'Password updated successfully' });
+    return res.json({ success: true, message: 'Mot de passe mis à jour.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }
@@ -260,7 +260,7 @@ router.put('/:id/password', protect, async (req, res) => {
 
     const { password } = req.body;
     if (!password || password.length < 6) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+      return res.status(400).json({ success: false, error: 'Le mot de passe doit contenir au moins 6 caractères.' });
     }
 
     const passwordHash = await bcryptjs.hash(password, 10);
@@ -273,10 +273,10 @@ router.put('/:id/password', protect, async (req, res) => {
     );
 
     if (updated.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
-    return res.json({ success: true, data: updated.rows[0], message: 'Password updated successfully' });
+    return res.json({ success: true, data: updated.rows[0], message: 'Mot de passe mis à jour.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

@@ -20,7 +20,7 @@ router.get('/', protect, async (req, res) => {
   try {
     const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : null;
     if (patientId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) {
-      return res.status(400).json({ success: false, error: 'Invalid patient ID' });
+      return res.status(400).json({ success: false, error: 'Identifiant patient invalide.' });
     }
     const where = patientId ? 'WHERE p.patient_id = $1' : '';
     const params = patientId ? [patientId] : [];
@@ -48,7 +48,7 @@ router.get('/summary', protect, async (req, res) => {
   try {
     const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : null;
     if (patientId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) {
-      return res.status(400).json({ success: false, error: 'Invalid patient ID' });
+      return res.status(400).json({ success: false, error: 'Identifiant patient invalide.' });
     }
 
     const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : null;
@@ -75,7 +75,7 @@ router.get('/:id', protect, async (req, res) => {
     const result = await query(`${paymentSelect} WHERE p.id = $1`, [req.params.id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Payment not found' });
+      return res.status(404).json({ success: false, error: 'Paiement introuvable.' });
     }
 
     return res.json({ success: true, data: result.rows[0] });
@@ -89,7 +89,7 @@ router.post('/', protect, async (req, res) => {
     const { patientId, amount, paymentMethod, notes, paymentDate, status } = req.body;
 
     if (!patientId || amount === undefined || amount === null) {
-      return res.status(400).json({ success: false, error: 'Patient ID and amount are required' });
+      return res.status(400).json({ success: false, error: 'L\'identifiant patient et le montant sont requis.' });
     }
 
     // Le statut n'est pas modifiable à la création : refuser plutôt qu'ignorer.
@@ -110,7 +110,7 @@ router.post('/', protect, async (req, res) => {
 
     const safeAmount = Number(amount);
     if (Number.isNaN(safeAmount) || safeAmount < 0) {
-      return res.status(400).json({ success: false, error: 'Payment amount must be 0 or greater' });
+      return res.status(400).json({ success: false, error: 'Le montant doit être supérieur ou égal à 0.' });
     }
     if (safeAmount <= 0 && !notes) {
       return res.status(400).json({ success: false, message: 'Un montant de 0 nécessite des notes.' });
@@ -118,7 +118,7 @@ router.post('/', protect, async (req, res) => {
 
     const patient = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
     if (patient.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Patient not found' });
+      return res.status(404).json({ success: false, error: 'Patient introuvable.' });
     }
 
     if (safeAmount === 0) {
@@ -168,13 +168,13 @@ router.put('/:id', protect, async (req, res) => {
       [req.params.id]
     );
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Payment not found' });
+      return res.status(404).json({ success: false, error: 'Paiement introuvable.' });
     }
 
     if (amount !== undefined) {
       const safeAmount = Number(amount);
       if (Number.isNaN(safeAmount) || safeAmount < 0) {
-        return res.status(400).json({ success: false, error: 'Payment amount must be 0 or greater' });
+        return res.status(400).json({ success: false, error: 'Le montant doit être supérieur ou égal à 0.' });
       }
     }
 
@@ -207,16 +207,16 @@ router.delete('/:id', protect, async (req, res) => {
     );
 
     if (existing.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Payment not found' });
+      return res.status(404).json({ success: false, error: 'Paiement introuvable.' });
     }
 
     const result = await query('DELETE FROM payments WHERE id = $1 RETURNING id', [req.params.id]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Payment not found' });
+      return res.status(404).json({ success: false, error: 'Paiement introuvable.' });
     }
 
-    return res.json({ success: true, message: 'Payment deleted successfully' });
+    return res.json({ success: true, message: 'Paiement supprimé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

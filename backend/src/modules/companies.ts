@@ -24,7 +24,7 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(`${companySelect} WHERE id = $1`, [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Company not found' });
+      return res.status(404).json({ success: false, message: 'Entreprise introuvable.' });
     }
 
     return res.status(200).json({ success: true, company: result.rows[0] });
@@ -97,7 +97,7 @@ router.put(
     try {
       const existing = await query('SELECT id FROM companies WHERE id = $1', [req.params.id]);
       if (existing.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'Company not found' });
+        return res.status(404).json({ success: false, message: 'Entreprise introuvable.' });
       }
 
       const { name, address, owner, rc, nif, art } = req.body;
@@ -127,10 +127,10 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const result = await query('DELETE FROM companies WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Company not found' });
+      return res.status(404).json({ success: false, message: 'Entreprise introuvable.' });
     }
 
-    return res.status(200).json({ success: true, message: 'Company deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Entreprise supprimée.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }

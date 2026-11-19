@@ -62,7 +62,7 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(`${invoiceSelect} WHERE i.id = $1`, [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Company invoice not found' });
+      return res.status(404).json({ success: false, message: 'Facture introuvable.' });
     }
 
     const invoice = result.rows[0];
@@ -107,7 +107,7 @@ router.post(
       const company = await query('SELECT id FROM companies WHERE id = $1', [companyId]);
       if (company.rowCount === 0) {
         await query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Company not found' });
+        return res.status(404).json({ success: false, message: 'Entreprise introuvable.' });
       }
 
       const safeItems = items.map((item) => {
@@ -231,7 +231,7 @@ router.put(
       );
       if (existing.rowCount === 0) {
         await query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Company invoice not found' });
+        return res.status(404).json({ success: false, message: 'Facture introuvable.' });
       }
 
       const { reference, invoiceDate, items, discount, vatAmount, paymentMethod } = req.body;
@@ -371,10 +371,10 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const result = await query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Company invoice not found' });
+      return res.status(404).json({ success: false, message: 'Facture introuvable.' });
     }
 
-    return res.status(200).json({ success: true, message: 'Company invoice deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Facture supprimée.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }
