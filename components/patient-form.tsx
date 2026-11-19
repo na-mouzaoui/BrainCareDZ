@@ -230,8 +230,16 @@ export function PatientForm({
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
-    if (!isRealDate || year < 1900 || date > today) {
+    if (!isRealDate) {
       setError('Date de naissance invalide (format JJ/MM/AAAA)');
+      return;
+    }
+    if (date > today) {
+      setError('La date de naissance ne peut pas être dans le futur.');
+      return;
+    }
+    if (year < 1900) {
+      setError('La date de naissance est trop ancienne (avant 1900).');
       return;
     }
 
