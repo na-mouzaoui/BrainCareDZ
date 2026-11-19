@@ -219,6 +219,20 @@ export default function AppointmentReportPage() {
     return currentPatient.packSelected !== true;
   }, [appointment?.packDeferred, currentPatient]);
 
+  // État hérité du bug : un RDV déjà clôturé avec un pack différé jamais
+  // sélectionné doit rouvrir la popup dès l'ouverture du compte rendu.
+  useEffect(() => {
+    if (!appointment) return;
+    if (
+      appointment.packDeferred &&
+      appointment.status === 'completed' &&
+      currentPatient &&
+      currentPatient.packSelected !== true
+    ) {
+      setPackDialogOpen(true);
+    }
+  }, [appointment, currentPatient]);
+
   useEffect(() => {
     servicesApi
       .getAll()
@@ -339,8 +353,13 @@ export default function AppointmentReportPage() {
           throw new Error(noteResponse.message || 'Échec de la création du compte rendu');
         }
       }
-      if (appointment.status !== 'completed') {
-        await appointments.complete(appointment.id);
+      if (appointment.status !== 'completed' && !currentPatientPackPending) {
+        // Le serveur refuse la clôture d'un RDV « pack différé » sans pack :
+        // on ne clôture donc qu'une fois le pack réellement choisi.
+        const completeResponse = await appointments.complete(appointment.id);
+        if (!completeResponse.success) {
+          throw new Error(completeResponse.message || 'Échec de la clôture du rendez-vous');
+        }
       }
       setNoteText('');
       setEditingNoteId(null);
@@ -390,6 +409,16 @@ export default function AppointmentReportPage() {
         setPackError(response.message || 'Échec de la sélection du pack');
         return;
       }
+
+      // Le pack est désormais lié à la séance : on peut clôturer le rendez-vous.
+      if (appointment && appointment.status !== 'completed') {
+        const completeResponse = await appointments.complete(appointment.id);
+        if (!completeResponse.success) {
+          setPackError(completeResponse.message || 'Pack enregistré, mais la clôture du rendez-vous a échoué.');
+          return;
+        }
+      }
+
       setPackDialogOpen(false);
       setPackServiceId('');
       toast({ title: 'Pack sélectionné', description: 'La première séance a été débitée du pack.', variant: 'default' });

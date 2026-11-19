@@ -6,6 +6,27 @@ import { logActivity } from '../utils/activity-logger.js';
 
 const router = express.Router();
 
+/**
+ * Un rendez-vous créé avec « pack après la séance » ne peut pas être clôturé
+ * tant qu'aucun pack n'a été sélectionné pour le patient : sinon la séance est
+ * offerte (aucun débit) et le dossier reste incohérent.
+ */
+async function packSelectionMissing(appointmentId: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1
+       FROM appointment_patients ap
+       JOIN appointments a ON a.id = ap.appointment_id
+      WHERE a.id = $1
+        AND a.pack_deferred = TRUE
+        AND NOT EXISTS (
+          SELECT 1 FROM patient_pack_usages u WHERE u.appointment_patient_id = ap.id
+        )
+      LIMIT 1`,
+    [appointmentId]
+  );
+  return result.rowCount > 0;
+}
+
 const appointmentSelect = `
   SELECT a.id, a.practitioner_id AS "practitionerId", a.role AS "calendarRole", a.service_id AS "serviceId",
          a.start_time AS "startTime", a.end_time AS "endTime", a.status, a.pack_deferred AS "packDeferred",
@@ -389,6 +410,15 @@ router.put('/:id', protect, async (req, res) => {
 
     const nextServiceId = packDeferred ? null : serviceId ?? current.serviceId;
 
+    // Pack différé : le passage en « terminé » exige un pack déjà sélectionné.
+    if (status === 'completed' && (await packSelectionMissing(req.params.id))) {
+      return res.status(409).json({
+        success: false,
+        code: 'PACK_REQUIRED',
+        message: 'Sélectionnez le pack du patient avant de clôturer cette séance.',
+      });
+    }
+
     await query(
       `UPDATE appointments
        SET practitioner_id = $2,
@@ -513,6 +543,15 @@ router.put('/:id/complete', protect, async (req, res) => {
 
     if (current.status === 'completed') {
       return res.status(400).json({ success: false, message: 'Appointment already completed' });
+    }
+
+    // Pack différé : impossible de clôturer sans pack sélectionné.
+    if (await packSelectionMissing(req.params.id)) {
+      return res.status(409).json({
+        success: false,
+        code: 'PACK_REQUIRED',
+        message: 'Sélectionnez le pack du patient avant de clôturer cette séance.',
+      });
     }
 
     await query('UPDATE appointments SET status = $2, updated_at = NOW() WHERE id = $1', [req.params.id, 'completed']);
