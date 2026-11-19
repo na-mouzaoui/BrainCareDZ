@@ -9,6 +9,11 @@ export async function ensureSchema(): Promise<void> {
   // Security hardening: token revocation
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`);
 
+  // Suppression logique des utilisateurs (BUG-34) : la suppression physique cassait
+  // l'historique et échouait dès qu'un RDV / compte rendu / paiement y référait.
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_users_is_active ON users (is_active) WHERE is_active = TRUE`);
+
   // practitioner_services (junction)
   await query(
     `CREATE TABLE IF NOT EXISTS practitioner_services (

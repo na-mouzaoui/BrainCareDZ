@@ -91,12 +91,23 @@ export const protect = async (req, res, next) => {
 
   try {
     // Révocation : un jeton émis avant le dernier logout est rejeté.
-    const check = await runOnClient(ctx, 'SELECT token_version, must_change_password FROM users WHERE id = $1', [decoded.id]);
+    const check = await runOnClient(ctx, 'SELECT token_version, must_change_password, is_active FROM users WHERE id = $1', [decoded.id]);
 
     if (check.rowCount === 0) {
       console.warn('[auth] compte inconnu:', decoded.pseudo || decoded.id);
       releaseNow();
       return rejectSession(res, 'UNKNOWN_USER');
+    }
+
+    // Compte désactivé : le jeton encore valide est refusé (désactivation immédiate).
+    if (check.rows[0].is_active === false) {
+      console.warn('[auth] compte désactivé:', decoded.pseudo || decoded.id);
+      releaseNow();
+      return res.status(401).json({
+        success: false,
+        code: 'ACCOUNT_DISABLED',
+        message: 'Ce compte a été désactivé. Contactez un administrateur.',
+      });
     }
 
     if (Number(check.rows[0].token_version) !== Number(decoded.tv ?? 0)) {

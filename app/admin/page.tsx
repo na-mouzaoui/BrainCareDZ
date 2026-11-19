@@ -496,7 +496,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+    if (!confirm("Désactiver cet utilisateur ? Il ne pourra plus se connecter et disparaîtra de la liste, mais son historique (rendez-vous, comptes rendus, paiements) sera conservé.")) {
       return;
     }
 
@@ -505,10 +505,10 @@ export default function AdminPage() {
       if (response.success) {
         await loadUsers();
       } else {
-        setError('Erreur lors de la suppression');
+        setError(response.message || response.error || 'Erreur lors de la désactivation');
       }
     } catch (err) {
-      setError('Erreur lors de la suppression');
+      setError('Erreur lors de la désactivation');
     }
   };
 
@@ -721,7 +721,7 @@ export default function AdminPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              aria-label={`Supprimer ${u.name}`}
+                              aria-label={`Désactiver ${u.name}`}
                               onClick={() => handleDeleteUser(u.id)}
                               className="text-red-600 hover:text-red-800 hover:bg-red-50"
                             >

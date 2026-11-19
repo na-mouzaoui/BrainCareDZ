@@ -58,7 +58,7 @@ router.post(
       // « asma _abikchi » créé avec des espaces dans le prénom/nom.
       const identifier = String(pseudo).trim().toLowerCase();
       const result = await query(
-        `SELECT id, name, pseudo, role, email, password_hash, token_version, must_change_password
+        `SELECT id, name, pseudo, role, email, password_hash, token_version, must_change_password, is_active
          FROM users
          WHERE LOWER(REGEXP_REPLACE(pseudo, '\\s+', '', 'g')) = REGEXP_REPLACE($1, '\\s+', '', 'g')
             OR LOWER(TRIM(email)) = $1`,
@@ -76,6 +76,17 @@ router.post(
       if (!isMatch) {
         console.warn('[auth/login] mot de passe invalide pour:', identifier);
         return res.status(401).json({ success: false, message: 'Pseudo ou mot de passe invalide' });
+      }
+
+      // Compte désactivé : le mot de passe est d'abord vérifié, pour ne pas révéler
+      // l'existence du compte à quelqu'un qui ne le connaît pas.
+      if (user.is_active === false) {
+        console.warn('[auth/login] compte désactivé:', identifier);
+        return res.status(403).json({
+          success: false,
+          code: 'ACCOUNT_DISABLED',
+          message: 'Ce compte a été désactivé. Contactez un administrateur.',
+        });
       }
 
       const safeUser = {

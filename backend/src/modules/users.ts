@@ -32,6 +32,7 @@ router.get('/', protect, async (req, res) => {
          JOIN appointment_patients ap ON ap.appointment_id = a.id
          WHERE a.practitioner_id = u.id AND a.status <> 'cancelled') AS "patientCount"
        FROM users u
+       WHERE u.is_active = TRUE
        ORDER BY u.created_at DESC
        LIMIT 500`
     );
@@ -53,6 +54,7 @@ router.get('/practitioners', protect, async (req, res) => {
     const users = await query(
       `SELECT u.id, u.name, u.pseudo, u.phone, u.role
        FROM users u
+       WHERE u.is_active = TRUE
        ORDER BY u.role, u.name`
     );
 
@@ -208,12 +210,42 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
+    // Désactivation, pas suppression physique : le compte sort des listes et ne peut
+    // plus se connecter, mais son historique (RDV, comptes rendus, paiements) reste
+    // lisible — et la clé étrangère n'est plus violée.
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ success: false, error: 'Vous ne pouvez pas désactiver votre propre compte.' });
+    }
+
+    const target = await query('SELECT role, is_active FROM users WHERE id = $1', [req.params.id]);
+    if (target.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
+    }
+    if (target.rows[0].is_active === false) {
+      return res.status(409).json({ success: false, error: 'Cet utilisateur est déjà désactivé.' });
+    }
+
+    // Garde-fou : sans administrateur actif, plus personne ne peut gérer le cabinet.
+    if (target.rows[0].role === 'admin') {
+      const admins = await query(`SELECT COUNT(*)::int AS cnt FROM users WHERE role = 'admin' AND is_active = TRUE`);
+      if (Number(admins.rows[0]?.cnt) <= 1) {
+        return res.status(409).json({ success: false, error: 'Impossible de désactiver le dernier administrateur actif.' });
+      }
+    }
+
+    // L'incrément de token_version invalide immédiatement les sessions ouvertes.
+    const result = await query(
+      `UPDATE users
+       SET is_active = FALSE, token_version = token_version + 1, updated_at = NOW()
+       WHERE id = $1
+       RETURNING id`,
+      [req.params.id]
+    );
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Utilisateur introuvable.' });
     }
 
-    return res.json({ success: true, message: 'Utilisateur supprimé.' });
+    return res.json({ success: true, message: 'Utilisateur désactivé.' });
   } catch (error) {
     return sendDbError(res, error, 'Erreur interne du serveur');
   }
