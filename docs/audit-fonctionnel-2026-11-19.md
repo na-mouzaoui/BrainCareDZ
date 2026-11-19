@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **11 problèmes ouverts**. Les 24 bugs traités (22 corrigés + 2 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **7 problèmes ouverts**. Les 28 bugs traités (25 corrigés + 3 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -41,32 +41,28 @@
 |---|---|
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 1 |
-| 🟡 Moyen | 7 |
+| 🟡 Moyen | 3 |
 | ⚪ Robustesse | 3 |
-| **Total** | **11** |
+| **Total** | **7** |
 
 > **État au 19/11/2026** : les 17 bugs déjà corrigés (BUG-01 → BUG-18, sauf BUG-16 qui reste ouvert) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
 **Priorités restantes**
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
-2. **BUG-26 / BUG-27** — formulaire d'édition vide ~1 s, bouton recouvert par la pastille.
-3. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
-4. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
+2. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
+3. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
+4. **BUG-27** — bouton « Nouveau patient » recouvert par la pastille utilisateur.
 
 ---
 
 ## 2. Tableau récapitulatif
 
-> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-24) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
+> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-29) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
 
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
-| BUG-25 | Rafale de 8 appels API avant résolution de l'auth | 🟡 Moyen | Front | S |
-| BUG-26 | Page d'édition patient : formulaire vide ~1 s | 🟡 Moyen | Front | XS |
 | BUG-27 | Bouton « Nouveau patient » recouvert par la pastille utilisateur | 🟡 Moyen | Front | XS |
-| BUG-28 | Messages anglais dans une UI française | 🟡 Moyen | Back | XS |
-| BUG-29 | Accessibilité : liens, boutons d'action et labels sans nom | 🟡 Moyen | Front | M |
 | BUG-30 | RDV orphelin (sans patient, sans service) en base | 🟡 Moyen | Données | XS |
 | BUG-31 | Données de test résiduelles en base | 🟡 Moyen | Données | XS |
 | BUG-32 | Aucune contrainte `EXCLUDE` anti double réservation | ⚪ Robustesse | SQL | M |
@@ -78,37 +74,6 @@
 
 # 🟠 MAJEUR
 
-## BUG-25 — Rafale de 8 appels API avant résolution de l'authentification
-
-**Constat** : au premier chargement, le shell déclenche `waiting-list`, `expenses`, `patients`, `appointments`, `payments`, `patient-packs`, `session-notes`… **avant** que `/auth/me` ne réponde → 8 réponses **401** dans la console, puis les mêmes requêtes repartent une fois authentifié.
-
-**Scénario de reproduction**
-
-Un utilisateur ouvre l'application sur un poste lent. Pendant la seconde qui précède la réponse du serveur d'authentification, l'interface déclenche simultanément le chargement des rendez-vous, des paiements, des patients, des packs, des dépenses, de la liste d'attente et des comptes rendus. Les huit appels partent sans jeton et reçoivent chacun une réponse 401, visibles dans la console du navigateur.
-
-Une fois la session confirmée, les mêmes requêtes repartent, cette fois avec succès. L'utilisateur voit brièvement des états vides et des compteurs à zéro ; lors d'un diagnostic, ces erreurs rouges masquent les vrais incidents.
-
-**Impact** : bruit, charge inutile, flashs d'états vides.
-**Correctif** : ne monter les pages (et les `useEffect` de chargement) qu'après `isLoading === false && isAuthenticated`.
-**Effort** : S
-
----
-
-## BUG-26 — Page d'édition patient : formulaire vide ~1 s
-
-**Constat** : `/patients/:id/edit` affiche le formulaire **vide et éditable** pendant le chargement (aucun squelette), avant de se remplir.
-
-**Scénario de reproduction**
-
-La secrétaire ouvre la fiche d'un patient pour corriger son numéro de téléphone. La page affiche immédiatement un formulaire entièrement vide, qu'elle commence à remplir : elle saisit « Karim » dans le prénom et s'apprête à valider. Une seconde plus tard, les données réelles du patient arrivent et écrasent sa saisie.
-
-Si elle avait cliqué sur « Enregistrer » entre-temps, elle aurait envoyé un formulaire partiellement vide, effaçant des informations du dossier — sans aucun avertissement.
-
-**Correctif** : afficher `<FormSkeleton />` tant que `loading === true` et désactiver les champs.
-**Effort** : XS
-
----
-
 ## BUG-27 — Bouton « Nouveau patient » recouvert par la pastille utilisateur
 
 **Constat** (largeur 912 px) : le bouton d'action du header s'étend sous la pastille flottante de l'utilisateur ; le libellé est tronqué.
@@ -119,42 +84,6 @@ Sur un ordinateur portable, avec une fenêtre d'environ 900 pixels de large, la 
 
 **Correctif** : réserver la zone de la pastille (`pr-16` sur le header) ou déplacer la pastille dans la barre latérale.
 **Effort** : XS
-
----
-
-## BUG-28 — Messages anglais dans une UI française
-
-**Constat** : « Patient not found », « Appointment created successfully », « Service not found », « User with this pseudo already exists »… cohabitent avec des messages français.
-
-**Scénario de reproduction**
-
-Un praticien ouvre un lien de rendez-vous obsolète. La page affiche « Patient not found » au milieu d'une interface entièrement française. Il ne sait pas si le patient a été supprimé, si le lien est cassé ou si l'application rencontre un problème, et ne peut pas transmettre un message clair au support. Le même mélange apparaît dans les confirmations (« Appointment created successfully ») et les erreurs d'unicité (« User with this pseudo already exists »).
-
-**Correctif** : centraliser les libellés dans un fichier de messages (`backend/src/i18n/fr.ts`) et n'exposer que des `code` techniques au front.
-**Effort** : XS
-
----
-
-## BUG-29 — Accessibilité (WCAG 2.1 AA)
-
-**Constats vérifiés dans le DOM**
-
-| Élément | Problème | Critère |
-|---|---|---|
-| 5 liens de navigation | ni texte, ni `aria-label`, ni `title` | 4.1.2 |
-| Boutons de ligne (historique / éditer / supprimer) | icônes seules, sans nom accessible | 4.1.2 |
-| `<label>` du login | `htmlFor` absent, inputs sans `id` → clic sur le label sans effet | 1.3.1 / 3.3.2 |
-| Champs login | pas d'`autocomplete="username"` / `"current-password"` | 1.3.5 |
-| Boutons calendrier « Calendrier / Liste » | `title` seulement, pas de nom accessible | 4.1.2 |
-
-**Scénario de reproduction**
-
-Une utilisatrice malvoyante navigue au clavier. En arrivant sur le menu latéral, le lecteur d'écran annonce cinq fois « lien » sans aucun intitulé : elle ne peut pas savoir lequel mène aux patients, aux rendez-vous ou aux paiements. Dans la liste des patients, elle atteint les boutons d'action et entend de nouveau « bouton » sans libellé, sans pouvoir distinguer « voir l'historique », « modifier » et « supprimer ».
-
-Sur l'écran de connexion, elle clique sur le libellé « Pseudo » pour placer le curseur dans le champ : rien ne se passe, car le `<label>` n'est relié à aucun champ. Elle doit tabuler à l'aveugle jusqu'au champ suivant. L'application reste utilisable à la souris, mais inaccessible pour une partie des utilisateurs — un point sensible dans un contexte de données de santé.
-
-**Correctif** : `aria-label` sur chaque lien/bouton icône, `htmlFor`/`id` sur les labels, `autocomplete` sur le login, et un test axe/Lighthouse dans la CI.
-**Effort** : M
 
 ---
 
@@ -424,6 +353,10 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | BUG-16 | `3164b4f` | Réconciliation : usages invalides, `remaining_sessions`, `session_count`, soldes | 16 packs → **0**, 2 compteurs → **0** |
 | BUG-23 | — | **Non reproduit** : message « Maximum N patient(s) pour ce rendez-vous » déjà spécifique | 5 patients coach → « Maximum 4 patient(s) » |
 | BUG-24 | `86c8e30` | Date préremplie + libellé « Montant TVA (DZD) » | date = jour, libellé explicite |
+| BUG-25 | — | **Non reproduit** : les gardes d'auth empêchent les appels avant résolution | chargement authentifié : 11 requêtes, **0 × 401** |
+| BUG-26 | `3136437` | Squelette pendant le chargement de la page d'édition | plus de formulaire vide/éditable |
+| BUG-28 | `590e34c` | 90 messages API traduits en français | « Patient introuvable. », « Rendez-vous créé. »… |
+| BUG-29 | `f00967b` | Noms accessibles : liens, boutons d'action, labels, toggles | nav `aria-label`, labels liés (`htmlFor`/`id`), `autocomplete` |
 
 ### 3.1 Migrations SQL appliquées en base
 
@@ -456,13 +389,13 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 ## 4. Plan de correction recommandé
 
 ### Lot 1 — Bloquants (½ journée)
-`BUG-26` · `BUG-27`
+`BUG-27`
 
 ### Lot 2 — Fiabilité des données (1 à 2 jours)
 `BUG-36`
 
 ### Lot 3 — Finitions et durcissement (2 à 4 jours)
-`BUG-25` · `BUG-28` · `BUG-29` · `BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
+`BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
 
 ### Ordre d'application des migrations SQL restantes
 
