@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **4 problèmes ouverts**. Les 29 bugs traités (25 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **3 problèmes ouverts**. Les 30 bugs traités (26 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -42,28 +42,26 @@
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 1 |
 | 🟡 Moyen | 2 |
-| ⚪ Robustesse | 1 |
-| **Total** | **4** |
+| ⚪ Robustesse | 0 |
+| **Total** | **3** |
 
-> **État au 19/11/2026** : les 29 bugs traités (BUG-01 → BUG-29) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
+> **État au 19/11/2026** : les 30 bugs traités (BUG-01 → BUG-34) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
 **Priorités restantes**
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
 2. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
-3. **BUG-34** — suppression d'un utilisateur lié à des RDV en 500.
 
 ---
 
 ## 2. Tableau récapitulatif
 
-> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-29) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
+> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-34) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
 
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
 | BUG-30 | RDV orphelin (sans patient, sans service) en base | 🟡 Moyen | Données | XS |
 | BUG-31 | Données de test résiduelles en base | 🟡 Moyen | Données | XS |
-| BUG-34 | Suppression d'un utilisateur lié à des RDV → 500 | ⚪ Robustesse | Back | S |
 | BUG-36 | Suppression d'un patient : destructrice au lieu d'être logique (`is_deleted`) | 🟠 Majeur | SQL + Back + Front | M |
 
 ---
@@ -100,23 +98,6 @@ Une nouvelle praticienne prend ses fonctions et ouvre la liste des services pour
 **Impact** : bruit dans les listes, risque de sélectionner un faux patient/service, KPI pollués.
 **Correctif** : script de purge (désactivation des services, suppression des patients sans RDV ni paiement), à exécuter avant la mise en production.
 **Effort** : XS
-
----
-
-# ⚪ ROBUSTESSE
-
-## BUG-34 — Suppression d'un utilisateur lié à des RDV → 500
-
-**Constat** : `DELETE /api/users/:id` ne gère pas la violation de clé étrangère (`appointments.practitioner_id`, `session_notes.practitioner_id`, `payments.created_by`).
-
-**Scénario de reproduction**
-
-Un praticien quitte le cabinet. L'administrateur supprime son compte depuis l'écran Administration. L'opération échoue avec « Erreur interne du serveur », sans autre explication : le praticien avait des rendez-vous et des comptes rendus rattachés à son identifiant, et la clé étrangère empêche la suppression.
-
-L'administrateur ne sait pas qu'il doit d'abord réaffecter les rendez-vous, et l'interface ne propose aucune action dans ce sens. Le compte reste actif avec tous ses accès, alors qu'il devrait être neutralisé le jour même du départ.
-
-**Correctif** : soit `ON DELETE SET NULL` sur les FK concernées, soit un 409 explicite (« Ce praticien possède des rendez-vous : réaffectez-les d'abord »).
-**Effort** : S
 
 ---
 
@@ -302,6 +283,7 @@ Les bugs traités ont été corrigés (ou vérifiés conformes / non reproduits 
 | BUG-27 | — | **Non reproduit** : la « pastille » recouvrante est l'indicateur de développement Next.js (`nextjs-portal`), absent en production | à 912 px et 1000 px : bouton « Nouveau patient » entier, non tronqué, et seul élément sous le curseur ; avatar utilisateur en bas de la barre latérale |
 | BUG-28 | `590e34c` | 90 messages API traduits en français | « Patient introuvable. », « Rendez-vous créé. »… |
 | BUG-29 | `f00967b` | Noms accessibles : liens, boutons d'action, labels, toggles | nav `aria-label`, labels liés (`htmlFor`/`id`), `autocomplete` |
+| BUG-34 | `1cb5f76` | Désactivation logique (`users.is_active`) au lieu d'une suppression physique | DELETE → 200, compte retiré des listes et des praticiens, reconnexion 403 `ACCOUNT_DISABLED`, ancien cookie 401 |
 
 ### 3.1 Migrations SQL appliquées en base
 
@@ -315,6 +297,7 @@ Les bugs traités ont été corrigés (ou vérifiés conformes / non reproduits 
 | `sql/business_bounds.sql` | Bornes métier : enfants, packs, remise, évaluations (BUG-12) |
 | `sql/services_name_unique.sql` | `pg_trgm` + unicité du nom des services actifs (BUG-15) |
 | `sql/data_reconciliation.sql` | Réconciliation packs / `session_count` / soldes (BUG-16) |
+| `sql/users_soft_delete.sql` | Colonne `users.is_active` + index partiel (BUG-34) |
 
 > `sql/integrity_fixes.sql` a également été mis à jour : une installation neuve obtient directement la version corrigée du trigger.
 
@@ -337,7 +320,7 @@ Les bugs traités ont été corrigés (ou vérifiés conformes / non reproduits 
 `BUG-36`
 
 ### Lot 2 — Finitions et durcissement (2 à 4 jours)
-`BUG-30` · `BUG-31` · `BUG-34`
+`BUG-30` · `BUG-31`
 
 ### Ordre d'application des migrations SQL restantes
 
