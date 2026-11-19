@@ -7,6 +7,7 @@ import { patients } from '@/lib/api';
 import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FormPageSkeleton } from '@/components/page-skeletons';
 
 export default function PatientEditPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -56,6 +57,12 @@ export default function PatientEditPage() {
     router.push('/patients');
   }
 
+  // Tant que le patient n'est pas chargé, on affiche un squelette : évite un
+  // formulaire vide (et éditable) pendant ~1 seconde.
+  if (authLoading || isLoading) {
+    return <FormPageSkeleton />;
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -71,7 +78,6 @@ export default function PatientEditPage() {
 
       <PatientForm
         initialData={initialData}
-        isLoading={isLoading}
         onSubmit={handleUpdate}
         submitButtonText="Enregistrer les modifications"
       />
