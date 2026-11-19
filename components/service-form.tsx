@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Search } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { services as servicesApi } from '@/lib/api';
 
 export interface ServiceFormData {
   name: string;
@@ -17,18 +18,30 @@ export interface ServiceFormData {
   type?: string;
 }
 
+interface SimilarService {
+  id: string;
+  name: string;
+  price: number | string;
+  sessions?: number;
+}
+
 interface ServiceFormProps {
   initialData?: ServiceFormData;
   isLoading?: boolean;
   onSubmit: (data: ServiceFormData) => Promise<void>;
   submitButtonText?: string;
+  /** Service en cours de modification : exclu de la détection de doublon. */
+  excludeId?: string;
 }
+
+const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 export default function ServiceForm({
   initialData,
   isLoading = false,
   onSubmit,
   submitButtonText = 'Enregistrer le service',
+  excludeId,
 }: ServiceFormProps) {
   const [formData, setFormData] = useState<ServiceFormData>(
     initialData || {
@@ -41,6 +54,10 @@ export default function ServiceForm({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Recherche de similarité pendant la frappe
+  const [similar, setSimilar] = useState<SimilarService[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const [priceDisplay, setPriceDisplay] = useState(
     formData.price > 0 ? formData.price.toLocaleString('fr-FR') : ''
   );
@@ -51,6 +68,40 @@ export default function ServiceForm({
       setPriceDisplay(initialData.price > 0 ? initialData.price.toLocaleString('fr-FR') : '');
     }
   }, [initialData]);
+
+  // Debounce 250 ms : on interroge l'API seulement quand la saisie se stabilise.
+  useEffect(() => {
+    const name = formData.name.trim();
+    if (name.length < 2) {
+      setSimilar([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await servicesApi.search(name);
+        if (!cancelled && response.success && Array.isArray(response.data)) {
+          setSimilar(response.data as SimilarService[]);
+        }
+      } catch {
+        // recherche silencieuse : une erreur ne doit pas bloquer la saisie
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [formData.name]);
+
+  const nameTaken = similar.some(
+    (service) => service.id !== excludeId && normalize(service.name) === normalize(formData.name)
+  );
 
   const handleInputChange = (field: string, value: any) => {
     setError('');
@@ -73,6 +124,11 @@ export default function ServiceForm({
 
     if (!formData.name.trim()) {
       setError('Le nom du service est requis');
+      return;
+    }
+
+    if (nameTaken) {
+      setError('Un service porte déjà ce nom. Choisissez un autre nom.');
       return;
     }
 
@@ -120,8 +176,43 @@ export default function ServiceForm({
               onChange={(e) => handleInputChange('name', e.target.value)}
               disabled={isFormLoading}
               required
+              maxLength={80}
               placeholder="p.ex., Séance de neurofeedback, Consultation psy, etc."
             />
+
+            {nameTaken ? (
+              <p className="mt-2 flex items-center gap-1 text-sm text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                Ce nom existe déjà. Choisissez un autre nom.
+              </p>
+            ) : (
+              formData.name.trim().length >= 2 && (
+                <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2">
+                  <p className="flex items-center gap-1 text-xs font-medium text-gray-600">
+                    {searching ? <Spinner size="sm" /> : <Search className="h-3 w-3" />}
+                    Services existants similaires
+                  </p>
+                  {similar.length === 0 && !searching ? (
+                    <p className="mt-1 text-xs text-gray-500">Aucun service proche.</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {similar.slice(0, 8).map((service) => (
+                        <li
+                          key={service.id}
+                          className="flex items-center justify-between gap-3 text-xs text-gray-700"
+                        >
+                          <span className="truncate">{service.name}</span>
+                          <span className="shrink-0 text-gray-500">
+                            {Number(service.price).toLocaleString('fr-FR')} DZD
+                            {service.sessions ? ` · ${service.sessions} séance(s)` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )
+            )}
           </Field>
 
           <Field>
@@ -171,7 +262,7 @@ export default function ServiceForm({
       </Card>
 
       <div className="flex gap-2 justify-end">
-        <Button type="submit" disabled={isFormLoading} className="gap-2">
+        <Button type="submit" disabled={isFormLoading || nameTaken} className="gap-2">
           {isFormLoading ? (
             <>
               <Spinner size="sm" />

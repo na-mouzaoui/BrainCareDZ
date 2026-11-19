@@ -163,6 +163,8 @@ export const patientOutcomes = {
 export const services = {
   getAll: () =>
     apiRequest('/services', { method: 'GET' }),
+  search: (q: string) =>
+    apiRequest(`/services/search?q=${encodeURIComponent(q)}`, { method: 'GET' }),
   getById: (id: string) =>
     apiRequest(`/services/${id}`, { method: 'GET' }),
   create: (data: any) =>

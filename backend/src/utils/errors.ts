@@ -12,6 +12,7 @@ const CONSTRAINT_MESSAGES: Record<string, { status: number; message: string }> =
   payments_status_check: { status: 400, message: 'Statut de paiement invalide.' },
   payments_amount_check: { status: 400, message: 'Le montant doit être positif ou nul.' },
   services_type_check: { status: 400, message: 'Type de service invalide.' },
+  services_name_active_unique: { status: 409, message: 'Un service porte déjà ce nom. Choisissez un autre nom.' },
   services_category_check: { status: 400, message: 'Catégorie de service invalide.' },
   services_price_check: { status: 400, message: 'Le prix doit être positif ou nul.' },
   services_duration_check: { status: 400, message: 'La durée doit être supérieure à zéro.' },

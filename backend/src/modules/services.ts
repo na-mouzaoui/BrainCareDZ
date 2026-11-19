@@ -25,6 +25,30 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+router.get('/search', protect, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) {
+      return res.status(200).json({ success: true, services: [] });
+    }
+
+    const result = await query(
+      `SELECT id, name, price, sessions, type,
+              round(similarity(name, $1)::numeric, 2) AS score
+         FROM services
+        WHERE is_active
+          AND (name ILIKE '%' || $1 || '%' OR similarity(name, $1) >= 0.3)
+        ORDER BY score DESC, name ASC
+        LIMIT 8`,
+      [q]
+    );
+
+    return res.status(200).json({ success: true, services: result.rows });
+  } catch (error) {
+    return sendDbError(res, error, 'Erreur interne du serveur');
+  }
+});
+
 router.get('/:id', protect, async (req, res) => {
   try {
     const result = await query(

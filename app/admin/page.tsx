@@ -1477,7 +1477,7 @@ export default function AdminPage() {
             <DialogDescription>Modifiez les informations du service.</DialogDescription>
           </DialogHeader>
           {serviceEditData && (
-            <ServiceForm initialData={serviceEditData} onSubmit={handleServiceUpdate} submitButtonText="Enregistrer" />
+            <ServiceForm initialData={serviceEditData} excludeId={serviceEditingId ?? undefined} onSubmit={handleServiceUpdate} submitButtonText="Enregistrer" />
           )}
         </DialogContent>
       </Dialog>
