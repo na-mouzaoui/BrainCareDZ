@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **6 problèmes ouverts**. Les 29 bugs traités (25 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **5 problèmes ouverts**. Les 29 bugs traités (25 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -42,8 +42,8 @@
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 1 |
 | 🟡 Moyen | 2 |
-| ⚪ Robustesse | 3 |
-| **Total** | **6** |
+| ⚪ Robustesse | 2 |
+| **Total** | **5** |
 
 > **État au 19/11/2026** : les 29 bugs traités (BUG-01 → BUG-29) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
@@ -51,7 +51,7 @@
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
 2. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
-3. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
+3. **BUG-33 / BUG-34** — « supprimer » trompeur, suppression d'utilisateur en 500.
 
 ---
 
@@ -63,7 +63,6 @@
 |---|---|---|---|---|
 | BUG-30 | RDV orphelin (sans patient, sans service) en base | 🟡 Moyen | Données | XS |
 | BUG-31 | Données de test résiduelles en base | 🟡 Moyen | Données | XS |
-| BUG-32 | Aucune contrainte `EXCLUDE` anti double réservation | ⚪ Robustesse | SQL | M |
 | BUG-33 | « Supprimer » = suppression logique non signalée | ⚪ Robustesse | Front + Back | S |
 | BUG-34 | Suppression d'un utilisateur lié à des RDV → 500 | ⚪ Robustesse | Back | S |
 | BUG-36 | Suppression d'un patient : destructrice au lieu d'être logique (`is_deleted`) | 🟠 Majeur | SQL + Back + Front | M |
@@ -106,31 +105,6 @@ Une nouvelle praticienne prend ses fonctions et ouvre la liste des services pour
 ---
 
 # ⚪ ROBUSTESSE
-
-## BUG-32 — Aucune contrainte `EXCLUDE` anti double réservation
-
-**Constat** : l'unicité par créneau (Psy = 1 RDV, Coach = 4) est vérifiée **uniquement dans le code** (`appointments.ts`), sans verrou ni contrainte. Deux requêtes simultanées peuvent créer un doublon.
-
-**Scénario de reproduction**
-
-La secrétaire ouvre deux onglets pour gagner du temps et prépare le même rendez-vous dans les deux. Elle valide dans le premier onglet, puis, convaincue que l'enregistrement a échoué (la réponse tarde), valide à nouveau dans le second. Les deux requêtes partent à quelques dizaines de millisecondes d'intervalle : chacune vérifie l'occupation du créneau avant que l'autre n'ait écrit, et les deux réussissent.
-
-Le praticien se retrouve avec deux rendez-vous identiques à la même heure, et le patient avec deux convocations. Le même phénomène se produit lors d'un double-clic sur « Créer le rendez-vous » avec une connexion lente.
-
-**Correctif** :
-```sql
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-ALTER TABLE appointments
-  ADD CONSTRAINT appointments_no_overlap_per_role
-  EXCLUDE USING gist (
-    role WITH =,
-    tstzrange(start_time, end_time) WITH &&
-  );
-```
-(à adapter pour autoriser 4 RDV Coach : ajouter un compteur ou une contrainte partielle).
-**Effort** : M
-
----
 
 ## BUG-33 — « Supprimer » = suppression logique non signalée
 
@@ -380,7 +354,7 @@ Les bugs traités ont été corrigés (ou vérifiés conformes / non reproduits 
 `BUG-36`
 
 ### Lot 2 — Finitions et durcissement (2 à 4 jours)
-`BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
+`BUG-30` · `BUG-31` · `BUG-33` · `BUG-34`
 
 ### Ordre d'application des migrations SQL restantes
 
