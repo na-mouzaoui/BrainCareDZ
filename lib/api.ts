@@ -48,6 +48,11 @@ export async function apiRequest<T = any>(
       window.dispatchEvent(new CustomEvent('auth:expired', { detail: { message: data.message } }));
     }
 
+    // Mot de passe provisoire non changé : le serveur bloque la route.
+    if (response.status === 403 && data?.code === 'PASSWORD_CHANGE_REQUIRED' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:password-change-required'));
+    }
+
     if (!response.ok) {
       // `/auth/me` en 401 est normal tant que l'utilisateur n'est pas connecté :
       // c'est la vérification de session au chargement. On ne la logue pas comme
@@ -99,6 +104,11 @@ export const auth = {
     }),
   getMe: () => apiRequest('/auth/me', { method: 'GET' }),
   logout: () => apiRequest('/auth/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest('/auth/change-password', {
+      method: 'POST',
+      body: { currentPassword, newPassword },
+    }),
 };
 
 // Patient endpoints

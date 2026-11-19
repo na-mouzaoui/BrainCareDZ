@@ -91,7 +91,7 @@ export const protect = async (req, res, next) => {
 
   try {
     // Révocation : un jeton émis avant le dernier logout est rejeté.
-    const check = await runOnClient(ctx, 'SELECT token_version FROM users WHERE id = $1', [decoded.id]);
+    const check = await runOnClient(ctx, 'SELECT token_version, must_change_password FROM users WHERE id = $1', [decoded.id]);
 
     if (check.rowCount === 0) {
       console.warn('[auth] compte inconnu:', decoded.pseudo || decoded.id);
@@ -104,6 +104,24 @@ export const protect = async (req, res, next) => {
       releaseNow();
       return rejectSession(res, 'SESSION_REVOKED');
     }
+
+    // Mot de passe provisoire : toutes les routes sont bloquées sauf celles qui
+    // permettent de lire la session, de changer le mot de passe ou de se déconnecter.
+    const mustChangePassword = check.rows[0].must_change_password === true;
+    if (mustChangePassword) {
+      const path = (req.originalUrl || '').split('?')[0];
+      const allowed = ['/api/auth/me', '/api/auth/change-password', '/api/auth/logout'];
+      if (!allowed.includes(path)) {
+        releaseNow();
+        return res.status(403).json({
+          success: false,
+          code: 'PASSWORD_CHANGE_REQUIRED',
+          message: 'Vous devez changer votre mot de passe avant de continuer.',
+        });
+      }
+    }
+
+    req.user.mustChangePassword = mustChangePassword;
 
     // Portée session (false) et non transaction : les déclencheurs d'audit lisent
     // ces valeurs lors des requêtes suivantes de la même connexion.

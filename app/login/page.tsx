@@ -28,7 +28,7 @@ export default function LoginPage() {
     try {
       const result = await login(pseudo, password);
       if (result.success) {
-        router.push('/');
+        router.push(result.mustChangePassword ? '/change-password' : '/');
       } else {
         setError(result.error || 'Pseudo ou mot de passe invalide');
       }

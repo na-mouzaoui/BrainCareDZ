@@ -123,8 +123,8 @@ router.post('/', protect, async (req, res) => {
 
     const passwordHash = await bcryptjs.hash('123456789', 10);
     const inserted = await query(
-      `INSERT INTO users (name, pseudo, first_name, last_name, email, password_hash, role, phone)
-       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)
+      `INSERT INTO users (name, pseudo, first_name, last_name, email, password_hash, role, phone, must_change_password)
+       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, true)
        RETURNING id, name, pseudo, first_name AS "firstName", last_name AS "lastName",
                  role, phone, created_at AS "createdAt", updated_at AS "updatedAt"`,
       [name, pseudo, first, last, passwordHash, role, phone || null]

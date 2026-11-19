@@ -10,11 +10,13 @@ export interface User {
   firstName?: string;
   lastName?: string;
   role: 'admin' | 'psy' | 'coach';
+  mustChangePassword?: boolean;
 }
 
 interface AuthResult {
   success: boolean;
   error?: string;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
@@ -25,6 +27,7 @@ interface AuthContextType {
   sessionExpired: boolean;
   login: (pseudo: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,8 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       setSessionExpired(true);
     };
+    // Mot de passe provisoire : le serveur refuse les routes métier (403).
+    const handlePasswordChangeRequired = () => {
+      setUser((prev) => (prev ? { ...prev, mustChangePassword: true } : prev));
+    };
     window.addEventListener('auth:expired', handleExpired);
-    return () => window.removeEventListener('auth:expired', handleExpired);
+    window.addEventListener('auth:password-change-required', handlePasswordChangeRequired);
+    return () => {
+      window.removeEventListener('auth:expired', handleExpired);
+      window.removeEventListener('auth:password-change-required', handlePasswordChangeRequired);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,10 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await auth.login(pseudo, password);
       if (response.success && response.data) {
+        const loggedUser = response.data as User;
         setToken('cookie');
-        setUser(response.data as User);
+        setUser(loggedUser);
         setSessionExpired(false);
-        return { success: true };
+        return { success: true, mustChangePassword: loggedUser.mustChangePassword === true };
       }
       const errorMessage = response.error || response.message || 'Pseudo ou mot de passe invalide';
       return { success: false, error: errorMessage };
@@ -82,6 +94,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         success: false,
         error: 'Impossible de contacter le serveur API. Vérifiez que le backend tourne sur le port 5001.',
       };
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<AuthResult> => {
+    try {
+      const response = await auth.changePassword(currentPassword, newPassword);
+      if (response.success) {
+        setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev));
+        return { success: true };
+      }
+      return { success: false, error: response.error || response.message || 'Échec du changement de mot de passe.' };
+    } catch {
+      return { success: false, error: 'Impossible de contacter le serveur API.' };
     }
   };
 
@@ -105,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionExpired,
         login,
         logout,
+        changePassword,
       }}
     >
       {children}

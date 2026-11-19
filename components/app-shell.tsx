@@ -1,14 +1,27 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { DashboardNav } from '@/components/dashboard-nav';
 import { useSidebar } from '@/lib/sidebar-context';
+import { useAuth } from '@/lib/auth-context';
 
-const PUBLIC_ROUTE_PREFIXES = ['/login'];
+const PUBLIC_ROUTE_PREFIXES = ['/login', '/change-password'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isOpen } = useSidebar();
+  const { user, isLoading } = useAuth();
+
+  // Mot de passe provisoire : aucun écran de l'application n'est accessible
+  // tant qu'il n'a pas été remplacé (le serveur renvoie 403 de son côté).
+  useEffect(() => {
+    if (isLoading) return;
+    if (user?.mustChangePassword && pathname !== '/change-password') {
+      router.replace('/change-password');
+    }
+  }, [isLoading, user, pathname, router]);
 
   const isPublicRoute = PUBLIC_ROUTE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(prefix + '/')
