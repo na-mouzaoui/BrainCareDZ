@@ -9,7 +9,15 @@ const packSelect = `
          pp.price, pp.practitioner_id AS "practitionerId",
          s.name AS "serviceName", s.sessions AS "serviceDefaultSessions",
          c.first_name AS "patientFirstName", c.last_name AS "patientLastName",
-         pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
+         pp.created_at AS "createdAt", pp.updated_at AS "updatedAt",
+         -- Un pack est considéré comme VENDU dès qu'une de ses séances est terminée
+         -- (et non à sa création) : la date de vente est celle de la première séance.
+         (SELECT COUNT(*)::int FROM patient_pack_usages u WHERE u.pack_id = pp.id) AS "usedSessions",
+         (SELECT MIN(a.start_time)
+            FROM patient_pack_usages u
+            JOIN appointment_patients ap ON ap.id = u.appointment_patient_id
+            JOIN appointments a ON a.id = ap.appointment_id
+           WHERE u.pack_id = pp.id) AS "firstUsedAt"
   FROM patient_packs pp
   JOIN patients c ON c.id = pp.patient_id
   JOIN services s ON s.id = pp.service_id

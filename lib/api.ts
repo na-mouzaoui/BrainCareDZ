@@ -36,6 +36,9 @@ export async function apiRequest<T = any>(
       ...fetchOptions,
       headers,
       credentials: 'include',
+      // Les données sont personnelles et évoluent en permanence : jamais de
+      // réponse servie depuis le cache HTTP (sinon un 304 affiche des données périmées).
+      cache: 'no-store',
       body: body ? JSON.stringify(body) : undefined,
     });
 

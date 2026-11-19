@@ -542,9 +542,12 @@ export default function DashboardPage() {
             .filter((p: any) => p.status === 'completed' && Number(p.amount || 0) > 0 && isToday(p.processedDate || p.createdAt))
             .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
-      // --- Packs vendus (depuis patient_packs, date de création) ---
-      const packsMonth = packItems.filter((p: any) => isInCurrentMonth(p.createdAt)).length;
-      const packsDay = packItems.filter((p: any) => isToday(p.createdAt)).length;
+      // --- Packs vendus ---
+      // Un pack est vendu dès qu'une de ses séances est TERMINÉE (date de la
+      // première séance consommée), et non à sa création.
+      // (définition validée : « vendu » = au moins une séance terminée)
+      const packsMonth = packItems.filter((p: any) => p.firstUsedAt && isInCurrentMonth(p.firstUsedAt)).length;
+      const packsDay = packItems.filter((p: any) => p.firstUsedAt && isToday(p.firstUsedAt)).length;
 
       // --- Séances effectuées (completed) ---
       const sessionsMonth = appointmentItems.filter((apt: any) =>
@@ -683,7 +686,7 @@ export default function DashboardPage() {
 
       // Packs vendus — détail par service
       const packsMonthMap: Record<string, number> = {};
-      packItems.filter((p: any) => isInCurrentMonth(p.createdAt)).forEach((p: any) => {
+      packItems.filter((p: any) => p.firstUsedAt && isInCurrentMonth(p.firstUsedAt)).forEach((p: any) => {
         const name = p.serviceName || p.name || 'Pack inconnu';
         packsMonthMap[name] = (packsMonthMap[name] || 0) + 1;
       });
@@ -693,7 +696,7 @@ export default function DashboardPage() {
         .join('\n') || 'Aucun pack';
 
       const packsDayMap: Record<string, number> = {};
-      packItems.filter((p: any) => isToday(p.createdAt)).forEach((p: any) => {
+      packItems.filter((p: any) => p.firstUsedAt && isToday(p.firstUsedAt)).forEach((p: any) => {
         const name = p.serviceName || p.name || 'Pack inconnu';
         packsDayMap[name] = (packsDayMap[name] || 0) + 1;
       });
