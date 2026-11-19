@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **5 problèmes ouverts**. Les 29 bugs traités (25 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **4 problèmes ouverts**. Les 29 bugs traités (25 corrigés + 4 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -42,8 +42,8 @@
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 1 |
 | 🟡 Moyen | 2 |
-| ⚪ Robustesse | 2 |
-| **Total** | **5** |
+| ⚪ Robustesse | 1 |
+| **Total** | **4** |
 
 > **État au 19/11/2026** : les 29 bugs traités (BUG-01 → BUG-29) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
@@ -51,7 +51,7 @@
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
 2. **BUG-30 / BUG-31** — RDV orphelin et données de test à nettoyer.
-3. **BUG-33 / BUG-34** — « supprimer » trompeur, suppression d'utilisateur en 500.
+3. **BUG-34** — suppression d'un utilisateur lié à des RDV en 500.
 
 ---
 
@@ -63,7 +63,6 @@
 |---|---|---|---|---|
 | BUG-30 | RDV orphelin (sans patient, sans service) en base | 🟡 Moyen | Données | XS |
 | BUG-31 | Données de test résiduelles en base | 🟡 Moyen | Données | XS |
-| BUG-33 | « Supprimer » = suppression logique non signalée | ⚪ Robustesse | Front + Back | S |
 | BUG-34 | Suppression d'un utilisateur lié à des RDV → 500 | ⚪ Robustesse | Back | S |
 | BUG-36 | Suppression d'un patient : destructrice au lieu d'être logique (`is_deleted`) | 🟠 Majeur | SQL + Back + Front | M |
 
@@ -105,22 +104,6 @@ Une nouvelle praticienne prend ses fonctions et ouvre la liste des services pour
 ---
 
 # ⚪ ROBUSTESSE
-
-## BUG-33 — « Supprimer » = suppression logique non signalée
-
-**Constat** : `DELETE /api/appointments/:id` → `UPDATE status='cancelled'` ; `DELETE /api/services/:id` → `is_active=false` ; `DELETE /api/users/:id` → suppression réelle. Trois comportements différents derrière le même verbe, et l'UI parle de « Supprimer » partout.
-
-**Scénario de reproduction**
-
-La gérante supprime un rendez-vous créé par erreur. Un message confirme la suppression et la ligne disparaît de la liste. Plus tard, en consultant le journal d'activité puis les statistiques, elle retrouve ce rendez-vous : il a en réalité été marqué « annulé », et il continue d'apparaître dans certains compteurs ainsi que dans l'historique du patient.
-
-Le même malentendu existe sur les services : « supprimer » un service le désactive sans le retirer de la base, et il continue d'apparaître dans les anciens rendez-vous. Seul l'utilisateur est réellement supprimé. L'utilisateur croit donc à une suppression définitive qui n'a jamais eu lieu — un point problématique pour les demandes RGPD et pour l'interprétation des statistiques.
-
-**Impact** : l'utilisateur croit avoir supprimé alors que l'enregistrement persiste (RGPD, facturation, doublons apparents).
-**Correctif** : renommer les actions (« Annuler le RDV », « Désactiver le service ») et réserver « Supprimer » à la suppression réelle.
-**Effort** : S
-
----
 
 ## BUG-34 — Suppression d'un utilisateur lié à des RDV → 500
 
@@ -354,7 +337,7 @@ Les bugs traités ont été corrigés (ou vérifiés conformes / non reproduits 
 `BUG-36`
 
 ### Lot 2 — Finitions et durcissement (2 à 4 jours)
-`BUG-30` · `BUG-31` · `BUG-33` · `BUG-34`
+`BUG-30` · `BUG-31` · `BUG-34`
 
 ### Ordre d'application des migrations SQL restantes
 
