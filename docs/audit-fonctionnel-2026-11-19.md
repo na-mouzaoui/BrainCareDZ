@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **27 problèmes ouverts**. Les 9 bugs corrigés (BUG-01 → BUG-09) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **26 problèmes ouverts**. Les 9 bugs corrigés (BUG-01 → BUG-09) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -42,8 +42,8 @@
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 10 |
 | 🟡 Moyen | 13 |
-| ⚪ Robustesse | 4 |
-| **Total** | **27** |
+| ⚪ Robustesse | 3 |
+| **Total** | **26** |
 
 > **État au 19/11/2026** : les 9 bugs déjà corrigés (BUG-01 → BUG-09) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
@@ -88,7 +88,6 @@
 | BUG-32 | Aucune contrainte `EXCLUDE` anti double réservation | ⚪ Robustesse | SQL | M |
 | BUG-33 | « Supprimer » = suppression logique non signalée | ⚪ Robustesse | Front + Back | S |
 | BUG-34 | Suppression d'un utilisateur lié à des RDV → 500 | ⚪ Robustesse | Back | S |
-| BUG-35 | `duration = 0` contourne le CHECK via NULL | ⚪ Robustesse | Back | XS |
 | BUG-36 | Suppression d'un patient : destructrice au lieu d'être logique (`is_deleted`) | 🟠 Majeur | SQL + Back + Front | M |
 
 ---
@@ -113,6 +112,18 @@ Les contraintes PostgreSQL et les conversions d'UUID ne sont pas traduites. Test
 | `POST /api/users { role: 'zombie' }` | 400 | **500** |
 | `POST /api/company-invoices` prix négatif / séances négatives | 400 | **500** |
 | `POST /api/expenses { amount: 1e14 }` | 400 | **500** |
+
+**Ce que cela implique — au-delà du message**
+
+Ce n'est pas seulement une question de texte : trois choses différentes sont mélangées aujourd'hui.
+
+| Ce qu'il faut | Pourquoi | Exemple |
+|---|---|---|
+| **Bon code HTTP** (400 / 404 / 409 au lieu de 500) | le frontend peut réagir (surligner le champ, proposer une correction) et les métriques ne comptent plus ces cas comme des pannes serveur | `paymentMethod: 'bitcoin'` → 400, pas 500 |
+| **Validation en amont** (`express-validator`) | refuser avant d'atteindre la base : enums, UUID, bornes | `role: 'zombie'` → 400 « rôle invalide » |
+| **Filet de sécurité SQL** | certains cas ne sont pas prévisibles par la validation : dépassement `numeric(12,2)`, clé étrangère absente | `amount: 1e14` → 400, `serviceId` inconnu → 404 |
+
+Un point supplémentaire : le contrat de réponse n'est pas homogène (`message` dans certains modules, `error` dans d'autres). Le frontend ne lit que `message`, donc les erreurs exprimées via `error` retombent sur « Erreur serveur, réessayez plus tard ». Unifier le format (`{ success: false, code, message, errors? }`) fait partie du correctif.
 
 **Scénario de reproduction**
 
@@ -162,7 +173,21 @@ Compléter par une validation `express-validator` en amont pour les enums, UUID 
 |---|---|
 | `status: 'zombie'` sur un paiement | **ignoré**, enregistré `completed` (le statut est codé en dur) |
 | `processedDate: '31/02/2020'` | **ignoré**, remplacé par `new Date().toISOString()` → le paiement est daté d'aujourd'hui |
-| `role: 'zombie'` sur un RDV | **ignoré**, rôle retombé sur `admin` |
+| `role: 'zombie'` sur un RDV | **ignoré**, rôle retombé sur celui du praticien (`admin`) |
+| `packDeferred: 'false'` (chaîne) sur un RDV | converti en **`true`** par `!!value` → le RDV est marqué « pack différé » sans que personne ne l'ait demandé |
+| `duration: 0` sur un service | **champ hors contrat**, ignoré → la valeur par défaut (60) s'applique |
+
+**Les 5 cas confirmés (testés un par un)**
+
+| Cas | Valeur envoyée | Valeur réellement stockée | Impact |
+|---|---|---|---|
+| Statut de paiement | `'zombie'` | `completed` | l'appelant croit avoir créé un paiement « en attente » |
+| Date de paiement | `'31/02/2020'` | date du jour | **comptabilité au mauvais mois** |
+| Rôle du RDV | `'zombie'` | rôle du praticien (`admin`) | le RDV atterrit sur le mauvais calendrier |
+| Pack différé | `'false'` (chaîne) | `true` | popup de pack obligatoire déclenchée à tort |
+| Durée du service | `0` | `60` (défaut) | durée de RDV différente de l'intention |
+
+> Les autres valeurs invalides ne relèvent pas de BUG-11 : soit elles sont **rejetées** (`gender`, `expenseDate`, `amount`), soit elles provoquent un **500** (BUG-10).
 
 **Scénario de reproduction (le plus gênant)**
 
@@ -172,6 +197,20 @@ Il est donc rattaché au mois en cours au lieu du mois de régularisation souhai
 
 **Impact**
 Comptabilité au mauvais mois, sans aucun signal. Données silencieusement falsifiées.
+
+**Lien avec BUG-10 — même famille, conséquence différente**
+
+Les deux bugs se corrigent au même endroit (validation des entrées), mais ils ne décrivent **pas** le même défaut :
+
+| | **BUG-10** | **BUG-11** |
+|---|---|---|
+| Comportement | la requête est **refusée**… avec le mauvais code (500) | la requête est **acceptée** et la valeur est remplacée |
+| Ce que voit l'utilisateur | « Erreur interne du serveur » | **aucune erreur** : tout semble avoir réussi |
+| Conséquence | l'action échoue, l'utilisateur réessaie | **donnée fausse enregistrée** (paiement daté du mauvais mois) |
+| Gravité réelle | gêne fonctionnelle + métriques polluées | corruption silencieuse |
+| Cause | absence de traduction des erreurs SQL | absence de règle « refuser au lieu de substituer » |
+
+> **Conséquence pratique** : appliquer la validation prévue dans BUG-10 (`express-validator` strict : enums, dates, bornes) **résout la majorité de BUG-11**, puisque `status: 'zombie'` et `processedDate: '31/02/2020'` seraient rejetés en 400. Reste un point propre à BUG-11 : **décider du contrat** — un champ qui n'est pas modifiable (`payments.status`, toujours `completed`) doit être retiré du contrat ou documenté, plutôt qu'accepté puis ignoré.
 
 **Correctif**
 - Valider explicitement et **refuser** plutôt que substituer :
@@ -725,21 +764,6 @@ L'administrateur ne sait pas qu'il doit d'abord réaffecter les rendez-vous, et 
 
 ---
 
-## BUG-35 — `duration = 0` contourne le CHECK via NULL
-
-**Constat** : `POST /api/services { duration: 0 }` → **201** ; la valeur est convertie en `NULL`, ce qui échappe à `CHECK (duration > 0)` et fausse le calcul d'heure de fin de RDV (repli implicite).
-
-**Scénario de reproduction**
-
-Une praticienne crée un service en laissant le champ « Durée » à zéro, persuadée qu'une valeur par défaut sera appliquée. Le service est enregistré sans aucun avertissement.
-
-Elle planifie ensuite un rendez-vous avec ce service : l'heure de fin est calculée à partir d'une durée absente et retombe sur la durée par défaut du créneau, ce qui produit un rendez-vous plus court ou plus long que prévu. Le contrôle d'intégrité prévu en base (`duration > 0`) n'a pas joué, puisque la valeur a été convertie en `NULL` au lieu d'être refusée.
-
-**Correctif** : `duration: Number(duration) > 0 ? Number(duration) : 60` **ou** refuser explicitement 0/absence (`400`).
-**Effort** : XS
-
----
-
 ## BUG-36 — « Supprimer le patient » détruit l'historique au lieu de l'archiver
 
 **Zone** : `backend/src/modules/patients.ts` (`DELETE /patients/:id`), schéma `patients`, écrans Patients / Paiements / RDV
@@ -920,7 +944,7 @@ Les 9 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026**
 ## 4. Plan de correction recommandé
 
 ### Lot 1 — Bloquants (½ journée)
-`BUG-14` · `BUG-15` · `BUG-19` · `BUG-20` · `BUG-21` · `BUG-22` · `BUG-26` · `BUG-27` · `BUG-35`
+`BUG-14` · `BUG-15` · `BUG-19` · `BUG-20` · `BUG-21` · `BUG-22` · `BUG-26` · `BUG-27`
 
 ### Lot 2 — Fiabilité des données (1 à 2 jours)
 `BUG-11` · `BUG-12` · `BUG-13` · `BUG-16` · `BUG-17` · `BUG-36`
