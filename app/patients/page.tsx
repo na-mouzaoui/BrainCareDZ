@@ -9,7 +9,7 @@ import { PatientForm, type PatientFormData } from '@/components/patient-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, Plus, Edit2, Trash2, History } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, History, X } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { ListPageSkeleton } from '@/components/page-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FilterDialog, {
   type FilterField,
   type FilterValues,
+  countActiveFilters,
   resetFilters,
 } from '@/components/filter-dialog';
 import { SortableHeader, type SortDirection } from '@/components/sortable-header';
@@ -113,6 +114,7 @@ export default function PatientsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const hasActiveFilters = countActiveFilters(filterFields, filters) > 0;
   function toggleSort(key: string) {
     if (sortKey === key) {
       setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -373,16 +375,34 @@ export default function PatientsPage() {
         <Card>
           <CardContent className="pt-12">
             <div className="text-center">
-              <p className="text-gray-500 mb-4">
-                Aucun patient pour le moment
-              </p>
-              <Button
-                onClick={() => setCreateOpen(true)}
-                className="gap-2 bg-brand-700 hover:bg-brand-800"
-              >
-                <Plus className="h-4 w-4" />
-                Ajouter votre premier patient
-              </Button>
+              {hasActiveFilters ? (
+                <>
+                  <p className="text-gray-500 mb-4">
+                    Aucun patient ne correspond aux filtres appliqués.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setFilters(resetFilters(filterFields)); setPage(1); }}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Réinitialiser les filtres
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500 mb-4">
+                    Aucun patient pour le moment
+                  </p>
+                  <Button
+                    onClick={() => setCreateOpen(true)}
+                    className="gap-2 bg-brand-700 hover:bg-brand-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter votre premier patient
+                  </Button>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
