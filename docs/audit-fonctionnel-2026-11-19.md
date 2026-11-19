@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **22 problèmes ouverts**. Les 13 bugs corrigés (BUG-01 → BUG-13) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **18 problèmes ouverts**. Les 17 bugs corrigés (BUG-01 → BUG-18, sauf BUG-16) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -40,34 +40,29 @@
 | Gravité | Nombre |
 |---|---|
 | 🔴 Critique | 0 |
-| 🟠 Majeur | 6 |
+| 🟠 Majeur | 2 |
 | 🟡 Moyen | 13 |
 | ⚪ Robustesse | 3 |
-| **Total** | **22** |
+| **Total** | **18** |
 
-> **État au 19/11/2026** : les 9 bugs déjà corrigés (BUG-01 → BUG-09) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
+> **État au 19/11/2026** : les 17 bugs déjà corrigés (BUG-01 → BUG-18, sauf BUG-16 qui reste ouvert) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
 **Priorités restantes**
 
-1. **BUG-36** — « Supprimer le patient » détruit les paiements puis échoue : passer en suppression logique (`is_deleted`).
+1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
 2. **BUG-16** — dérive de données existante (16 packs, 2 `session_count`, 1 solde).
-3. **BUG-17** — page Paiements : garde `beforeunload` impossible à lever.
-4. **BUG-14 / BUG-15** — donut sans légende, noms de services dupliqués.
-5. **BUG-18** — écrire un compte rendu clôture le RDV sans confirmation.
+3. **BUG-19 / BUG-20 / BUG-21** — message tronqué, état vide trompeur, réinitialisation des filtres.
+4. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
 
 ---
 
 ## 2. Tableau récapitulatif
 
-> Ce tableau ne liste que les **points encore ouverts**. Les bugs corrigés (BUG-01 → BUG-13) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
+> Ce tableau ne liste que les **points encore ouverts**. Les bugs corrigés (BUG-01 → BUG-18, sauf BUG-16) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
 
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
-| BUG-14 | Donut « Canal d'acquisition » sans légende | 🟠 Majeur | Front (`app/page.tsx`) | XS |
-| BUG-15 | Noms de services (packs) dupliqués : recherche de similarité + unicité | 🟠 Majeur | Back + Front + SQL | S |
 | BUG-16 | Dérive de données existante (packs, session_count, soldes) | 🟠 Majeur | SQL | M |
-| BUG-17 | Garde `beforeunload` impossible à lever sur la page Paiements | 🟠 Majeur | Front (`payments/page.tsx`) | S |
-| BUG-18 | Compte rendu : clôture du RDV sans confirmation avant l'heure | 🟠 Majeur | Front + Back | S |
 | BUG-19 | Faute « A mount of 0 requires notes » | 🟡 Moyen | Back | XS |
 | BUG-20 | État vide trompeur quand un filtre ne retourne rien | 🟡 Moyen | Front (`patients/page.tsx`) | XS |
 | BUG-21 | « Réinitialiser » n'applique pas la réinitialisation | 🟡 Moyen | Front (`filter-dialog.tsx`) | XS |
@@ -89,118 +84,6 @@
 ---
 
 # 🟠 MAJEUR
-
-## BUG-14 — Donut « Canal d'acquisition » sans légende
-
-**Zone** : `app/page.tsx`
-
-**Constat**
-Le graphique circulaire n'affiche que le total au centre (17). Aucun libellé de catégorie, aucune légende, aucune info-bulle exploitable → impossible de savoir quelle part correspond à « recommandation », « réseaux sociaux », etc.
-
-**Scénario de reproduction**
-
-En réunion, la gérante projette le tableau de bord pour présenter les sources d'acquisition des patients. Le graphique circulaire affiche des parts de couleurs différentes et, au centre, le nombre 17. Aucune légende, aucun libellé, aucune info-bulle : personne dans la salle ne peut dire quelle part correspond aux recommandations, aux réseaux sociaux ou aux médecins prescripteurs.
-
-Le graphique est agréable à regarder mais inexploitable. La réunion se poursuit sans cette information, alors que les données existent en base et sont correctement réparties : seul l'affichage ne les nomme pas.
-
-**Impact**
-Graphique décoratif mais non informatif ; l'utilisateur ne peut rien en tirer.
-
-**Correctif**
-Ajouter `<Legend />` (déjà importé) et un `Tooltip` formaté :
-
-```tsx
-<Pie data={sourceData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90}>
-  {sourceData.map((entry, i) => <Cell key={entry.name} fill={PALETTE[i % PALETTE.length]} />)}
-</Pie>
-<Legend formatter={(v) => v} />
-<RechartsTooltip formatter={(v, n) => [`${v} patients`, n]} />
-```
-
-Ajouter aussi les libellés manquants de `source_of_acquisition` (mapping valeur technique → libellé FR).
-
-**Effort** : XS
-
----
-
-## BUG-15 — Noms de services (packs) dupliqués autorisés
-
-**Zone** : table `services`, `backend/src/modules/services.ts`, `components/service-form.tsx`
-
-**Constat**
-`POST /api/services { name: 'Consultation classique' }` alors qu'un service actif porte déjà ce nom → **201**. En base : deux services actifs homonymes (`is_active = true`), prix différents.
-
-**Scénario de reproduction**
-
-Une praticienne crée un nouveau service intitulé « Consultation classique », sans savoir qu'un service du même nom existe déjà avec un autre tarif (3 000 DZD au lieu de 2 500). Le doublon est accepté sans avertissement.
-
-La semaine suivante, la secrétaire planifie un rendez-vous depuis le calendrier Coach et se retrouve face à deux entrées strictement identiques, à des prix différents, sans moyen de les distinguer avant validation. Elle choisit la mauvaise : le patient est débité du mauvais montant et le pack généré ne correspond pas à la prestation réellement vendue.
-
-**Impact**
-Mauvais service sélectionné → mauvais prix, mauvais pack, mauvais débit du solde.
-
-**Correctif**
-
-**Décision** : on conserve l'unicité du nom, mais on **aide l'utilisateur à la respecter** — pendant la saisie, une recherche en temps réel affiche les services dont le nom est proche de ce qu'il tape.
-
-**1. Migration — unicité + recherche par similarité**
-
-```sql
--- Recherche "floue" par trigrammes
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Unicité du nom parmi les services actifs (insensible à la casse et aux espaces)
-CREATE UNIQUE INDEX IF NOT EXISTS services_name_active_unique
-  ON services (lower(btrim(name)))
-  WHERE is_active;
-```
-
-**2. Endpoint de recherche en temps réel**
-
-```ts
-// GET /api/services/search?q=consult
-router.get('/search', protect, async (req, res) => {
-  const q = String(req.query.q || '').trim();
-  if (q.length < 2) return res.json({ success: true, services: [] });
-
-  const result = await query(
-    `SELECT id, name, price, sessions, type,
-            round(similarity(name, $1)::numeric, 2) AS score
-       FROM services
-      WHERE is_active
-        AND (name ILIKE '%' || $1 || '%' OR similarity(name, $1) >= 0.3)
-      ORDER BY score DESC, name ASC
-      LIMIT 8`,
-    [q]
-  );
-  return res.json({ success: true, services: result.rows });
-});
-```
-
-> La route `/search` doit être déclarée **avant** `/:id`, sinon Express l'interprète comme un identifiant.
-
-**3. Formulaire — recherche pendant la frappe**
-
-- champ « Nom du service » avec **debounce de 250 ms** ;
-- liste « Services existants similaires » sous le champ : nom, prix, nombre de séances ;
-- si le nom saisi correspond **exactement** (casse/espaces ignorés) à un service actif : encart rouge « Ce nom existe déjà » et **bouton d'enregistrement désactivé** ;
-- sinon, la liste sert d'aide : l'utilisateur peut renommer (« Consultation classique (2026) », « Consultation + bilan »…) ;
-- cliquer sur un résultat peut préremplir le prix/les séances du service existant si l'utilisateur veut le modifier plutôt que le dupliquer.
-
-**4. Garde-fou serveur (inchangé)**
-
-La contrainte d'unicité renvoie désormais **409** avec un message explicite (via `sendDbError`) : « Cet enregistrement existe déjà. » — le formulaire affiche « Un service porte déjà ce nom. Choisissez un autre nom. »
-
-**Test de non-régression**
-
-- Taper « consult » → la liste affiche « Consultation », « Consultation classique »…
-- Créer « consultation classique » alors que « Consultation classique » existe → **409**, bouton bloqué côté formulaire.
-- Créer un nom réellement nouveau → **201**.
-- Désactiver un service puis créer le même nom → **201** (l'unicité ne porte que sur les services actifs).
-
-**Effort** : S
-
----
 
 ## BUG-16 — Dérive de données existante (packs, session_count, soldes)
 
@@ -268,130 +151,6 @@ COMMIT;
 **Effort** : M
 
 ---
-
-## BUG-17 — Garde `beforeunload` impossible à lever sur la page Paiements
-
-**Zone** : `app/payments/page.tsx` (lignes 95-181)
-
-**Constat**
-`mustPay` est dérivé d'une **ref** :
-
-```ts
-const mustPayRef = useRef(searchParams.get('patientId') !== null);
-const mustPay = mustPayRef.current;               // valeur figée au rendu
-...
-mustPayRef.current = false;                       // ne déclenche aucun re-rendu
-```
-
-Le bouton « Quitter sans payer » met la ref à `false` mais **ne provoque pas de re-rendu** : l'écouteur `beforeunload` reste attaché (son `useEffect` dépend de `mustPay`, qui vaut toujours `true`).
-
-**Scénario de reproduction**
-
-À l'issue d'une consultation, le praticien enregistre son compte rendu : l'application le redirige automatiquement vers la page de paiement, avec la fiche du patient préchargée et une fenêtre « Paiement requis ». Le patient devait régler en espèces, mais il annonce qu'il paiera la semaine suivante. Le praticien clique alors sur « Quitter sans payer » : la fenêtre disparaît.
-
-Il veut retourner sur l'agenda, mais le navigateur affiche immédiatement une demande de confirmation « Quitter le site ? Les modifications ne seront peut-être pas enregistrées ». Il confirme, retente, et la même alerte revient à chaque tentative, y compris pour fermer l'onglet. L'écran reste bloqué sur la page de paiement alors qu'il n'a plus rien à y faire ; il finit par fermer le navigateur de force. Sur un poste moins habitué, l'utilisateur reste prisonnier de la page et croit à une panne.
-
-**Impact**
-Utilisateur bloqué, crainte de perdre des données, obligation de tuer l'onglet. Très visible sur mobile.
-
-**Correctif**
-Utiliser un **état** (pas une ref) et supprimer l'écouteur dès la sortie :
-
-```ts
-const [mustPay, setMustPay] = useState(searchParams.get('patientId') !== null);
-
-useEffect(() => {
-  if (!mustPay) return;
-  const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-  window.addEventListener('beforeunload', handler);
-  return () => window.removeEventListener('beforeunload', handler);
-}, [mustPay]);
-
-// « Quitter sans payer »
-onClick={() => { setMustPay(false); if (pendingNavigation) router.push(pendingNavigation); }}
-// après paiement réussi
-setMustPay(false);
-```
-
-**Effort** : S
-
----
-
-## BUG-18 — Écrire un compte rendu clôture le RDV sans confirmation (avant l'heure)
-
-**Zone** : `app/appointments/[id]/report/page.tsx` (`handleSaveAll`, `handleSelectPack`), `backend/src/modules/appointments.ts`
-
-**Processus métier (validé — ne pas changer)**
-
-Un compte rendu porte sur **un rendez-vous** : dès qu'il est enregistré, le rendez-vous est **considéré comme terminé** et la séance est débitée (pack ou solde). C'est le comportement attendu.
-
-**Constat**
-
-Le passage en « terminé » est déclenché par le frontend (`appointments.complete(id)`) juste après l'enregistrement du compte rendu, **sans aucune confirmation**. Or un praticien peut très bien rédiger ses notes **la veille** ou **avant l'heure du créneau** : le rendez-vous est alors clôturé et la séance débitée alors que la consultation n'a pas encore eu lieu.
-
-**Scénario de reproduction**
-
-Un rendez-vous est planifié jeudi à 15 h 00. Le mercredi soir, le praticien prépare son dossier et saisit quelques notes dans le champ « Compte rendu », puis clique sur « Enregistrer » en pensant sauvegarder un brouillon.
-
-Le rendez-vous passe aussitôt au statut « terminé » : le trigger de débit s'exécute, la séance est retirée du pack du patient (ou débitée de son solde), alors que la consultation n'a pas encore eu lieu. Le lendemain, il faut modifier manuellement le statut pour rendre la séance — une manipulation que peu d'utilisateurs connaissent, et qui laisse une trace d'annulation dans le journal d'audit.
-
-**Impact**
-
-- Débit financier involontaire (pack ou solde) avant la tenue effective de la séance.
-- Le compteur de séances du patient est faussé.
-- Aucun signal : l'utilisateur n'est pas averti que son enregistrement a clôturé le rendez-vous.
-
-**Correctif (retenu)**
-
-> Le processus reste inchangé (rapport ⇒ RDV terminé). On ajoute uniquement une **confirmation lorsque le créneau n'a pas encore commencé.**
-
-**1. Popup de confirmation avant clôture anticipée** (`app/appointments/[id]/report/page.tsx`)
-
-```tsx
-const isBeforeSlot = appointment?.startTime
-  ? new Date(appointment.startTime).getTime() > Date.now()
-  : false;
-```
-
-À l'enregistrement (et lors de la sélection du pack différé, qui clôture aussi le RDV) :
-
-```tsx
-if (isBeforeSlot) {
-  const confirmed = await askConfirmation(
-    `Le créneau de ce rendez-vous n'a pas encore commencé (prévu le ${formatDateTime(appointment.startTime)}). ` +
-    `En continuant, le rendez-vous sera clôturé et la séance débitée avant l'heure prévue. ` +
-    `Souhaitez-vous prendre en charge ce rendez-vous maintenant ?`
-  );
-  if (!confirmed) return; // on reste sur la page, rien n'est clôturé
-}
-await appointments.complete(appointment.id);
-```
-
-Popup (AlertDialog) avec deux actions :
-- **Annuler** (par défaut) → retour au compte rendu, aucune clôture ;
-- **Clôturer maintenant** → enregistre la clôture et le débit.
-
-**2. Garde-fou côté serveur (traçabilité)**
-
-`PUT /api/appointments/:id/complete` accepte un indicateur `earlyCompletion: true` et le journalise (`logActivity`) afin que la clôture anticipée soit visible dans le journal d'audit, sans bloquer l'action.
-
-**3. Cas non concernés**
-
-- Créneau déjà commencé → aucune popup, comportement actuel.
-- RDV déjà terminé → aucune popup (rien à clôturer).
-- RDV annulé → pas de compte rendu possible.
-
-**Test de non-régression**
-
-- RDV à 15 h 00, enregistrement à 14 h 50 → **popup** ; « Annuler » ⇒ statut inchangé, solde inchangé ; « Clôturer maintenant » ⇒ terminé + débit.
-- RDV à 15 h 00, enregistrement à 15 h 05 → **aucune popup**, clôture directe.
-- Même contrôle sur le flux « pack différé » (la sélection du pack clôture aussi le RDV).
-
-**Effort** : S
-
----
-
-# 🟡 MOYEN
 
 ## BUG-19 — Faute de frappe dans un message d'erreur
 
@@ -800,7 +559,7 @@ Les patients réellement supprimés avant ce correctif ne peuvent pas être reco
 
 ## 3. Suivi des corrections appliquées
 
-Les 13 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026**, un commit par bug. Ils ne figurent plus dans le détail du rapport : ce tableau conserve l'historique.
+Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026**, un commit par bug. Ils ne figurent plus dans le détail du rapport : ce tableau conserve l'historique.
 
 | Bug | Commit | Correctif | Vérification effectuée |
 |---|---|---|---|
@@ -817,6 +576,10 @@ Les 13 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | BUG-11 | `66dc48d` | Refus des valeurs invalides au lieu de les ignorer | 5 cas → 400 |
 | BUG-12 | `290b744` | Bornes SQL + validation API (DOB, packs, remise, évaluations) | 6 cas → 400 |
 | BUG-13 | `c95e5c7` | Longueurs maximales (API + `maxLength`) | nom de 5 000 caractères → 400 |
+| BUG-14 | `a7d1021` | Libellé « patients » sous le total du donut | centre : « 17 / patients » |
+| BUG-15 | `2715fba` | Unicité du nom + recherche de similarité | doublon → 409, recherche « consult » |
+| BUG-17 | `8ab638f` | `mustPay` en état React (plus une ref) | navigation libre après paiement |
+| BUG-18 | `d46d77a` | Confirmation si le créneau n'a pas commencé | popup + journalisation `earlyCompletion` |
 
 ### 3.1 Migrations SQL appliquées en base
 
@@ -828,6 +591,7 @@ Les 13 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | `sql/patients_status.sql` | Colonne `patients.status` + CHECK (BUG-07) |
 | `sql/invoices_reference_unique.sql` | Index unique sur la référence de facture (BUG-08) |
 | `sql/business_bounds.sql` | Bornes métier : enfants, packs, remise, évaluations (BUG-12) |
+| `sql/services_name_unique.sql` | `pg_trgm` + unicité du nom des services actifs (BUG-15) |
 
 > `sql/integrity_fixes.sql` a également été mis à jour : une installation neuve obtient directement la version corrigée du trigger.
 
@@ -847,13 +611,13 @@ Les 13 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 ## 4. Plan de correction recommandé
 
 ### Lot 1 — Bloquants (½ journée)
-`BUG-14` · `BUG-15` · `BUG-19` · `BUG-20` · `BUG-21` · `BUG-22` · `BUG-26` · `BUG-27`
+`BUG-19` · `BUG-20` · `BUG-21` · `BUG-22` · `BUG-26` · `BUG-27`
 
 ### Lot 2 — Fiabilité des données (1 à 2 jours)
-`BUG-16` · `BUG-17` · `BUG-36`
+`BUG-16` · `BUG-36`
 
 ### Lot 3 — Finitions et durcissement (2 à 4 jours)
-`BUG-18` · `BUG-23` · `BUG-24` · `BUG-25` · `BUG-28` · `BUG-29` · `BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
+`BUG-23` · `BUG-24` · `BUG-25` · `BUG-28` · `BUG-29` · `BUG-30` · `BUG-31` · `BUG-32` · `BUG-33` · `BUG-34`
 
 ### Ordre d'application des migrations SQL restantes
 
