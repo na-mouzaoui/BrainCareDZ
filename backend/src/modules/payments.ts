@@ -113,7 +113,7 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Payment amount must be 0 or greater' });
     }
     if (safeAmount <= 0 && !notes) {
-      return res.status(400).json({ success: false, error: 'A mount of 0 requires notes' });
+      return res.status(400).json({ success: false, message: 'Un montant de 0 nécessite des notes.' });
     }
 
     const patient = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
