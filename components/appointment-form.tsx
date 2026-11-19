@@ -106,12 +106,10 @@ export default function AppointmentForm({
 
   const validPatients = useMemo(() => uniqueById(patientsList), [patientsList]);
   const validServices = useMemo(() => uniqueById(servicesList), [servicesList]);
-  const filteredServices = useMemo(() => {
-    if (formData.preferredRole === 'admin' || formData.preferredRole === 'psy') {
-      return validServices.filter((s) => s.type === 'psy');
-    }
-    return validServices;
-  }, [validServices, formData.preferredRole]);
+  // Tous les services actifs sont proposés quel que soit le calendrier.
+  // (L'ancien filtre `s.type === 'psy'` ne correspondait à aucune valeur en base
+  //  et vidait la liste « Autres services » pour les calendriers Admin et Psy.)
+  const filteredServices = validServices;
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
