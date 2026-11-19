@@ -144,7 +144,7 @@ La contrainte `payments_patient_id_fkey` est en `RESTRICT` : la base **protège*
 
 **Comportement attendu (spécification validée)**
 
-> **Supprimer un patient ne doit rien supprimer.** L'action doit seulement **marquer la fiche comme supprimée**, et le patient disparaît des listes — mais **tout son historique reste en base et reste visible là où il sert de référence.**
+> **Supprimer un patient ne doit rien effacer de son passé.** L'action **marque la fiche comme supprimée** : le patient disparaît des listes, mais **tout son historique reste en base et reste visible là où il sert de référence**. Seule exception, les **rendez-vous à venir** (`status = 'scheduled'`) sont retirés pour libérer les créneaux.
 
 **Colonne à créer** : `patients.is_deleted` (booléen, `false` par défaut).
 
@@ -153,17 +153,17 @@ La contrainte `payments_patient_id_fkey` est en `RESTRICT` : la base **protège*
 | **Liste des patients** (`/patients`) | le patient **n'apparaît plus** (filtre `is_deleted = false`) |
 | **Sélecteurs de patient** (formulaire RDV, formulaire paiement, liste d'attente) | le patient **n'est plus proposé** (on ne crée pas de nouveaux actes pour un dossier supprimé) |
 | **Liste des paiements** | le paiement **reste affiché avec le nom du patient** — le JOIN sur `patients` n'est **pas** filtré |
-| **Rendez-vous** (calendrier, liste, compte rendu) | les RDV **restent**, avec le nom du patient |
+| **Rendez-vous** (calendrier, liste, compte rendu) | les RDV **terminés et annulés restent**, avec le nom du patient ; les RDV **`scheduled` (à venir) sont supprimés** et le créneau redevient libre |
 | **Historique / rapports / exports** | **inchangés**, le nom reste résolu |
 | **Fiche patient par URL directe** | reste consultable (lecture seule) avec un bandeau « Dossier supprimé » |
-| **Base de données** | `payments`, `appointments`, `appointment_patients`, `session_notes`, `patient_packs`, `patient_pack_usages`, `patient_outcomes`, `patient_motifs` : **aucune ligne supprimée** |
+| **Base de données** | `payments`, `session_notes`, `patient_packs`, `patient_pack_usages`, `patient_outcomes`, `patient_motifs` : **aucune ligne supprimée** ; seuls les RDV `scheduled` et leurs lignes `appointment_patients` sont retirés |
 | **Solde / KPI financiers** | **inchangés** (les encaissements restent comptabilisés) |
 | **Restauration** | possible : `is_deleted = false` remet le patient dans les listes |
 
 **Conséquences architecturales (avantages)**
 
 1. Plus aucune perte d'écriture comptable, ni de compte rendu, ni d'évaluation.
-2. Le trigger `sync_patient_practitioner` étant corrigé (`e02ef1f`), la route supprime réellement les rendez-vous : c'est aujourd'hui qu'elle détruit tout. Avec la suppression logique, elle n'en supprime plus aucun.
+2. Le trigger `sync_patient_practitioner` étant corrigé (`e02ef1f`), la route supprime réellement les rendez-vous : c'est aujourd'hui qu'elle détruit tout. Avec la suppression logique, elle ne supprime plus que **les rendez-vous à venir**, jamais l'historique.
 3. La contrainte `RESTRICT` de `payments` retrouve son rôle protecteur : elle n'est plus contournée.
 4. L'action devient **réversible** et traçable (date + auteur de la suppression).
 
@@ -201,24 +201,77 @@ ALTER TABLE patients
 CREATE INDEX idx_patients_active ON patients (created_at DESC) WHERE is_deleted = false;
 ```
 
-**2. Route — remplacer le `DELETE` par un `UPDATE`**
+**2. Route — remplacer le `DELETE` par un `UPDATE`, dans une transaction**
 
 ```ts
 router.delete('/:id', protect, async (req, res) => {
-  const result = await query(
-    `UPDATE patients
-        SET is_deleted = true, deleted_at = NOW(), deleted_by = $2
-      WHERE id = $1 AND is_deleted = false
-      RETURNING id`,
-    [req.params.id, req.user.id]
-  );
-  if (result.rowCount === 0) {
-    return res.status(404).json({ success: false, message: 'Patient introuvable ou déjà supprimé.' });
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Rendez-vous À VENIR uniquement : on retire le patient de la jonction.
+    //    Un RDV partagé (calendrier Coach) n'est supprimé que s'il ne reste
+    //    plus aucun patient rattaché — les autres patients gardent le leur.
+    const upcoming = await client.query(
+      `SELECT a.id
+         FROM appointments a
+         JOIN appointment_patients ap ON ap.appointment_id = a.id
+        WHERE ap.patient_id = $1 AND a.status = 'scheduled'
+        FOR UPDATE`,
+      [req.params.id]
+    );
+
+    await client.query(
+      `DELETE FROM appointment_patients ap
+        USING appointments a
+        WHERE ap.appointment_id = a.id
+          AND ap.patient_id = $1
+          AND a.status = 'scheduled'
+          AND NOT EXISTS (SELECT 1 FROM session_notes sn WHERE sn.appointment_patient_id = ap.id)`,
+      [req.params.id]
+    );
+
+    for (const row of upcoming.rows) {
+      await client.query(
+        `DELETE FROM appointments a
+          WHERE a.id = $1
+            AND NOT EXISTS (SELECT 1 FROM appointment_patients ap WHERE ap.appointment_id = a.id)`,
+        [row.id]
+      );
+    }
+
+    // 2. Archivage : paiements, comptes rendus, packs et évaluations restent intacts.
+    const result = await client.query(
+      `UPDATE patients
+          SET is_deleted = true, deleted_at = NOW(), deleted_by = $2
+        WHERE id = $1 AND is_deleted = false
+        RETURNING id`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Patient introuvable ou déjà supprimé.' });
+    }
+
+    await client.query('COMMIT');
+    await logActivity({
+      req, action: 'DELETE', resource: 'patient', resourceId: req.params.id,
+      metadata: { archived: true, scheduledAppointmentsRemoved: upcoming.rowCount },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `Dossier patient archivé${upcoming.rowCount ? ` — ${upcoming.rowCount} rendez-vous à venir supprimé(s)` : ''}.`,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    return sendDbError(res, error, 'Erreur interne du serveur');
+  } finally {
+    client.release();
   }
-  await logActivity({ req, action: 'DELETE', resource: 'patient', resourceId: req.params.id });
-  return res.status(200).json({ success: true, message: 'Dossier patient archivé.' });
 });
 ```
+
+> Les **packs** déjà créés à la prise de rendez-vous ne sont pas supprimés : ils restent dans l'historique financier. Seuls les créneaux à venir sont libérés.
 
 **3. Backend — filtrer uniquement là où il faut**
 
@@ -235,7 +288,7 @@ router.delete('/:id', protect, async (req, res) => {
 
 **4. Frontend**
 
-- Texte du dialogue : « **Archiver le dossier** — le patient disparaîtra des listes, mais son historique (paiements, rendez-vous, comptes rendus) restera conservé. » (remplacer « Cette action est irréversible »).
+- Texte du dialogue : « **Archiver le dossier** — le patient disparaîtra des listes et ses rendez-vous **à venir** seront supprimés, mais son historique (paiements, séances passées, comptes rendus) restera conservé. » (remplacer « Cette action est irréversible »).
 - Bandeau « Dossier supprimé » sur la fiche patient ouverte par URL directe.
 - Option de filtre « Afficher les dossiers supprimés » (réservée aux admins) et action « Restaurer le dossier ».
 - Les listes Paiements / RDV / Comptes rendus n'affichent **aucun** indicateur bloquant : elles continuent d'afficher le nom.
