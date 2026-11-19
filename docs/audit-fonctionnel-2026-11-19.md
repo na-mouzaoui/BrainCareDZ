@@ -2,7 +2,7 @@
 
 > **Nature** : audit **dynamique** (application réelle pilotée dans un navigateur + sondage direct de l'API + vérification en base PostgreSQL). Tous les constats ci-dessous ont été **reproduits**, pas seulement déduits du code.
 > **Lecture** : chaque problème est présenté sous forme de **scénario raconté** (qui agit, à quel moment, ce qu'il fait, ce qu'il voit, ce que cela provoque), suivi de l'impact, du correctif technique et de l'effort estimé.
-> **État** : **18 problèmes ouverts**. Les 17 bugs corrigés (BUG-01 → BUG-18, sauf BUG-16) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
+> **État** : **14 problèmes ouverts**. Les 21 bugs traités (19 corrigés + 2 vérifiés conformes) ont été retirés du détail ; leurs commits sont conservés au **§ 3** (poussés sur `main` le 19/11/2026).
 > **Date** : 19/11/2026
 > **Environnement** : front `http://localhost:3003` (Next 16.3.6 — ports 3000/3001/3002 occupés par d'autres projets), API `http://localhost:5002`, PostgreSQL `braincare` (port 5433).
 > **Compte utilisé** : `admin` (rôle admin) + un compte `psy` temporaire créé puis supprimé.
@@ -41,9 +41,9 @@
 |---|---|
 | 🔴 Critique | 0 |
 | 🟠 Majeur | 2 |
-| 🟡 Moyen | 13 |
+| 🟡 Moyen | 9 |
 | ⚪ Robustesse | 3 |
-| **Total** | **18** |
+| **Total** | **14** |
 
 > **État au 19/11/2026** : les 17 bugs déjà corrigés (BUG-01 → BUG-18, sauf BUG-16 qui reste ouvert) ont été **retirés de ce document**. Il ne reste que les points ouverts. L'historique des corrections est conservé au **§ 3**, et les commits sont sur `main`.
 
@@ -51,22 +51,18 @@
 
 1. **BUG-36** — « Supprimer le patient » détruit les paiements : passer en suppression logique (`is_deleted`).
 2. **BUG-16** — dérive de données existante (16 packs, 2 `session_count`, 1 solde).
-3. **BUG-19 / BUG-20 / BUG-21** — message tronqué, état vide trompeur, réinitialisation des filtres.
+3. **BUG-26 / BUG-27** — formulaire d'édition vide ~1 s, bouton recouvert par la pastille.
 4. **BUG-32 / BUG-33 / BUG-34** — double réservation, « supprimer » trompeur, suppression d'utilisateur en 500.
 
 ---
 
 ## 2. Tableau récapitulatif
 
-> Ce tableau ne liste que les **points encore ouverts**. Les bugs corrigés (BUG-01 → BUG-18, sauf BUG-16) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
+> Ce tableau ne liste que les **points encore ouverts**. Les bugs traités (BUG-01 → BUG-22, sauf BUG-16) ont été retirés du rapport ; leurs commits figurent au **§ 3**.
 
 | ID | Problème | Gravité | Zone | Effort |
 |---|---|---|---|---|
 | BUG-16 | Dérive de données existante (packs, session_count, soldes) | 🟠 Majeur | SQL | M |
-| BUG-19 | Faute « A mount of 0 requires notes » | 🟡 Moyen | Back | XS |
-| BUG-20 | État vide trompeur quand un filtre ne retourne rien | 🟡 Moyen | Front (`patients/page.tsx`) | XS |
-| BUG-21 | « Réinitialiser » n'applique pas la réinitialisation | 🟡 Moyen | Front (`filter-dialog.tsx`) | XS |
-| BUG-22 | Date de naissance future → message d'erreur faux | 🟡 Moyen | Front (`patient-form.tsx`) | XS |
 | BUG-23 | Message « Créneau complet » faux pour un excès de patients | 🟡 Moyen | Back (`appointments.ts`) | XS |
 | BUG-24 | Facture : date non préremplie, TVA ambiguë (montant vs %) | 🟡 Moyen | Front | S |
 | BUG-25 | Rafale de 8 appels API avant résolution de l'auth | 🟡 Moyen | Front | S |
@@ -149,63 +145,6 @@ COMMIT;
 > ℹ️ Pendant l'audit, le solde de *nazim mouzaoui* a été recalculé (16 020 → 16 200). Si 16 020 était une valeur volontaire (ajustement manuel), il faudra la rétablir après avoir identifié l'origine de l'écart.
 
 **Effort** : M
-
----
-
-## BUG-19 — Faute de frappe dans un message d'erreur
-
-`backend/src/modules/payments.ts` : `'A mount of 0 requires notes'` → `'Un montant de 0 nécessite des notes'`.
-
-**Scénario de reproduction**
-
-Une secrétaire enregistre un paiement de 0 DZD accompagné d'une note, comme l'application le permet. Une erreur de saisie provoque le refus du serveur, qui répond en anglais : « A mount of 0 requires notes ». Elle ne comprend ni la langue ni la faute de frappe, suppose que le paiement est refusé pour une autre raison et recommence plusieurs fois. Le support reçoit un appel pour un simple message mal rédigé.
-
-**Effort** : XS
-
----
-
-## BUG-20 — État vide trompeur quand un filtre ne retourne rien
-
-**Constat** : avec une recherche ou un filtre sans résultat, la liste Patients affiche « **Aucun patient pour le moment** — Ajouter votre premier patient », ce qui laisse croire que la base est vide.
-
-**Scénario de reproduction**
-
-La secrétaire recherche une patiente dont elle ne connaît que le début du nom, se trompe et saisit « zzz ». La liste se vide et affiche un encart de bienvenue : « Aucun patient pour le moment — Ajouter votre premier patient ». Elle en conclut que la base a été vidée ou qu'un incident a effacé les dossiers, et appelle immédiatement le support.
-
-Le message devrait simplement indiquer qu'aucun résultat ne correspond aux filtres, avec un bouton pour les réinitialiser ; il laisse au contraire croire que le cabinet n'a plus aucun patient.
-
-**Correctif** : conditionner l'état vide à l'absence de filtre actif (`countActiveFilters(filters) === 0`).
-**Effort** : XS
-
----
-
-## BUG-21 — « Réinitialiser » n'applique pas la réinitialisation
-
-**Constat** : le bouton vide les champs mais la liste reste filtrée ; il faut cliquer « Appliquer » ensuite.
-
-**Scénario de reproduction**
-
-Après une recherche infructueuse, la secrétaire clique sur « Réinitialiser » dans le panneau de filtres. Les champs se vident bien, mais la liste reste désespérément vide : la réinitialisation n'a pas été appliquée. Elle doit deviner qu'il faut ensuite cliquer sur « Appliquer », un second bouton situé juste à côté. Persuadée que l'application est bloquée, elle recharge la page — seule manipulation qui rétablit réellement l'affichage complet.
-
-**Correctif** : `onClick={() => { resetFilters(); applyFilters(); }}` (ou « Réinitialiser et appliquer »).
-**Effort** : XS
-
----
-
-## BUG-22 — Date de naissance future → message d'erreur faux
-
-**Constat** : saisir `31/12/2099` affiche « Date de naissance invalide (format JJ/MM/AAAA) » alors que le format est correct ; le vrai motif est « date dans le futur ».
-
-**Scénario de reproduction**
-
-En saisissant la date de naissance d'un patient, la secrétaire tape « 31/12/2099 » par erreur, en inversant deux chiffres. Le message affiché est « Date de naissance invalide (format JJ/MM/AAAA) ». Elle vérifie donc son format pendant plusieurs minutes, essaie « 31/12/2099 », puis « 31-12-2099 », puis appelle le support : le format était correct depuis le début, c'est l'année qui était dans le futur. Le message l'a envoyée sur une fausse piste et lui a fait perdre un temps considérable.
-
-**Correctif** : distinguer les deux cas dans `handleDobManualChange` :
-```ts
-if (parsed > new Date()) return setDobError('La date de naissance ne peut pas être dans le futur.');
-if (Number.isNaN(parsed.getTime())) return setDobError('Format attendu : JJ/MM/AAAA.');
-```
-**Effort** : XS
 
 ---
 
@@ -580,6 +519,10 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 | BUG-15 | `2715fba` | Unicité du nom + recherche de similarité | doublon → 409, recherche « consult » |
 | BUG-17 | `8ab638f` | `mustPay` en état React (plus une ref) | navigation libre après paiement |
 | BUG-18 | `d46d77a` | Confirmation si le créneau n'a pas commencé | popup + journalisation `earlyCompletion` |
+| BUG-19 | `205401f` | Message français + clé `message` | 400 « Un montant de 0 nécessite des notes. » |
+| BUG-20 | — | **Vérifié conforme** (état vide distingué des filtres) | filtre sans résultat → « Aucun patient ne correspond… » |
+| BUG-21 | — | **Vérifié conforme** (réinitialisation appliquée) | « Réinitialiser » → liste restaurée (17 patients) |
+| BUG-22 | `73edcc5` | Message distinct si date de naissance future | 31/12/2099 → « ne peut pas être dans le futur » |
 
 ### 3.1 Migrations SQL appliquées en base
 
@@ -611,7 +554,7 @@ Les 17 premiers bugs ont été corrigés et poussés sur `main` le **19/11/2026*
 ## 4. Plan de correction recommandé
 
 ### Lot 1 — Bloquants (½ journée)
-`BUG-19` · `BUG-20` · `BUG-21` · `BUG-22` · `BUG-26` · `BUG-27`
+`BUG-26` · `BUG-27`
 
 ### Lot 2 — Fiabilité des données (1 à 2 jours)
 `BUG-16` · `BUG-36`
