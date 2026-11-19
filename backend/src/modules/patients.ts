@@ -4,6 +4,22 @@ import { query } from '../db/index.js';
 import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
+const PATIENT_STATUSES = ['En cours', 'Terminé', 'Abandon'];
+const INVALID_STATUS = Symbol('invalid-status');
+
+/**
+ * Normalise le statut patient :
+ * - `undefined` → non fourni (on ne touche pas à la valeur existante)
+ * - `null` / `''` → effacement (NULL)
+ * - toute autre valeur hors liste → symbole INVALID_STATUS (400)
+ */
+function normalizePatientStatus(value: any): string | null | typeof INVALID_STATUS {
+  if (value === undefined) return undefined as any;
+  if (value === null || String(value).trim() === '') return null;
+  const v = String(value).trim();
+  return PATIENT_STATUSES.includes(v) ? v : INVALID_STATUS;
+}
+
 function normalizeGender(value) {
   if (value === undefined || value === null || value === '') return null;
 
@@ -72,8 +88,10 @@ async function setPatientMotifs(patientId, motifIds) {
 async function recordOutcome(patientId, userId, outcome) {
   const { perceivedImprovement, observedChanges, globalSatisfaction, wouldRecommend } = outcome || {};
   const hasValues =
-    perceivedImprovement !== undefined || observedChanges ||
-    globalSatisfaction !== undefined || wouldRecommend !== undefined;
+    perceivedImprovement !== undefined ||
+    (observedChanges !== undefined && observedChanges !== null && String(observedChanges).trim() !== '') ||
+    globalSatisfaction !== undefined ||
+    wouldRecommend === true;
   if (!hasValues) return;
 
   await query(
@@ -104,12 +122,18 @@ c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children
          c.source_sub AS "sourceSub", c.source_account AS "sourceAccount",
          c.first_contact_date AS "firstContactDate", c.first_appointment_date AS "firstAppointmentDate",
          c.abandon_reason AS "abandonReason",
+         c.status AS "status",
          c.balance AS "balance",
          pack_next.service_name AS "packServiceName",
          pack_next.pack_total AS "packTotal",
          pack_next.pack_remaining AS "packRemaining",
          pack_next.pack_price_per_session AS "packPricePerSession",
          pack_list.pack_list AS "packList",
+         last_outcome.perceived_improvement AS "perceivedImprovement",
+         last_outcome.global_satisfaction AS "globalSatisfaction",
+         last_outcome.observed_changes AS "observedChanges",
+         last_outcome.would_recommend AS "wouldRecommend",
+         last_outcome.evaluated_at AS "evaluatedAt",
          cur_prac."practitionerId" AS "practitionerId",
          cur_prac."practitionerName" AS "practitionerName",
          cur_prac."practitionerEmail" AS "practitionerEmail",
@@ -126,6 +150,13 @@ c.marital_status AS "maritalStatus", c.has_children AS "hasChildren", c.children
          ) AS "appointmentCount"
   FROM patients c
   LEFT JOIN professions prof ON prof.id = c.profession_id
+  LEFT JOIN LATERAL (
+    SELECT perceived_improvement, global_satisfaction, observed_changes, would_recommend, evaluated_at
+    FROM patient_outcomes o
+    WHERE o.patient_id = c.id
+    ORDER BY o.evaluated_at DESC
+    LIMIT 1
+  ) last_outcome ON true
   LEFT JOIN LATERAL (
     SELECT u.id AS "practitionerId", u.name AS "practitionerName", u.email AS "practitionerEmail"
     FROM appointments a
@@ -406,12 +437,19 @@ router.post(
         consultationReasons, difficultyDuration, commune,
         previousConsultation, previousType, previousNeurofeedback, currentFollowUp,
         sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount, firstContactDate, firstAppointmentDate,
-        abandonReason,
+        abandonReason, status,
         perceivedImprovement, observedChanges, globalSatisfaction, wouldRecommend,
       } = req.body;
 
       if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
         return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+      }
+      const patientStatus = normalizePatientStatus(status);
+      if (patientStatus === INVALID_STATUS) {
+        return res.status(400).json({ success: false, message: 'Statut patient invalide.' });
+      }
+      if (patientStatus === 'Abandon' && !String(abandonReason || '').trim()) {
+        return res.status(400).json({ success: false, message: "Le motif d'abandon est requis lorsque le statut est « Abandon »." });
       }
 
       const professionId = await resolveProfessionId(profession);
@@ -425,14 +463,15 @@ router.post(
           difficulty_duration, commune,
           previous_consultation, previous_type, previous_neurofeedback, current_follow_up,
           source_of_acquisition, source_details, source_sub, source_account, first_contact_date, first_appointment_date,
-          abandon_reason
+          abandon_reason, status
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11,
           $12,
           $13, $14,
           $15, $16, $17, $18,
-          $19, $20, $21, $22, $23, $24
+          $19, $20, $21, $22, $23, $24,
+          $25
         ) RETURNING id`,
         [
           firstName, lastName, email, phone, dateOfBirth || null, normalizeGender(gender),
@@ -443,6 +482,7 @@ router.post(
           currentFollowUp ?? false,
           sourceOfAcquisition || null, sourceDetails || null, sourceSub || null, sourceAccount || null, firstContactDate || null, firstAppointmentDate || null,
           abandonReason || null,
+          patientStatus ?? null,
         ]
       );
 
@@ -476,12 +516,21 @@ router.put('/:id', protect, async (req, res) => {
       consultationReasons, difficultyDuration, commune,
         previousConsultation, previousType, previousNeurofeedback, currentFollowUp,
         sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount, firstContactDate, firstAppointmentDate,
-        abandonReason,
+        abandonReason, status,
         perceivedImprovement, observedChanges, globalSatisfaction, wouldRecommend,
     } = req.body;
 
     if (gender !== undefined && gender !== '' && normalizeGender(gender) === null) {
       return res.status(400).json({ success: false, message: 'Gender value is invalid' });
+    }
+
+    const statusProvided = status !== undefined;
+    const patientStatus = normalizePatientStatus(status);
+    if (patientStatus === INVALID_STATUS) {
+      return res.status(400).json({ success: false, message: 'Statut patient invalide.' });
+    }
+    if (patientStatus === 'Abandon' && !String(abandonReason || '').trim()) {
+      return res.status(400).json({ success: false, message: "Le motif d'abandon est requis lorsque le statut est « Abandon »." });
     }
 
     const professionId = await resolveProfessionId(profession);
@@ -512,7 +561,12 @@ router.put('/:id', protect, async (req, res) => {
         source_account = COALESCE($22, source_account),
         first_contact_date = COALESCE($23, first_contact_date),
         first_appointment_date = COALESCE($24, first_appointment_date),
-        abandon_reason = COALESCE($25, abandon_reason),
+        abandon_reason = CASE
+          WHEN $26::boolean AND $27::text = 'Abandon' THEN COALESCE($25::text, abandon_reason)
+          WHEN $26::boolean THEN NULL
+          ELSE COALESCE($25, abandon_reason)
+        END,
+        status = CASE WHEN $26::boolean THEN $27::text ELSE status END,
         updated_at = NOW()
       WHERE id = $1`,
       [
@@ -527,6 +581,7 @@ router.put('/:id', protect, async (req, res) => {
         sourceOfAcquisition, sourceDetails, sourceSub, sourceAccount,
         firstContactDate || null, firstAppointmentDate || null,
         abandonReason,
+        statusProvided, patientStatus ?? null,
       ]
     );
 
